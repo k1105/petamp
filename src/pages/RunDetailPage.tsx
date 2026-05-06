@@ -7,6 +7,7 @@ import mapboxgl from 'mapbox-gl'
 import { BaseMap, useMap, useMapZoom } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AnimationControl } from '../components/detail/AnimationControl'
+import { PathDebugPanel } from '../components/recording/PathDebugPanel'
 import { useAnimation } from '../hooks/useAnimation'
 import { useElevationStats } from '../hooks/useElevationStats'
 import { useRunStore } from '../store/useRunStore'
@@ -153,6 +154,7 @@ export function RunDetailPage() {
   const navigate = useNavigate()
   const [run, setRun] = useState<Run | null>(null)
   const [mapVisible, setMapVisible] = useState(true)
+  const [debugOpen, setDebugOpen] = useState(false)
   const { runs } = useRunStore()
   const { currentTime, isPlaying, duration, setDuration, play, stop, seekTo, reset } = useAnimation()
   const { gain } = useElevationStats(run?.trackPoints ?? [])
@@ -200,6 +202,13 @@ export function RunDetailPage() {
       >
         {mapVisible ? '◱' : '◧'}
       </button>
+      <button
+        className="debug-btn"
+        onClick={() => setDebugOpen(true)}
+        title="パスデータを表示"
+      >
+        {'{}'}
+      </button>
 
       <div className="bottom-bar">
         <div className="run-meta">
@@ -226,6 +235,13 @@ export function RunDetailPage() {
           onReset={reset}
         />
       </div>
+
+      {debugOpen && (
+        <PathDebugPanel
+          trackPoints={run.trackPoints}
+          onCancel={() => setDebugOpen(false)}
+        />
+      )}
     </div>
   )
 }

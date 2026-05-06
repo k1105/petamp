@@ -1,14 +1,15 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import mapboxgl from 'mapbox-gl'
 import { PathLayer } from '@deck.gl/layers'
 import { BaseMap, useMap } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { LiveStats } from '../components/recording/LiveStats'
+import { PathDebugPanel } from '../components/recording/PathDebugPanel'
 import { useGpsRecorder } from '../hooks/useGpsRecorder'
 import { useRunStore } from '../store/useRunStore'
 import { buildPathLayerData } from '../utils/pathLayerData'
-import type { Run } from '../types'
+import type { Run, TrackPoint } from '../types'
 
 function GeolocateTracker() {
   const { map } = useMap()
@@ -33,13 +34,19 @@ export function RecordingPage() {
   const navigate = useNavigate()
   const { isRecording, trackPoints, error, start, stop } = useGpsRecorder()
   const { addRun } = useRunStore()
+  const [debugPoints, setDebugPoints] = useState<TrackPoint[] | null>(null)
   const handleStart = () => {
     start()
   }
 
-  const handleStop = async () => {
+  const handleStop = () => {
     const points = stop()
-    if (points.length === 0) {
+    setDebugPoints(points)
+  }
+
+  const handleProceed = async () => {
+    const points = debugPoints
+    if (!points || points.length === 0) {
       navigate('/')
       return
     }
@@ -53,6 +60,10 @@ export function RecordingPage() {
     }
     await addRun(run)
     navigate(`/run/${run.id}`)
+  }
+
+  const handleCancelDebug = () => {
+    setDebugPoints(null)
   }
 
   const layers = [
@@ -91,6 +102,14 @@ export function RecordingPage() {
           </button>
         </div>
       </div>
+
+      {debugPoints !== null && (
+        <PathDebugPanel
+          trackPoints={debugPoints}
+          onProceed={handleProceed}
+          onCancel={handleCancelDebug}
+        />
+      )}
     </div>
   )
 }
