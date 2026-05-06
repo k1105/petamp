@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import { SphereGeometry, CylinderGeometry } from '@luma.gl/engine'
@@ -10,6 +10,7 @@ import { RunCard } from '../components/gallery/RunCard'
 import { buildTubeSegments, buildTubeJoints } from '../utils/tubeData'
 import { useGalleryAnimation } from '../hooks/useGalleryAnimation'
 import { useCurrentPosition } from '../hooks/useCurrentPosition'
+import { useMetaballSheet } from '../hooks/useMetaballSheet'
 import type { DotPosition } from '../hooks/useGalleryAnimation'
 import type { Run } from '../types'
 
@@ -76,6 +77,11 @@ export function GalleryPage() {
   const dots = useGalleryAnimation(runs)
   const initialCenter = useCurrentPosition()
 
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const fabRef = useRef<HTMLButtonElement>(null)
+  useMetaballSheet({ canvasRef, sheetRef, fabRef })
+
   useEffect(() => { loadRuns() }, [])
 
   const handleFabClick = (e: React.MouseEvent) => {
@@ -100,10 +106,12 @@ export function GalleryPage() {
 
       {armed && <div className="armed-backdrop" onClick={() => setArmed(false)} />}
 
-      <div className={`bottom-sheet ${listOpen ? 'open' : ''} ${armed ? 'armed' : ''}`}>
+      <canvas ref={canvasRef} className="metaball-canvas" />
+
+      <div ref={sheetRef} className={`bottom-sheet ${listOpen ? 'open' : ''} ${armed ? 'armed' : ''}`}>
         <div className="bottom-sheet-shape">
-          <div className="bottom-sheet-bg" />
           <button
+            ref={fabRef}
             className="fab fab-sheet"
             onClick={handleFabClick}
             aria-label={armed ? 'START' : '記録開始'}
