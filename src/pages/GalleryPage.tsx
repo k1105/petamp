@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ScatterplotLayer } from '@deck.gl/layers'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import { SphereGeometry, CylinderGeometry } from '@luma.gl/engine'
 import { BaseMap, useMapZoom } from '../components/map/BaseMap'
@@ -30,17 +29,6 @@ function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
   const layers = useMemo(() => {
     if (t === 0) return []
     return [
-      ...runs.map(run =>
-        new ScatterplotLayer({
-          id: `run-paint-${run.id}`,
-          data: run.trackPoints,
-          getPosition: p => [p.lng, p.lat, 0],
-          getRadius: 35,
-          radiusUnits: 'meters',
-          getFillColor: [28, 151, 94, Math.round(22 * t)],
-          parameters: { depthTest: false },
-        })
-      ),
       ...runs.flatMap(run => [
         new SimpleMeshLayer({
           id: `run-tube-${run.id}`,

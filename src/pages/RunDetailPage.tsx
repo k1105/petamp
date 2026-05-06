@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ScatterplotLayer } from '@deck.gl/layers'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import { SphereGeometry, CylinderGeometry } from '@luma.gl/engine'
 import mapboxgl from 'mapbox-gl'
@@ -106,15 +105,6 @@ function DetailLayers({
     }
     if (t === 0) return []
     return [
-      new ScatterplotLayer({
-        id: 'run-paint',
-        data: run.trackPoints,
-        getPosition: p => [p.lng, p.lat, 0],
-        getRadius: 35,
-        radiusUnits: 'meters',
-        getFillColor: [28, 151, 94, Math.round(22 * t)],
-        parameters: { depthTest: false },
-      }),
       new SimpleMeshLayer({
         id: 'run-tube',
         data: tubeData,
