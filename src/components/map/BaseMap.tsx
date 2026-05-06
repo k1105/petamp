@@ -1,6 +1,7 @@
 import { useEffect, useRef, createContext, useContext, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { Icon } from '@iconify/react'
 import { useOrbitMode } from '../../hooks/useOrbitMode'
 import { DebugPanel } from './DebugPanel'
 
@@ -108,8 +109,9 @@ export function BaseMap({
           className={`orbit-toggle ${orbitMode ? 'orbit-toggle-active' : ''}`}
           onClick={() => setOrbitMode(v => !v)}
           title={orbitMode ? 'パンモード' : '回転モード'}
+          aria-label={orbitMode ? 'パンモード' : '回転モード'}
         >
-          {orbitMode ? '↻' : '⊕'}
+          <Icon icon={orbitMode ? 'lucide:rotate-3d' : 'lucide:move'} />
         </button>
       )}
       {map && <><DebugPanel />{children}</>}

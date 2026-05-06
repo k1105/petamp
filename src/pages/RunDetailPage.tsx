@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import { SphereGeometry, CylinderGeometry } from '@luma.gl/engine'
 import mapboxgl from 'mapbox-gl'
+import { Icon } from '@iconify/react'
 import { BaseMap, useMap, useMapZoom } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AnimationControl } from '../components/detail/AnimationControl'
@@ -184,20 +185,24 @@ export function RunDetailPage() {
         </BaseMap>
       </div>
 
-      <button className="back-btn" onClick={() => navigate('/')}>←</button>
+      <button className="back-btn" onClick={() => navigate('/')} aria-label="戻る">
+        <Icon icon="lucide:arrow-left" />
+      </button>
       <button
         className={`map-toggle-btn ${!mapVisible ? 'active' : ''}`}
         onClick={() => setMapVisible(v => !v)}
         title={mapVisible ? 'マップ非表示' : 'マップ表示'}
+        aria-label={mapVisible ? 'マップ非表示' : 'マップ表示'}
       >
-        {mapVisible ? '◱' : '◧'}
+        <Icon icon={mapVisible ? 'lucide:map-off' : 'lucide:map'} />
       </button>
       <button
         className="debug-btn"
         onClick={() => setDebugOpen(true)}
         title="パスデータを表示"
+        aria-label="パスデータを表示"
       >
-        {'{}'}
+        <Icon icon="lucide:braces" />
       </button>
 
       <div className="bottom-bar">

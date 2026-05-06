@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import { SphereGeometry, CylinderGeometry } from '@luma.gl/engine'
+import { Icon } from '@iconify/react'
 import { BaseMap, useMapZoom } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { useRunStore } from '../store/useRunStore'
@@ -105,8 +106,9 @@ export function GalleryPage() {
           <button
             className="fab fab-sheet"
             onClick={handleFabClick}
+            aria-label={armed ? 'START' : '記録開始'}
           >
-            <span className="fab-icon">●</span>
+            <span className="fab-icon"><Icon icon="lucide:circle-dot" /></span>
             {armed && <span className="fab-label">START</span>}
           </button>
         </div>

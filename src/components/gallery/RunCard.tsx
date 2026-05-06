@@ -1,3 +1,4 @@
+import { Icon } from '@iconify/react'
 import type { Run } from '../../types'
 import { totalDistance, elevationGain } from '../../utils/geoUtils'
 import { formatDistance, formatElevation, formatDate } from '../../utils/formatters'
@@ -20,8 +21,9 @@ export function RunCard({ run, onDelete }: RunCardProps) {
         <button
           className="run-card-delete"
           onClick={e => { e.stopPropagation(); onDelete(run.id) }}
+          aria-label="削除"
         >
-          削除
+          <Icon icon="lucide:trash-2" />
         </button>
       </div>
       <div className="run-card-date">{formatDate(run.startedAt)}</div>

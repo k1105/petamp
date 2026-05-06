@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import mapboxgl from 'mapbox-gl'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import { SphereGeometry, CylinderGeometry } from '@luma.gl/engine'
+import { Icon } from '@iconify/react'
 import { BaseMap, useMap, useMapZoom } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { LiveStats } from '../components/recording/LiveStats'
@@ -165,17 +166,23 @@ export function RecordingPage() {
         <LiveStats trackPoints={trackPoints} />
         <div className="bottom-bar-actions">
           {!isRecording && (
-            <button className="btn-ghost" onClick={() => navigate('/')}>キャンセル</button>
+            <button className="btn-ghost" onClick={() => navigate('/')}>
+              <Icon icon="lucide:x" />
+              <span>キャンセル</span>
+            </button>
           )}
           <button
             className={`record-btn ${isRecording ? 'record-btn-stop' : ''}`}
             onClick={isRecording ? handleStop : handleStart}
           >
-            <span className="fab-icon">{isRecording ? '■' : '●'}</span>
+            <span className="fab-icon"><Icon icon={isRecording ? 'lucide:square' : 'lucide:circle-dot'} /></span>
             <span className="fab-label">{isRecording ? '停止' : '開始'}</span>
           </button>
           {!isRecording && (
-            <button className="finish-btn" onClick={handleFinish}>FINISH</button>
+            <button className="finish-btn" onClick={handleFinish}>
+              <Icon icon="lucide:flag" />
+              <span>FINISH</span>
+            </button>
           )}
         </div>
       </div>

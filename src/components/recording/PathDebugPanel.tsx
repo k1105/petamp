@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { Icon } from '@iconify/react'
 import type { TrackPoint } from '../../types'
 
 interface Props {
@@ -87,16 +88,21 @@ export function PathDebugPanel({ trackPoints, onProceed, onCancel, proceedLabel 
 
         <div className="debug-actions">
           <button className="btn-ghost" onClick={handleCopy}>
-            {copyStatus === 'ok' ? 'コピーしました' : copyStatus === 'fail' ? 'コピー失敗' : 'JSONをコピー'}
+            <Icon icon={copyStatus === 'ok' ? 'lucide:check' : copyStatus === 'fail' ? 'lucide:x' : 'lucide:copy'} />
+            <span>{copyStatus === 'ok' ? 'コピーしました' : copyStatus === 'fail' ? 'コピー失敗' : 'JSONをコピー'}</span>
           </button>
-          <button className="btn-ghost" onClick={onCancel}>閉じる</button>
+          <button className="btn-ghost" onClick={onCancel}>
+            <Icon icon="lucide:x" />
+            <span>閉じる</span>
+          </button>
           {onProceed && (
             <button
               className="btn-primary"
               onClick={onProceed}
               disabled={trackPoints.length === 0}
             >
-              {proceedLabel}
+              <Icon icon="lucide:arrow-right" />
+              <span>{proceedLabel}</span>
             </button>
           )}
         </div>

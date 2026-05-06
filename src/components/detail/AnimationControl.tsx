@@ -1,3 +1,5 @@
+import { Icon } from '@iconify/react'
+
 interface AnimationControlProps {
   currentTime: number
   duration: number
@@ -23,9 +25,11 @@ export function AnimationControl({
         className="animation-seek"
       />
       <div className="animation-buttons">
-        <button onClick={onReset}>↩</button>
-        <button onClick={isPlaying ? onStop : onPlay}>
-          {isPlaying ? '⏸' : '▶'}
+        <button onClick={onReset} aria-label="リセット">
+          <Icon icon="lucide:rotate-ccw" />
+        </button>
+        <button onClick={isPlaying ? onStop : onPlay} aria-label={isPlaying ? '一時停止' : '再生'}>
+          <Icon icon={isPlaying ? 'lucide:pause' : 'lucide:play'} />
         </button>
       </div>
     </div>
