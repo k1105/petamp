@@ -120,11 +120,22 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef }: Options) {
     const radius = 24
     const k = 24
 
+    gl.useProgram(program)
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf)
+    gl.enableVertexAttribArray(aPos)
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0)
+    gl.enable(gl.BLEND)
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    gl.clearColor(0, 0, 0, 0)
+    gl.uniform3f(uColor, color[0], color[1], color[2])
+    gl.uniform4f(uRadii, radius, 0, radius, 0)
+    gl.uniform1f(uK, k)
+
     let rafId: number | null = null
     let activeTransitions = 0
 
     const draw = () => {
-      const dpr = window.devicePixelRatio || 1
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
       const w = window.innerWidth
       const h = window.innerHeight
       const dw = Math.round(w * dpr)
@@ -132,33 +143,40 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef }: Options) {
       if (canvas.width !== dw || canvas.height !== dh) {
         canvas.width = dw
         canvas.height = dh
+        gl.viewport(0, 0, dw, dh)
       }
-      gl.viewport(0, 0, dw, dh)
-      gl.clearColor(0, 0, 0, 0)
-      gl.clear(gl.COLOR_BUFFER_BIT)
-      gl.enable(gl.BLEND)
-      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-
-      gl.useProgram(program)
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, buf)
-      gl.enableVertexAttribArray(aPos)
-      gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0)
 
       const sRect = sheet.getBoundingClientRect()
       const fRect = fab.getBoundingClientRect()
+      const cx = fRect.left + fRect.width / 2
+      const cy = fRect.top + fRect.height / 2
+      const cr = Math.min(fRect.width, fRect.height) / 2
+
+      const margin = k + radius + 4
+      const minX = Math.max(0, Math.min(sRect.left, cx - cr) - margin)
+      const maxX = Math.min(w, Math.max(sRect.right, cx + cr) + margin)
+      const minY = Math.max(0, Math.min(sRect.top, cy - cr) - margin)
+      const maxY = Math.min(h, Math.max(sRect.bottom + 4, cy + cr) + margin)
+
+      gl.disable(gl.SCISSOR_TEST)
+      gl.clear(gl.COLOR_BUFFER_BIT)
+
+      const ssw = Math.max(0, Math.ceil((maxX - minX) * dpr))
+      const ssh = Math.max(0, Math.ceil((maxY - minY) * dpr))
+      if (ssw === 0 || ssh === 0) return
+
+      gl.enable(gl.SCISSOR_TEST)
+      gl.scissor(
+        Math.floor(minX * dpr),
+        Math.floor((h - maxY) * dpr),
+        ssw,
+        ssh
+      )
+
       gl.uniform2f(uRes, w, h)
       gl.uniform1f(uDpr, dpr)
       gl.uniform4f(uRect, sRect.left, sRect.top, sRect.width, sRect.height + 4)
-      gl.uniform4f(uRadii, radius, 0, radius, 0)
-      gl.uniform3f(
-        uCircle,
-        fRect.left + fRect.width / 2,
-        fRect.top + fRect.height / 2,
-        Math.min(fRect.width, fRect.height) / 2
-      )
-      gl.uniform3f(uColor, color[0], color[1], color[2])
-      gl.uniform1f(uK, k)
+      gl.uniform3f(uCircle, cx, cy, cr)
 
       gl.drawArrays(gl.TRIANGLES, 0, 6)
     }
