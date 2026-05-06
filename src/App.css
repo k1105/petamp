@@ -32,11 +32,6 @@
   left: 0;
   right: 0;
   z-index: 20;
-  background: var(--surface);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid var(--border);
-  border-radius: var(--radius) var(--radius) 0 0;
   padding: 20px 24px calc(20px + var(--safe-bottom));
   display: flex;
   flex-direction: column;

@@ -30,17 +30,18 @@ function DetailLayers({
   const zoom = useMapZoom()
   const { map } = useMap()
 
-  // バウンディングボックス中心にカメラを固定（回転中心）
+  // 経路全体が画面中央に収まるようにフィット（bbox中心 = 画面中心）
   useEffect(() => {
     if (!map) return
     const pts = run.trackPoints
+    if (pts.length === 0) return
     const lngs = pts.map(p => p.lng)
     const lats = pts.map(p => p.lat)
-    const center: [number, number] = [
-      (Math.min(...lngs) + Math.max(...lngs)) / 2,
-      (Math.min(...lats) + Math.max(...lats)) / 2,
+    const bounds: [[number, number], [number, number]] = [
+      [Math.min(...lngs), Math.min(...lats)],
+      [Math.max(...lngs), Math.max(...lats)],
     ]
-    map.jumpTo({ center })
+    map.fitBounds(bounds, { padding: 60, duration: 0 })
   }, [map])
 
   const dotData = useMemo(() => {
@@ -144,7 +145,7 @@ export function RunDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [run, setRun] = useState<Run | null>(null)
-  const [mapVisible, setMapVisible] = useState(true)
+  const [mapVisible, setMapVisible] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
   const { runs } = useRunStore()
   const { currentTime, isPlaying, duration, setDuration, play, stop, seekTo, reset } = useAnimation()

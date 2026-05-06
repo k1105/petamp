@@ -19,6 +19,10 @@ const sphere = new SphereGeometry({ radius: 1, nlat: 20, nlong: 20 })
 const cylinder = new CylinderGeometry({ radius: 1, height: 1, nradial: 12 })
 const MIN_ZOOM = 12.5
 
+const SPHERE_REF_ZOOM = 13
+const SPHERE_TARGET_RADIUS = TUBE_RADIUS * 3
+const SPHERE_MAX_RADIUS = TUBE_RADIUS * 3
+
 function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
   const zoom = useMapZoom()
   const navigate = useNavigate()
@@ -27,6 +31,11 @@ function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
   const tubeColor: [number, number, number, number] = [160, 160, 160, Math.round(255 * t)]
   const dotColor: [number, number, number, number] = [28, 151, 94, Math.round(255 * t)]
   const mat = { ambient: 1, diffuse: 0, shininess: 0, specularColor: [0, 0, 0] as [number, number, number] }
+
+  const sphereRadius = Math.min(
+    SPHERE_TARGET_RADIUS * Math.pow(2, SPHERE_REF_ZOOM - zoom),
+    SPHERE_MAX_RADIUS
+  )
 
   const layers = useMemo(() => {
     if (t === 0) return []
@@ -59,12 +68,12 @@ function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
         data: dots,
         mesh: sphere,
         getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
-        getScale: [TUBE_RADIUS * 1.5, TUBE_RADIUS * 1.5, TUBE_RADIUS * 1.5],
+        getScale: [sphereRadius, sphereRadius, sphereRadius],
         getColor: dotColor,
         material: mat,
       }),
     ]
-  }, [runs, dots, t])
+  }, [runs, dots, t, sphereRadius])
 
   return <DeckOverlay layers={layers} />
 }
