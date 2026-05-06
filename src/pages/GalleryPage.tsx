@@ -69,7 +69,7 @@ function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
         data: dots,
         mesh: sphere,
         getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
-        getScale: [25, 25, 25],
+        getScale: [TUBE_RADIUS * 1.5, TUBE_RADIUS * 1.5, TUBE_RADIUS * 1.5],
         getColor: dotColor,
         material: mat,
       }),
