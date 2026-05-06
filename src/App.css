@@ -1,0 +1,452 @@
+:root {
+  --bg: #0a0a0a;
+  --surface: rgba(15, 15, 15, 0.92);
+  --surface-raised: rgba(24, 24, 24, 0.96);
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #e8e8e8;
+  --text-muted: #666;
+  --accent: #1c975e;
+  --accent-dim: rgba(28, 151, 94, 0.2);
+  --radius: 16px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ---- Layout ---- */
+.page {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.map-container {
+  position: absolute;
+  inset: 0;
+}
+
+/* ---- Bottom bar (recording / detail) ---- */
+.bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: var(--surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 20px 24px calc(20px + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bottom-bar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+/* ---- Bottom sheet (gallery) ---- */
+.bottom-sheet {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: var(--accent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  max-height: 75dvh;
+  transform: translateY(calc(100% - 32px));
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.bottom-sheet.open {
+  transform: translateY(0);
+}
+
+.bottom-sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 0 auto;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 16px 0;
+  background-clip: content-box;
+}
+
+.run-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 16px calc(16px + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.empty-hint {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ---- FAB (gallery — floats above bottom-sheet) ---- */
+.fab {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  color: #000;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  box-shadow: 0 4px 20px rgba(28, 151, 94, 0.4);
+  flex-shrink: 0;
+}
+
+.fab:active {
+  opacity: 0.85;
+}
+
+/* floats above bottom-sheet, transitions with it */
+.fab.fab-sheet {
+  position: absolute;
+  bottom: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  transition: bottom 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 21;
+}
+
+.fab.fab-sheet.fab-sheet-up {
+  bottom: calc(75dvh + 12px);
+}
+
+/* ---- Record button (recording screen — in normal flow) ---- */
+.record-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  color: #000;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  box-shadow: 0 4px 20px rgba(28, 151, 94, 0.4);
+  flex-shrink: 0;
+}
+
+.record-btn:active {
+  opacity: 0.85;
+}
+
+.record-btn.record-btn-stop {
+  background: #2a2a2a;
+  box-shadow: none;
+  color: var(--text);
+}
+
+.fab-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.fab-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/* ---- Orbit toggle ---- */
+.orbit-toggle {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  backdrop-filter: blur(10px);
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.orbit-toggle.orbit-toggle-active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---- Location crosshair (recording, before start) ---- */
+.location-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.location-crosshair::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  opacity: 0.5;
+}
+
+.location-crosshair::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #000;
+}
+
+/* ---- Map toggle (detail page) ---- */
+.map-toggle-btn {
+  position: absolute;
+  top: 16px;
+  right: 64px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  backdrop-filter: blur(10px);
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.map-toggle-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---- Back button ---- */
+.back-btn {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  backdrop-filter: blur(10px);
+}
+
+/* ---- Stats ---- */
+.live-stats,
+.detail-stats {
+  display: flex;
+  gap: 0;
+}
+
+.detail-stats {
+  justify-content: space-around;
+}
+
+.live-stats {
+  justify-content: space-around;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ---- Run meta ---- */
+.run-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.run-meta-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.run-meta-date {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ---- Run card ---- */
+.run-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.run-card:active {
+  border-color: var(--accent);
+}
+
+.run-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.run-card-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.run-card-delete {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.run-card-date {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.run-card-stats {
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ---- Animation control ---- */
+.animation-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.animation-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.animation-seek {
+  width: 100%;
+  accent-color: var(--accent);
+  height: 4px;
+}
+
+.animation-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.animation-buttons button {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 20px;
+  cursor: pointer;
+  font-size: 16px;
+  min-width: 52px;
+}
+
+/* ---- Misc ---- */
+.btn-ghost {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.error-banner {
+  background: rgba(244, 67, 54, 0.12);
+  border: 1px solid rgba(244, 67, 54, 0.4);
+  color: #f88;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}

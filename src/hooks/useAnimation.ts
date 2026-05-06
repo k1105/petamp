@@ -1,0 +1,51 @@
+import { useRef, useCallback } from 'react'
+import { useMapStore } from '../store/useMapStore'
+
+export function useAnimation() {
+  const { currentTime, isPlaying, duration, setCurrentTime, setIsPlaying, setDuration } = useMapStore()
+  const rafRef = useRef<number | null>(null)
+  const lastFrameTimeRef = useRef<number | null>(null)
+
+  const stop = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
+    lastFrameTimeRef.current = null
+    setIsPlaying(false)
+  }, [setIsPlaying])
+
+  const play = useCallback(() => {
+    setIsPlaying(true)
+    const tick = (now: number) => {
+      if (lastFrameTimeRef.current === null) {
+        lastFrameTimeRef.current = now
+      }
+      const delta = (now - lastFrameTimeRef.current) / 1000
+      lastFrameTimeRef.current = now
+
+      const store = useMapStore.getState()
+      const next = store.currentTime + delta
+      if (next >= duration) {
+        stop()
+        setCurrentTime(duration)
+      } else {
+        setCurrentTime(next)
+      }
+
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+  }, [duration, setCurrentTime, setIsPlaying, stop])
+
+  const seekTo = useCallback((seconds: number) => {
+    setCurrentTime(Math.max(0, Math.min(seconds, duration)))
+  }, [duration, setCurrentTime])
+
+  const reset = useCallback(() => {
+    stop()
+    setCurrentTime(0)
+  }, [stop, setCurrentTime])
+
+  return { currentTime, isPlaying, duration, setDuration, play, stop, seekTo, reset }
+}
