@@ -8,8 +8,8 @@ import { DeckOverlay } from '../components/map/DeckOverlay'
 import { useRunStore } from '../store/useRunStore'
 import { RunCard } from '../components/gallery/RunCard'
 import { buildTubeSegments, buildTubeJoints } from '../utils/tubeData'
-import { DUMMY_CENTER } from '../utils/dummyData'
 import { useGalleryAnimation } from '../hooks/useGalleryAnimation'
+import { useCurrentPosition } from '../hooks/useCurrentPosition'
 import type { DotPosition } from '../hooks/useGalleryAnimation'
 import type { Run } from '../types'
 
@@ -17,15 +17,6 @@ const TUBE_RADIUS = 3
 const sphere = new SphereGeometry({ radius: 1, nlat: 20, nlong: 20 })
 const cylinder = new CylinderGeometry({ radius: 1, height: 1, nradial: 12 })
 const MIN_ZOOM = 12.5
-
-function mapCenter(runs: Run[]): [number, number] | undefined {
-  if (runs.length === 0) return undefined
-  const all = runs.flatMap(r => r.trackPoints)
-  if (all.length === 0) return undefined
-  const lat = all.reduce((s, p) => s + p.lat, 0) / all.length
-  const lng = all.reduce((s, p) => s + p.lng, 0) / all.length
-  return [lng, lat]
-}
 
 function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
   const zoom = useMapZoom()
@@ -92,29 +83,45 @@ export function GalleryPage() {
   const navigate = useNavigate()
   const { runs, loadRuns, removeRun } = useRunStore()
   const [listOpen, setListOpen] = useState(false)
+  const [armed, setArmed] = useState(false)
   const dots = useGalleryAnimation(runs)
+  const initialCenter = useCurrentPosition()
 
   useEffect(() => { loadRuns() }, [])
 
-  const center = useMemo(() => mapCenter(runs) ?? DUMMY_CENTER, [runs])
+  const handleFabClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (armed) {
+      navigate('/record')
+    } else {
+      setArmed(true)
+      setListOpen(false)
+    }
+  }
 
   return (
     <div className="page">
       <div className="map-container">
-        <BaseMap initialCenter={center} initialZoom={13}>
-          <GalleryLayers runs={runs} dots={dots} />
-        </BaseMap>
+        {initialCenter !== undefined && (
+          <BaseMap initialCenter={initialCenter ?? undefined} initialZoom={13}>
+            <GalleryLayers runs={runs} dots={dots} />
+          </BaseMap>
+        )}
       </div>
 
-      <button
-        className={`fab fab-sheet ${listOpen ? 'fab-sheet-up' : ''}`}
-        onClick={() => navigate('/record')}
-      >
-        <span className="fab-icon">●</span>
-        <span className="fab-label">記録</span>
-      </button>
+      {armed && <div className="armed-backdrop" onClick={() => setArmed(false)} />}
 
-      <div className={`bottom-sheet ${listOpen ? 'open' : ''}`}>
+      <div className={`bottom-sheet ${listOpen ? 'open' : ''} ${armed ? 'armed' : ''}`}>
+        <div className="bottom-sheet-shape">
+          <div className="bottom-sheet-bg" />
+          <button
+            className="fab fab-sheet"
+            onClick={handleFabClick}
+          >
+            <span className="fab-icon">●</span>
+            {armed && <span className="fab-label">START</span>}
+          </button>
+        </div>
         <div className="bottom-sheet-handle" onClick={() => setListOpen(v => !v)} />
         {runs.length === 0 ? (
           <p className="empty-hint">記録したランがここに表示されます</p>

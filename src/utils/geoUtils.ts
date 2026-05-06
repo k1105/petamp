@@ -39,6 +39,18 @@ export function elevationGain(points: TrackPoint[], threshold = 3): number {
   return gain
 }
 
+export function bboxCenter(points: TrackPoint[]): [number, number] | undefined {
+  if (points.length === 0) return undefined
+  let latMin = Infinity, latMax = -Infinity, lngMin = Infinity, lngMax = -Infinity
+  for (const p of points) {
+    if (p.lat < latMin) latMin = p.lat
+    if (p.lat > latMax) latMax = p.lat
+    if (p.lng < lngMin) lngMin = p.lng
+    if (p.lng > lngMax) lngMax = p.lng
+  }
+  return [(lngMin + lngMax) / 2, (latMin + latMax) / 2]
+}
+
 export function qualifyAltitude(
   altitude: number | null,
   altitudeAccuracy: number | null | undefined,

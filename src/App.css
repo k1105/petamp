@@ -57,9 +57,7 @@
   left: 0;
   right: 0;
   z-index: 20;
-  background: var(--accent);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: transparent;
   border-top: 1px solid var(--border);
   border-radius: var(--radius) var(--radius) 0 0;
   max-height: 75dvh;
@@ -67,6 +65,35 @@
   transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
   display: flex;
   flex-direction: column;
+}
+
+/* gooey: only the FAB and the sheet background go through the filter */
+.bottom-sheet-shape {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bottom-sheet:not(.armed) .bottom-sheet-shape {
+  /* Safari does not reliably resolve filter: url(#id) when an ancestor has transform.
+     Embed the filter as a data URI instead. */
+  -webkit-filter: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><filter id='g' color-interpolation-filters='sRGB'><feGaussianBlur stdDeviation='10'/><feColorMatrix values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7'/><feComposite in='SourceGraphic' operator='atop'/></filter></svg>#g");
+  filter: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><filter id='g' color-interpolation-filters='sRGB'><feGaussianBlur stdDeviation='10'/><feColorMatrix values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7'/><feComposite in='SourceGraphic' operator='atop'/></filter></svg>#g");
+}
+
+.bottom-sheet-bg {
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.armed-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  cursor: pointer;
 }
 
 .bottom-sheet.open {
@@ -123,18 +150,36 @@
   opacity: 0.85;
 }
 
-/* floats above bottom-sheet, transitions with it */
+/* floats above bottom-sheet, transitions with it (bottom 40% overlaps the sheet) */
 .fab.fab-sheet {
   position: absolute;
-  bottom: 44px;
-  left: 50%;
-  transform: translateX(-50%);
-  transition: bottom 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  top: calc(-64px * 0.6);
+  left: calc(50% - 32px);
   z-index: 21;
+  pointer-events: auto;
+  box-shadow: none;
+  transition: transform 0.45s cubic-bezier(0.32, 0.72, 0, 1),
+              box-shadow 0.45s cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
 }
 
-.fab.fab-sheet.fab-sheet-up {
-  bottom: calc(75dvh + 12px);
+.bottom-sheet.armed .fab.fab-sheet {
+  transform: translateY(-30dvh) scale(1.8);
+  box-shadow: 0 16px 48px rgba(28, 151, 94, 0.55);
+}
+
+.fab.fab-sheet .fab-label {
+  transition: opacity 0.2s;
+}
+
+.bottom-sheet.armed .fab.fab-sheet .fab-icon {
+  /* keep icon size visually similar after parent scale */
+  transform: scale(calc(1 / 1.8));
+}
+
+.bottom-sheet.armed .fab.fab-sheet .fab-label {
+  transform: scale(calc(1 / 1.8));
+  letter-spacing: 0.08em;
 }
 
 /* ---- Record button (recording screen — in normal flow) ---- */
@@ -163,6 +208,25 @@
   background: #2a2a2a;
   box-shadow: none;
   color: var(--text);
+}
+
+.finish-btn {
+  height: 56px;
+  padding: 0 28px;
+  border-radius: 28px;
+  background: var(--accent);
+  border: none;
+  color: #000;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(28, 151, 94, 0.4);
+  flex-shrink: 0;
+}
+
+.finish-btn:active {
+  opacity: 0.85;
 }
 
 .fab-icon {

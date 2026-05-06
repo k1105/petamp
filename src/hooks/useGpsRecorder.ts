@@ -21,7 +21,7 @@ export function useGpsRecorder() {
       setState(s => ({ ...s, error: '位置情報がサポートされていません' }))
       return
     }
-    setState(s => ({ ...s, isRecording: true, trackPoints: [], error: null }))
+    setState(s => ({ ...s, isRecording: true, error: null }))
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {

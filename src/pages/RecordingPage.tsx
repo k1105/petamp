@@ -7,8 +7,10 @@ import { DeckOverlay } from '../components/map/DeckOverlay'
 import { LiveStats } from '../components/recording/LiveStats'
 import { PathDebugPanel } from '../components/recording/PathDebugPanel'
 import { useGpsRecorder } from '../hooks/useGpsRecorder'
+import { useCurrentPosition } from '../hooks/useCurrentPosition'
 import { useRunStore } from '../store/useRunStore'
 import { buildPathLayerData } from '../utils/pathLayerData'
+import dummyTrackPoints from '../utils/dummyTrackPoints.json'
 import type { Run, TrackPoint } from '../types'
 
 function GeolocateTracker() {
@@ -23,8 +25,15 @@ function GeolocateTracker() {
     })
     map.addControl(ctrl)
     // マップロード済みなので即時トリガー
-    setTimeout(() => ctrl.trigger(), 100)
-    return () => { map.removeControl(ctrl) }
+    const triggerTimer = window.setTimeout(() => ctrl.trigger(), 100)
+    return () => {
+      window.clearTimeout(triggerTimer)
+      try {
+        map.removeControl(ctrl)
+      } catch (e) {
+        console.warn('GeolocateControl removeControl failed', e)
+      }
+    }
   }, [map])
 
   return null
@@ -35,13 +44,18 @@ export function RecordingPage() {
   const { isRecording, trackPoints, error, start, stop } = useGpsRecorder()
   const { addRun } = useRunStore()
   const [debugPoints, setDebugPoints] = useState<TrackPoint[] | null>(null)
+  const initialCenter = useCurrentPosition()
+
   const handleStart = () => {
     start()
   }
 
   const handleStop = () => {
-    const points = stop()
-    setDebugPoints(points)
+    stop()
+  }
+
+  const handleFinish = () => {
+    setDebugPoints(dummyTrackPoints as TrackPoint[])
   }
 
   const handleProceed = async () => {
@@ -80,10 +94,12 @@ export function RecordingPage() {
   return (
     <div className="page">
       <div className="map-container">
-        <BaseMap>
-          <GeolocateTracker />
-          <DeckOverlay layers={layers} />
-        </BaseMap>
+        {initialCenter !== undefined && (
+          <BaseMap initialCenter={initialCenter ?? undefined}>
+            <GeolocateTracker />
+            <DeckOverlay layers={layers} />
+          </BaseMap>
+        )}
       </div>
 
       <div className="bottom-bar">
@@ -100,6 +116,9 @@ export function RecordingPage() {
             <span className="fab-icon">{isRecording ? '■' : '●'}</span>
             <span className="fab-label">{isRecording ? '停止' : '開始'}</span>
           </button>
+          {!isRecording && (
+            <button className="finish-btn" onClick={handleFinish}>FINISH</button>
+          )}
         </div>
       </div>
 
