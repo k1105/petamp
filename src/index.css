@@ -11,6 +11,7 @@ html, body {
   background: #0f0f0f;
   color: #e0e0e0;
   -webkit-font-smoothing: antialiased;
+  font-family: 'Onest', -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif;
   display: flex;
   justify-content: center;
 }
