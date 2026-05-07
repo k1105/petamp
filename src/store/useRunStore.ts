@@ -6,7 +6,7 @@ import { DUMMY_RUNS } from '../utils/dummyData'
 interface RunStore {
   runs: Run[]
   activeRunId: string | null
-  loadRuns: () => Promise<void>
+  loadRuns: (useDummy?: boolean) => Promise<void>
   addRun: (run: Run) => Promise<void>
   removeRun: (id: string) => Promise<void>
   setActiveRunId: (id: string | null) => void
@@ -16,13 +16,17 @@ export const useRunStore = create<RunStore>((set) => ({
   runs: [],
   activeRunId: null,
 
-  loadRuns: async () => {
+  loadRuns: async (useDummy = false) => {
+    if (useDummy) {
+      set({ runs: DUMMY_RUNS })
+      return
+    }
     try {
       const saved = await listRuns()
-      set({ runs: saved.length > 0 ? saved : DUMMY_RUNS })
+      set({ runs: saved })
     } catch (e) {
       console.error('loadRuns failed', e)
-      set({ runs: DUMMY_RUNS })
+      set({ runs: [] })
     }
   },
 

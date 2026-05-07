@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import { SphereGeometry, CylinderGeometry } from '@luma.gl/engine'
 import { Icon } from '@iconify/react'
@@ -85,13 +85,15 @@ export function GalleryPage() {
   const [armed, setArmed] = useState(false)
   const dots = useGalleryAnimation(runs)
   const initialCenter = useCurrentPosition()
+  const [searchParams] = useSearchParams()
+  const isDebug = searchParams.get('debug') === '1'
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
   const fabRef = useRef<HTMLButtonElement>(null)
   useMetaballSheet({ canvasRef, sheetRef, fabRef })
 
-  useEffect(() => { loadRuns() }, [])
+  useEffect(() => { loadRuns(isDebug) }, [isDebug])
 
   const handleFabClick = (e: React.MouseEvent) => {
     e.stopPropagation()

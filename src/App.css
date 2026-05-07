@@ -219,6 +219,28 @@
   opacity: 0.85;
 }
 
+.toggle-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.toggle-btn:active {
+  opacity: 0.85;
+}
+
+.toggle-btn svg {
+  font-size: 22px;
+}
+
 .fab-icon {
   font-size: 20px;
   line-height: 1;
