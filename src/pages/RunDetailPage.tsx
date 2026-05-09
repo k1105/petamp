@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
-import { SphereGeometry, CylinderGeometry } from '@luma.gl/engine'
+import { SphereGeometry } from '@luma.gl/engine'
 import mapboxgl from 'mapbox-gl'
 import { Icon } from '@iconify/react'
 import { EyesIcon } from '../components/gallery/EyesIcon'
@@ -14,7 +14,7 @@ import { useAnimation } from '../hooks/useAnimation'
 import { useElevationStats } from '../hooks/useElevationStats'
 import { useRunStore } from '../store/useRunStore'
 import { positionAtTime } from '../hooks/useGalleryAnimation'
-import { buildTubeSegments, buildTubeJoints } from '../utils/tubeData'
+import { getTubeMesh } from '../utils/tubeMesh'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { fetchAreaName } from '../hooks/useReverseGeocode'
@@ -25,7 +25,6 @@ import { loadRun } from '../db/runRepository'
 import type { Run } from '../types'
 
 const sphere = new SphereGeometry({ radius: 1, nlat: 20, nlong: 20 })
-const cylinder = new CylinderGeometry({ radius: 1, height: 1, nradial: 12 })
 const MIN_ZOOM = 12.5
 const FIT_MAX_ZOOM = 17
 
@@ -68,8 +67,7 @@ function DetailLayers({
 
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5))
   const pts = useMemo(() => acceptedPoints(run.trackPoints), [run])
-  const tubeData = useMemo(() => buildTubeSegments(pts, radii.tubeRadius), [pts, radii.tubeRadius])
-  const jointData = useMemo(() => buildTubeJoints(pts, radii.tubeRadius), [pts, radii.tubeRadius])
+  const tubeMesh = useMemo(() => getTubeMesh(run.id, pts, radii.tubeRadius), [run.id, pts, radii.tubeRadius])
 
   // マップ非表示時は白+黒、表示時はグレー+グリーン
   const tubeColor: [number, number, number, number] = mapVisible
@@ -81,70 +79,29 @@ function DetailLayers({
   const mat = { ambient: 1, diffuse: 0, shininess: 0, specularColor: [0, 0, 0] as [number, number, number] }
 
   const layers = useMemo(() => {
-    if (!mapVisible) {
-      return [
-        new SimpleMeshLayer({
+    const tubeLayer = tubeMesh
+      ? new SimpleMeshLayer({
           id: 'run-tube',
-          data: tubeData,
-          mesh: cylinder,
-          getPosition: d => d.position,
-          getScale: d => d.scale,
-          getOrientation: d => d.orientation,
-          getColor: tubeColor,
-          material: mat,
-        }),
-        new SimpleMeshLayer({
-          id: 'run-joints',
-          data: jointData,
-          mesh: sphere,
-          getPosition: d => d.position,
-          getScale: d => d.scale,
-          getColor: tubeColor,
-          material: mat,
-        }),
-        new SimpleMeshLayer({
-          id: 'run-dot',
-          data: dotData,
-          mesh: sphere,
+          data: [{ position: tubeMesh.anchor }],
+          mesh: { positions: tubeMesh.positions, normals: tubeMesh.normals, indices: tubeMesh.indices },
           getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
-          getScale: [radii.dotRadius, radii.dotRadius, radii.dotRadius],
-          getColor: dotColor,
+          getColor: tubeColor,
           material: mat,
-        }),
-      ]
-    }
+        })
+      : null
+    const dotLayer = new SimpleMeshLayer({
+      id: 'run-dot',
+      data: dotData,
+      mesh: sphere,
+      getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
+      getScale: [radii.dotRadius, radii.dotRadius, radii.dotRadius],
+      getColor: dotColor,
+      material: mat,
+    })
+    if (!mapVisible) return tubeLayer ? [tubeLayer, dotLayer] : [dotLayer]
     if (t === 0) return []
-    return [
-      new SimpleMeshLayer({
-        id: 'run-tube',
-        data: tubeData,
-        mesh: cylinder,
-        getPosition: d => d.position,
-        getScale: d => d.scale,
-        getOrientation: d => d.orientation,
-        getColor: tubeColor,
-        material: mat,
-      }),
-      new SimpleMeshLayer({
-        id: 'run-joints',
-        data: jointData,
-        mesh: sphere,
-        getPosition: d => d.position,
-        getScale: d => d.scale,
-        getColor: tubeColor,
-        material: mat,
-      }),
-      new SimpleMeshLayer({
-        id: 'run-dot',
-        data: dotData,
-        mesh: sphere,
-        getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
-        getScale: [radii.dotRadius, radii.dotRadius, radii.dotRadius],
-        getColor: dotColor,
-        material: mat,
-      }),
-    ]
-  }, [tubeData, jointData, dotData, t, mapVisible, radii.dotRadius])
+    return tubeLayer ? [tubeLayer, dotLayer] : [dotLayer]
+  }, [tubeMesh, dotData, t, mapVisible, radii.dotRadius])
 
   return <DeckOverlay layers={layers} />
 }

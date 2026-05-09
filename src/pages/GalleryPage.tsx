@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
-import { SphereGeometry, CylinderGeometry } from '@luma.gl/engine'
+import { SphereGeometry } from '@luma.gl/engine'
 import { Icon } from '@iconify/react'
 import { BaseMap, useMapZoom } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
@@ -11,7 +11,7 @@ import { useSettingsStore } from '../store/useSettingsStore'
 import { SettingsPanel } from '../components/gallery/SettingsPanel'
 import { RunTile } from '../components/gallery/RunTile'
 import { EyesIcon } from '../components/gallery/EyesIcon'
-import { buildTubeSegments, buildTubeJoints } from '../utils/tubeData'
+import { getTubeMesh } from '../utils/tubeMesh'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { useGalleryAnimation } from '../hooks/useGalleryAnimation'
 import { useCurrentPosition } from '../hooks/useCurrentPosition'
@@ -21,7 +21,6 @@ import type { DotPosition } from '../hooks/useGalleryAnimation'
 import type { Run } from '../types'
 
 const sphere = new SphereGeometry({ radius: 1, nlat: 20, nlong: 20 })
-const cylinder = new CylinderGeometry({ radius: 1, height: 1, nradial: 12 })
 const MIN_ZOOM = 12.5
 const SPHERE_REF_ZOOM = 13
 
@@ -42,33 +41,24 @@ function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
 
   const layers = useMemo(() => {
     if (t === 0) return []
+    const tubeLayers: SimpleMeshLayer[] = []
+    for (const run of runs) {
+      const pts = acceptedPoints(run.trackPoints)
+      const mesh = getTubeMesh(run.id, pts, radii.tubeRadius)
+      if (!mesh) continue
+      tubeLayers.push(new SimpleMeshLayer({
+        id: `run-tube-${run.id}`,
+        data: [{ position: mesh.anchor }],
+        mesh: { positions: mesh.positions, normals: mesh.normals, indices: mesh.indices },
+        getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
+        getColor: tubeColor,
+        material: mat,
+        pickable: true,
+        onClick: () => { navigate(`/run/${run.id}`) },
+      }))
+    }
     return [
-      ...runs.flatMap(run => {
-        const pts = acceptedPoints(run.trackPoints)
-        return [
-          new SimpleMeshLayer({
-            id: `run-tube-${run.id}`,
-            data: buildTubeSegments(pts, radii.tubeRadius),
-            mesh: cylinder,
-            getPosition: d => d.position,
-            getScale: d => d.scale,
-            getOrientation: d => d.orientation,
-            getColor: tubeColor,
-            material: mat,
-            pickable: true,
-            onClick: () => { navigate(`/run/${run.id}`) },
-          }),
-          new SimpleMeshLayer({
-            id: `run-joints-${run.id}`,
-            data: buildTubeJoints(pts, radii.tubeRadius),
-            mesh: sphere,
-            getPosition: d => d.position,
-            getScale: d => d.scale,
-            getColor: tubeColor,
-            material: mat,
-          }),
-        ]
-      }),
+      ...tubeLayers,
       new SimpleMeshLayer({
         id: 'gallery-dots',
         data: dots,
