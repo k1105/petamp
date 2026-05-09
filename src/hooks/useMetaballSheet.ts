@@ -3,7 +3,7 @@ import { useEffect, type RefObject } from 'react'
 // Hardcoded peak shape exported from /shape-editor (anchors normalised to NORM_R=80).
 const KAPPA = 0.5522847498
 const NORM_R = 80
-const N = 16 // tessellated polygon vertex count (4 anchors × 4 samples)
+const N = 32 // tessellated polygon vertex count (4 anchors × 8 samples)
 
 interface Pt { x: number; y: number }
 interface Anchor { pos: Pt; handleIn: Pt; handleOut: Pt }
@@ -22,11 +22,21 @@ const PEAK_RIGHT: Anchor[] = [
   { pos: { x: -85.8, y: -0.41 }, handleIn: { x: -52.48, y: -1.13 }, handleOut: { x: 46.62, y: 1.42 } },
 ]
 
-const PEAK_LEFT: Anchor[] = PEAK_RIGHT.map(a => ({
-  pos: { x: -a.pos.x, y: a.pos.y },
-  handleIn: { x: -a.handleIn.x, y: a.handleIn.y },
-  handleOut: { x: -a.handleOut.x, y: a.handleOut.y },
-}))
+// Mirror PEAK_RIGHT across X. Naive negation reverses traversal direction
+// (CW → CCW) and — more importantly — sends anchor[1] (REST's right-side
+// neighbour) all the way across to the left, so lerping REST → PEAK_LEFT
+// makes anchors[1] and [3] cross through the centre, producing a "twist/flip"
+// during deform decay. Reorder the mirrored anchors as [0, 3, 2, 1] (and swap
+// handleIn/handleOut at each anchor since traversal direction reverses) so each
+// PEAK_LEFT[i] stays on the same side as REST[i].
+const PEAK_LEFT: Anchor[] = [0, 3, 2, 1].map(i => {
+  const a = PEAK_RIGHT[i]
+  return {
+    pos: { x: -a.pos.x, y: a.pos.y },
+    handleIn: { x: -a.handleOut.x, y: a.handleOut.y },
+    handleOut: { x: -a.handleIn.x, y: a.handleIn.y },
+  }
+})
 
 function lerp(a: number, b: number, t: number) { return a + (b - a) * t }
 function lerpPt(a: Pt, b: Pt, t: number): Pt { return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t) } }
@@ -67,7 +77,7 @@ void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
 
 const FRAG_SRC = `
 precision mediump float;
-#define N 16
+#define N 32
 uniform vec2 u_res;
 uniform float u_dpr;
 uniform vec4 u_rect;
@@ -243,15 +253,18 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakVe
       st.initialised = true
       st.velocity = st.velocity * 0.7 + v * 0.3
 
-      // Direction change while still deformed → snap deform to 0 to avoid the
-      // mirrored-anchor "flip" lerp. New lean builds back up from rest.
-      const wantedDir = Math.abs(st.velocity) > 0.1
-        ? (st.velocity > 0 ? 1 : -1)
-        : st.direction
-      if (wantedDir !== st.direction && st.deform > 0.05) {
-        st.deform = 0
+      // Direction change → snap deform to 0 unconditionally so the new lean
+      // builds back up from rest (no PEAK_RIGHT↔PEAK_LEFT direct lerp).
+      // Hysteresis: require sustained velocity to flip, so end-of-motion noise
+      // around 0 doesn't keep flipping direction.
+      const VEL_FLIP_THRESHOLD = 1.5
+      if (Math.abs(st.velocity) > VEL_FLIP_THRESHOLD) {
+        const newDir = st.velocity > 0 ? 1 : -1
+        if (newDir !== st.direction) {
+          st.direction = newDir
+          st.deform = 0
+        }
       }
-      st.direction = wantedDir
 
       let targetDeform = Math.min(1, Math.abs(st.velocity) / peakVelocity)
       if (armedRef.current) targetDeform = 0
