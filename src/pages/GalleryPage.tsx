@@ -89,7 +89,7 @@ export function GalleryPage() {
   const ui = useSettingsStore(s => s.ui)
   const [listOpen, setListOpen] = useState(false)
   const [armed, setArmed] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sheetView, setSheetView] = useState<'list' | 'settings'>('list')
   const dots = useGalleryAnimation(runs)
   const initialCenter = useCurrentPosition()
   const [searchParams] = useSearchParams()
@@ -131,8 +131,15 @@ export function GalleryPage() {
         <div className="bottom-sheet-shape">
           <button
             className="list-toggle-btn"
-            onClick={() => setListOpen(v => !v)}
-            aria-label={listOpen ? 'ラン一覧を閉じる' : 'ラン一覧を開く'}
+            onClick={() => {
+              if (listOpen && sheetView === 'list') {
+                setListOpen(false)
+              } else {
+                setSheetView('list')
+                setListOpen(true)
+              }
+            }}
+            aria-label={listOpen && sheetView === 'list' ? 'ラン一覧を閉じる' : 'ラン一覧を開く'}
           >
             <Icon icon="lucide:layout-list" />
           </button>
@@ -147,15 +154,24 @@ export function GalleryPage() {
           </button>
           <button
             className="settings-btn"
-            onClick={() => setSettingsOpen(true)}
-            aria-label="設定"
+            onClick={() => {
+              if (listOpen && sheetView === 'settings') {
+                setListOpen(false)
+              } else {
+                setSheetView('settings')
+                setListOpen(true)
+              }
+            }}
+            aria-label={listOpen && sheetView === 'settings' ? '設定を閉じる' : '設定を開く'}
             title="設定"
           >
             <Icon icon="lucide:settings" />
           </button>
         </div>
         <div className="bottom-sheet-handle" onClick={() => setListOpen(v => !v)} />
-        {runs.length === 0 ? (
+        {sheetView === 'settings' ? (
+          <SettingsPanel />
+        ) : runs.length === 0 ? (
           <p className="empty-hint">記録したランがここに表示されます</p>
         ) : (
           <div className="run-grid">
@@ -165,8 +181,6 @@ export function GalleryPage() {
           </div>
         )}
       </div>
-
-      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
     </div>
   )
 }
