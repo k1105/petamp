@@ -673,23 +673,24 @@
 
 .area-label {
   position: absolute;
-  top: 50%;
+  /* 上部ボタン (top:16px, height:40px) の縦中心に揃える */
+  top: 36px;
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 5;
   pointer-events: none;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.4);
+  font-size: 14px;
+  font-weight: 500;
+  color: #ffffff;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
 .debug-area {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
-  color: var(--text-muted);
+  font-weight: 500;
+  color: #ffffff;
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }

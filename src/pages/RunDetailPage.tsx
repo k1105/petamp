@@ -16,6 +16,7 @@ import { positionAtTime } from '../hooks/useGalleryAnimation'
 import { buildTubeSegments, buildTubeJoints } from '../utils/tubeData'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { useSettingsStore } from '../store/useSettingsStore'
+import { fetchAreaName } from '../hooks/useReverseGeocode'
 import { buildTripLayerData } from '../utils/tripLayerData'
 import { totalDistance } from '../utils/geoUtils'
 import { formatDistance, formatElevation, formatDate } from '../utils/formatters'
@@ -151,10 +152,26 @@ export function RunDetailPage() {
   const [run, setRun] = useState<Run | null>(null)
   const [mapVisible, setMapVisible] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
-  const { runs } = useRunStore()
+  const { runs, updateRun } = useRunStore()
   const { currentTime, isPlaying, duration, setDuration, play, stop, seekTo, reset } = useAnimation()
   const acceptedRunPoints = useMemo(() => acceptedPoints(run?.trackPoints ?? []), [run])
   const { gain } = useElevationStats(acceptedRunPoints)
+
+  // 過去のラン (areaName未保存) を初回表示時にバックフィル
+  useEffect(() => {
+    if (!run || run.areaName) return
+    const lats = run.trackPoints.map(p => p.lat)
+    const lngs = run.trackPoints.map(p => p.lng)
+    if (lats.length === 0) return
+    const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2
+    const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2
+    fetchAreaName(centerLng, centerLat).then(name => {
+      if (!name) return
+      updateRun(run.id, { areaName: name }).then(updated => {
+        if (updated) setRun(updated)
+      })
+    })
+  }, [run?.id])
 
   useEffect(() => {
     if (!id) return
@@ -191,7 +208,7 @@ export function RunDetailPage() {
       <div className="map-container">
         <BaseMap initialCenter={center} initialZoom={14} lockTarget mapVisible={mapVisible}>
           <DetailLayers run={run} currentTime={currentTime} isPlaying={isPlaying} mapVisible={mapVisible} />
-          <AreaLabel />
+          <AreaLabel override={run.areaName} />
         </BaseMap>
       </div>
 
@@ -244,6 +261,7 @@ export function RunDetailPage() {
       {debugOpen && (
         <PathDebugPanel
           trackPoints={run.trackPoints}
+          areaName={run.areaName}
           onCancel={() => setDebugOpen(false)}
         />
       )}

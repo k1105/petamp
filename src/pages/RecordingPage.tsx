@@ -14,6 +14,7 @@ import {useRunStore} from "../store/useRunStore";
 import {useSettingsStore, type Radii} from "../store/useSettingsStore";
 import {buildTubeSegments, buildTubeJoints} from "../utils/tubeData";
 import {acceptedPoints, accuracyGate, warmupGate, minDistanceGate, maxSpeedGate} from "../utils/recordingFilters";
+import {fetchAreaName} from "../hooks/useReverseGeocode";
 import {RecordingDebugPanel} from "../components/recording/RecordingDebugPanel";
 import type {Run, TrackPoint} from "../types";
 
@@ -212,6 +213,11 @@ export function RecordingPage() {
       navigate("/");
       return;
     }
+    const lats = points.map(p => p.lat);
+    const lngs = points.map(p => p.lng);
+    const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+    const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+    const areaName = (await fetchAreaName(centerLng, centerLat)) ?? undefined;
     const run: Run = {
       id: crypto.randomUUID(),
       name: `ラン ${new Date().toLocaleDateString("ja-JP")}`,
@@ -219,6 +225,7 @@ export function RecordingPage() {
       finishedAt: points.at(-1)!.timestamp,
       trackPoints: points,
       notes: [],
+      areaName,
     };
     await addRun(run);
     navigate(`/run/${run.id}`);

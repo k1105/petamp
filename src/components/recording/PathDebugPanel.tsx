@@ -5,12 +5,13 @@ import { useReverseGeocode } from '../../hooks/useReverseGeocode'
 
 interface Props {
   trackPoints: TrackPoint[]
+  areaName?: string
   onProceed?: () => void
   onCancel: () => void
   proceedLabel?: string
 }
 
-export function PathDebugPanel({ trackPoints, onProceed, onCancel, proceedLabel = '結果画面へ' }: Props) {
+export function PathDebugPanel({ trackPoints, areaName, onProceed, onCancel, proceedLabel = '結果画面へ' }: Props) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'ok' | 'fail'>('idle')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -40,7 +41,11 @@ export function PathDebugPanel({ trackPoints, onProceed, onCancel, proceedLabel 
     }
   }, [trackPoints])
 
-  const areaName = useReverseGeocode(summary?.centerLng, summary?.centerLat)
+  const fetchedAreaName = useReverseGeocode(
+    areaName ? null : summary?.centerLng,
+    areaName ? null : summary?.centerLat,
+  )
+  const displayAreaName = areaName ?? fetchedAreaName
 
   const handleCopy = async () => {
     try {
@@ -69,7 +74,7 @@ export function PathDebugPanel({ trackPoints, onProceed, onCancel, proceedLabel 
           <span className="debug-badge">{trackPoints.length} points</span>
         </div>
 
-        {areaName && <div className="debug-area">{areaName}</div>}
+        {displayAreaName && <div className="debug-area">{displayAreaName}</div>}
 
         {summary ? (
           <dl className="debug-summary">

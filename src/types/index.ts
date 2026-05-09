@@ -25,4 +25,5 @@ export interface Run {
   finishedAt: number
   trackPoints: TrackPoint[]
   notes: Note[]
+  areaName?: string
 }
