@@ -12,6 +12,7 @@ uniform float u_dpr;
 uniform vec4 u_rect;
 uniform vec4 u_radii;
 uniform vec3 u_circle;
+uniform vec3 u_trail;
 uniform vec3 u_color;
 uniform float u_k;
 
@@ -33,7 +34,9 @@ void main() {
   vec2 rh = u_rect.zw * 0.5;
   float dRect = sdRoundedBox(p - rc, rh, u_radii);
   float dCircle = sdCircle(p - u_circle.xy, u_circle.z);
+  float dTrail = sdCircle(p - u_trail.xy, u_trail.z);
   float d = smin(dRect, dCircle, u_k);
+  d = smin(d, dTrail, u_k);
   float alpha = 1.0 - smoothstep(-1.0, 1.0, d);
   if (alpha <= 0.0) discard;
   gl_FragColor = vec4(u_color, alpha);
@@ -105,6 +108,7 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef }: Options) {
     const uRect = gl.getUniformLocation(program, 'u_rect')
     const uRadii = gl.getUniformLocation(program, 'u_radii')
     const uCircle = gl.getUniformLocation(program, 'u_circle')
+    const uTrail = gl.getUniformLocation(program, 'u_trail')
     const uColor = gl.getUniformLocation(program, 'u_color')
     const uK = gl.getUniformLocation(program, 'u_k')
 
@@ -134,7 +138,17 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef }: Options) {
     let rafId: number | null = null
     let activeTransitions = 0
 
-    const draw = () => {
+    // Trail follows the FAB centre with damped lerp; lags behind during fast
+    // motion to produce the asymmetric teardrop blob, settles back to centre at rest.
+    const TRAIL_LERP = 0.18
+    const TRAIL_R_FACTOR = 0.7
+    const TRAIL_REST_EPS = 0.5
+    let trailX = -1
+    let trailY = -1
+    let lastTs = 0
+    let trailMoving = false
+
+    const draw = (ts: number) => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
       const w = window.innerWidth
       const h = window.innerHeight
@@ -152,11 +166,27 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef }: Options) {
       const cy = fRect.top + fRect.height / 2
       const cr = Math.min(fRect.width, fRect.height) / 2
 
+      // First frame seeds trail at FAB position so it doesn't snap from (0,0)
+      if (trailX < 0) {
+        trailX = cx
+        trailY = cy
+      } else {
+        // Frame-rate-independent damping: ~60fps reference
+        const dt = lastTs ? Math.min(0.05, (ts - lastTs) / 1000) : 1 / 60
+        const k = 1 - Math.pow(1 - TRAIL_LERP, dt * 60)
+        trailX += (cx - trailX) * k
+        trailY += (cy - trailY) * k
+      }
+      lastTs = ts
+      trailMoving = Math.hypot(cx - trailX, cy - trailY) > TRAIL_REST_EPS
+
+      const tr = cr * TRAIL_R_FACTOR
+
       const margin = k + radius + 4
-      const minX = Math.max(0, Math.min(sRect.left, cx - cr) - margin)
-      const maxX = Math.min(w, Math.max(sRect.right, cx + cr) + margin)
-      const minY = Math.max(0, Math.min(sRect.top, cy - cr) - margin)
-      const maxY = Math.min(h, Math.max(sRect.bottom + 4, cy + cr) + margin)
+      const minX = Math.max(0, Math.min(sRect.left, cx - cr, trailX - tr) - margin)
+      const maxX = Math.min(w, Math.max(sRect.right, cx + cr, trailX + tr) + margin)
+      const minY = Math.max(0, Math.min(sRect.top, cy - cr, trailY - tr) - margin)
+      const maxY = Math.min(h, Math.max(sRect.bottom + 4, cy + cr, trailY + tr) + margin)
 
       gl.disable(gl.SCISSOR_TEST)
       gl.clear(gl.COLOR_BUFFER_BIT)
@@ -177,13 +207,14 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef }: Options) {
       gl.uniform1f(uDpr, dpr)
       gl.uniform4f(uRect, sRect.left, sRect.top, sRect.width, sRect.height + 4)
       gl.uniform3f(uCircle, cx, cy, cr)
+      gl.uniform3f(uTrail, trailX, trailY, tr)
 
       gl.drawArrays(gl.TRIANGLES, 0, 6)
     }
 
-    const tick = () => {
-      draw()
-      if (activeTransitions > 0) {
+    const tick = (ts: number) => {
+      draw(ts)
+      if (activeTransitions > 0 || trailMoving) {
         rafId = requestAnimationFrame(tick)
       } else {
         rafId = null
@@ -192,17 +223,13 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef }: Options) {
 
     const onTransitionStart = () => {
       activeTransitions++
-      if (rafId === null) tick()
+      if (rafId === null) rafId = requestAnimationFrame(tick)
     }
 
     const onTransitionEnd = () => {
       activeTransitions = Math.max(0, activeTransitions - 1)
       if (activeTransitions === 0) {
-        if (rafId !== null) {
-          cancelAnimationFrame(rafId)
-          rafId = null
-        }
-        requestAnimationFrame(draw)
+        if (rafId === null) rafId = requestAnimationFrame(tick)
       }
     }
 
