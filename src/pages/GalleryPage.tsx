@@ -124,6 +124,9 @@ export function GalleryPage() {
       </div>
 
       {armed && <div className="armed-backdrop" onClick={() => setArmed(false)} />}
+      {listOpen && !armed && (
+        <div className="sheet-backdrop" onClick={() => setListOpen(false)} />
+      )}
 
       <canvas ref={canvasRef} className="metaball-canvas" />
 

@@ -94,6 +94,15 @@
   cursor: pointer;
 }
 
+/* Tap outside the open sheet (i.e. above it on the map) → close.
+   Below sheet/FAB/icons z-index so they keep their own click handlers. */
+.sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  cursor: pointer;
+}
+
 .bottom-sheet.open {
   transform: translateY(0);
 }
@@ -312,10 +321,11 @@
 }
 
 /* When this tab is active, FAB sits on top of it — hide the icon glyph
-   but keep the button tappable so a second press closes the sheet. */
+   and let taps fall through to the FAB underneath (which arms recording). */
 .list-toggle-btn.is-active,
 .settings-btn.is-active {
   color: transparent;
+  pointer-events: none;
 }
 
 .bottom-sheet.armed .list-toggle-btn {
