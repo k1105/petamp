@@ -25,3 +25,16 @@ html, body {
   flex-direction: column;
   position: relative;
 }
+
+/* Shape editor uses full window width on desktop and allows scroll. */
+html:has(.shape-editor),
+body:has(.shape-editor) {
+  overflow: auto;
+  height: auto;
+}
+
+#root:has(.shape-editor) {
+  max-width: none;
+  height: auto;
+  overflow: visible;
+}
