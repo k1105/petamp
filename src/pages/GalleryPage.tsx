@@ -8,6 +8,7 @@ import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AreaLabel } from '../components/map/AreaLabel'
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
+import { SettingsPanel } from '../components/gallery/SettingsPanel'
 import { RunTile } from '../components/gallery/RunTile'
 import { EyesIcon } from '../components/gallery/EyesIcon'
 import { buildTubeSegments, buildTubeJoints } from '../utils/tubeData'
@@ -85,8 +86,10 @@ function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
 export function GalleryPage() {
   const navigate = useNavigate()
   const { runs, loadRuns, removeRun } = useRunStore()
+  const ui = useSettingsStore(s => s.ui)
   const [listOpen, setListOpen] = useState(false)
   const [armed, setArmed] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const dots = useGalleryAnimation(runs)
   const initialCenter = useCurrentPosition()
   const [searchParams] = useSearchParams()
@@ -122,6 +125,15 @@ export function GalleryPage() {
 
       {armed && <div className="armed-backdrop" onClick={() => setArmed(false)} />}
 
+      <button
+        className="settings-btn"
+        onClick={() => setSettingsOpen(true)}
+        aria-label="設定"
+        title="設定"
+      >
+        <Icon icon="lucide:settings" />
+      </button>
+
       <canvas ref={canvasRef} className="metaball-canvas" />
 
       <div ref={sheetRef} className={`bottom-sheet ${listOpen ? 'open' : ''} ${armed ? 'armed' : ''}`}>
@@ -139,7 +151,7 @@ export function GalleryPage() {
             onClick={handleFabClick}
             aria-label={armed ? 'START' : '記録開始'}
           >
-            <span className="fab-icon"><EyesIcon /></span>
+            <span className="fab-icon" style={{ width: ui.fabIconSize, height: ui.fabIconSize }}><EyesIcon /></span>
             {armed && <span className="fab-label">START</span>}
           </button>
         </div>
@@ -154,6 +166,8 @@ export function GalleryPage() {
           </div>
         )}
       </div>
+
+      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
     </div>
   )
 }
