@@ -355,7 +355,11 @@
 }
 
 .fab-icon {
-  font-size: 20px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
 }
 

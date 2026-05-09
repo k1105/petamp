@@ -9,6 +9,7 @@ import { AreaLabel } from '../components/map/AreaLabel'
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { RunTile } from '../components/gallery/RunTile'
+import { EyesIcon } from '../components/gallery/EyesIcon'
 import { buildTubeSegments, buildTubeJoints } from '../utils/tubeData'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { useGalleryAnimation } from '../hooks/useGalleryAnimation'
@@ -138,7 +139,7 @@ export function GalleryPage() {
             onClick={handleFabClick}
             aria-label={armed ? 'START' : '記録開始'}
           >
-            <span className="fab-icon"><Icon icon="lucide:circle-dot" /></span>
+            <span className="fab-icon"><EyesIcon /></span>
             {armed && <span className="fab-label">START</span>}
           </button>
         </div>
