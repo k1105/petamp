@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import { Icon } from '@iconify/react'
-import { useNavigate } from 'react-router-dom'
 import type { Run } from '../../types'
 import { totalDistance } from '../../utils/geoUtils'
 import { acceptedPoints } from '../../utils/recordingFilters'
@@ -10,16 +9,16 @@ import { buildRunSvgPath, RUN_SVG_VIEW_SIZE } from '../../utils/runSvgPath'
 interface Props {
   run: Run
   onDelete: (id: string) => void
+  onSelect: (id: string) => void
 }
 
-export function RunTile({ run, onDelete }: Props) {
-  const navigate = useNavigate()
+export function RunTile({ run, onDelete, onSelect }: Props) {
   const path = useMemo(() => buildRunSvgPath(run.trackPoints), [run.trackPoints])
   const dist = useMemo(() => totalDistance(acceptedPoints(run.trackPoints)), [run.trackPoints])
   const title = run.areaName ?? run.name
 
   return (
-    <div className="run-tile" onClick={() => navigate(`/run/${run.id}`)}>
+    <div className="run-tile" onClick={() => onSelect(run.id)}>
       <div className="run-tile-svg-wrap">
         <svg
           className="run-tile-svg"

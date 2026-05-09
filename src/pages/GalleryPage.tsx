@@ -123,6 +123,14 @@ export function GalleryPage() {
     else setBubblePhrase(null)
   }, [armed])
 
+  const handleRunSelect = (runId: string) => {
+    const fab = fabRef.current
+    if (!fab) return
+    const rect = fab.getBoundingClientRect()
+    const origin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+    useTransitionStore.getState().startRunDetail(origin, runId)
+  }
+
   const handleFabClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (armed) {
@@ -134,7 +142,7 @@ export function GalleryPage() {
       // transition overlay can display it during the iris-paused phase. Reading
       // the DOM avoids reaching into the BaseMap context from outside.
       const areaName = document.querySelector('.area-label')?.textContent ?? null
-      useTransitionStore.getState().start(origin, areaName)
+      useTransitionStore.getState().startRecord(origin, areaName)
       // Navigation to /record is performed by the overlay when the iris phase begins.
     } else {
       setArmed(true)
@@ -222,7 +230,7 @@ export function GalleryPage() {
         ) : (
           <div className="run-grid">
             {runs.map(run => (
-              <RunTile key={run.id} run={run} onDelete={removeRun} />
+              <RunTile key={run.id} run={run} onDelete={removeRun} onSelect={handleRunSelect} />
             ))}
           </div>
         )}

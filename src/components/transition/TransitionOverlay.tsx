@@ -1,18 +1,24 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useTransitionStore } from '../../store/useTransitionStore'
+import { useTransitionStore, type TransitionPhase } from '../../store/useTransitionStore'
+import { EyesIcon } from '../gallery/EyesIcon'
 
-const PHASE_DURATION_MS: Record<string, number> = {
+const PHASE_DURATION_MS: Record<TransitionPhase, number> = {
+  idle: 0,
   expanding: 400,
   iris: 350,
   'iris-paused': 3000,
   'iris-finishing': 500,
+  'run-expand': 400,
+  'run-fade': 600,
+  'run-settle': 400,
 }
 
 export function TransitionOverlay() {
   const phase = useTransitionStore(s => s.phase)
   const origin = useTransitionStore(s => s.origin)
   const areaName = useTransitionStore(s => s.areaName)
+  const runId = useTransitionStore(s => s.runId)
   const setPhase = useTransitionStore(s => s.setPhase)
   const reset = useTransitionStore(s => s.reset)
   const navigate = useNavigate()
@@ -20,21 +26,25 @@ export function TransitionOverlay() {
   useEffect(() => {
     if (phase === 'idle') return
 
-    // /record needs to be mounted by the time the iris hole starts revealing it.
-    // Navigate at the moment we transition into 'iris'.
-    if (phase === 'iris') {
-      navigate('/record')
-    }
+    // Navigation hooks: mount the destination page at the moment its content
+    // needs to start being visible behind the overlay.
+    if (phase === 'iris') navigate('/record')
+    if (phase === 'run-settle' && runId) navigate(`/run/${runId}`)
 
-    const dur = PHASE_DURATION_MS[phase] ?? 0
+    const dur = PHASE_DURATION_MS[phase]
     const t = window.setTimeout(() => {
-      if (phase === 'expanding') setPhase('iris')
-      else if (phase === 'iris') setPhase('iris-paused')
-      else if (phase === 'iris-paused') setPhase('iris-finishing')
-      else if (phase === 'iris-finishing') reset()
+      switch (phase) {
+        case 'expanding':       setPhase('iris'); break
+        case 'iris':            setPhase('iris-paused'); break
+        case 'iris-paused':     setPhase('iris-finishing'); break
+        case 'iris-finishing':  reset(); break
+        case 'run-expand':      setPhase('run-fade'); break
+        case 'run-fade':        setPhase('run-settle'); break
+        case 'run-settle':      reset(); break
+      }
     }, dur)
     return () => window.clearTimeout(t)
-  }, [phase, setPhase, reset, navigate])
+  }, [phase, runId, setPhase, reset, navigate])
 
   if (phase === 'idle') return null
 
@@ -45,14 +55,24 @@ export function TransitionOverlay() {
       } as React.CSSProperties)
     : undefined
 
+  const isRunPhase = phase === 'run-expand' || phase === 'run-fade' || phase === 'run-settle'
+
   return (
-    <div className={`transition-overlay phase-${phase}`} style={style}>
-      {/* Inside overlay so the mask clips it away as the iris grows past it
-          during the finishing phase. Positioned at the top edge of the iris
-          circle, on the green ring (where the mask is opaque while paused). */}
-      {(phase === 'iris-paused' || phase === 'iris-finishing') && areaName && (
-        <div className="transition-area">{areaName}</div>
+    <>
+      <div className={`transition-overlay phase-${phase}`} style={style}>
+        {/* Inside overlay so the mask clips it as the iris grows past it. */}
+        {(phase === 'iris-paused' || phase === 'iris-finishing') && areaName && (
+          <div className="transition-area">{areaName}</div>
+        )}
+      </div>
+      {/* Eye for the run-detail transition. Sibling so it isn't subject to the
+          overlay's mask or fade-out — needs to remain visible while the
+          overlay fades and the run-detail page comes in behind it. */}
+      {isRunPhase && (
+        <div className={`transition-eye phase-${phase}`} style={style}>
+          <EyesIcon />
+        </div>
       )}
-    </div>
+    </>
   )
 }

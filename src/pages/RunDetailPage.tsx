@@ -4,6 +4,7 @@ import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import { SphereGeometry, CylinderGeometry } from '@luma.gl/engine'
 import mapboxgl from 'mapbox-gl'
 import { Icon } from '@iconify/react'
+import { EyesIcon } from '../components/gallery/EyesIcon'
 import { BaseMap, useMap, useMapZoom } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AreaLabel } from '../components/map/AreaLabel'
@@ -303,6 +304,11 @@ export function RunDetailPage() {
           onCancel={() => setDebugOpen(false)}
         />
       )}
+
+      {/* Persistent eye carried over from the gallery → run-detail transition. */}
+      <div className="run-detail-eye" aria-hidden="true">
+        <EyesIcon />
+      </div>
     </div>
   )
 }

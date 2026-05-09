@@ -1234,6 +1234,74 @@
   to { --hole-radius: 200vmax; }
 }
 
+/* ---- Gallery → /run/:id transition ----
+   run-expand: green disc grows from FAB (same as the /record expanding phase).
+   run-fade:   eye translates from FAB origin to bottom-right; overlay stays full green.
+   run-settle: overlay fades out, /run/:id becomes visible behind. */
+.transition-overlay.phase-run-expand {
+  -webkit-mask-image: radial-gradient(
+    circle var(--disc-radius) at var(--origin-x) var(--origin-y),
+    #000 99%, transparent 100%
+  );
+  mask-image: radial-gradient(
+    circle var(--disc-radius) at var(--origin-x) var(--origin-y),
+    #000 99%, transparent 100%
+  );
+  animation: transition-disc-expand 400ms cubic-bezier(0.4, 0, 0.6, 1) forwards;
+}
+
+.transition-overlay.phase-run-fade {
+  /* full green, no mask */
+}
+
+.transition-overlay.phase-run-settle {
+  animation: transition-overlay-fade 400ms ease-in forwards;
+}
+
+@keyframes transition-overlay-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Eye that travels from the gallery FAB centre to the bottom-right corner.
+   52px = default ui.fabIconSize (matches the visible eye inside the FAB).
+   Sibling to .transition-overlay so the overlay's fade-out doesn't apply. */
+.transition-eye {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 52px;
+  height: 52px;
+  z-index: 110;
+  pointer-events: none;
+  transform: translate(calc(var(--origin-x) - 26px), calc(var(--origin-y) - 26px));
+}
+
+.transition-eye.phase-run-fade {
+  animation: transition-eye-to-br 600ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+@keyframes transition-eye-to-br {
+  from { transform: translate(calc(var(--origin-x) - 26px), calc(var(--origin-y) - 26px)); }
+  to   { transform: translate(calc(100vw - 76px), calc(100dvh - 76px)); }
+}
+
+.transition-eye.phase-run-settle {
+  transform: translate(calc(100vw - 76px), calc(100dvh - 76px));
+}
+
+/* Persistent eye on /run/:id at bottom-right. Coords match transition-eye's
+   final position so the handoff is seamless. */
+.run-detail-eye {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 52px;
+  height: 52px;
+  z-index: 30;
+  pointer-events: none;
+}
+
 /* Area name positioned just above the iris hole's top edge. Iris circle is
    centred at (50dvh, 50%) with radius 70vw, so its top edge is at
    y = 50dvh - 70vw. Place the text 24px above that, so it sits on the green
