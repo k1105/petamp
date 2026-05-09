@@ -671,6 +671,19 @@
   text-align: center;
 }
 
+.debug-section-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 4px;
+}
+
+.debug-slider-secondary {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
 .debug-sliders {
   display: flex;
   flex-direction: column;

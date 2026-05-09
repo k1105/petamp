@@ -11,8 +11,8 @@ import {useGpsRecorder} from "../hooks/useGpsRecorder";
 import {useCurrentPosition} from "../hooks/useCurrentPosition";
 import {useRunStore} from "../store/useRunStore";
 import {buildTubeSegments, buildTubeJoints} from "../utils/tubeData";
-import {acceptedPoints} from "../utils/recordingFilters";
-import {RecordingDebugPanel, type RadiusSettings} from "../components/recording/RecordingDebugPanel";
+import {acceptedPoints, accuracyGate, warmupGate, minDistanceGate, maxSpeedGate} from "../utils/recordingFilters";
+import {RecordingDebugPanel, type RadiusSettings, type FilterSettings} from "../components/recording/RecordingDebugPanel";
 import type {Run, TrackPoint} from "../types";
 
 const sphere = new SphereGeometry({radius: 1, nlat: 20, nlong: 20});
@@ -22,7 +22,11 @@ const DEFAULT_RADII: RadiusSettings = {
   rawTubeRadius: 1.2,
   dotRadius: 9.5,
 };
+const DEFAULT_FILTER_SETTINGS: FilterSettings = {
+  maxSpeed: 15,
+};
 const RADII_STORAGE_KEY = "petamp.recording.radii";
+const FILTER_STORAGE_KEY = "petamp.recording.filterSettings";
 const MIN_ZOOM = 12.5;
 
 const FIT_INTERVAL = 20;
@@ -185,9 +189,32 @@ function loadStoredRadii(): RadiusSettings {
   }
 }
 
+function loadStoredFilterSettings(): FilterSettings {
+  try {
+    const raw = localStorage.getItem(FILTER_STORAGE_KEY);
+    if (!raw) return DEFAULT_FILTER_SETTINGS;
+    const parsed = JSON.parse(raw);
+    return {
+      maxSpeed: typeof parsed.maxSpeed === "number" ? parsed.maxSpeed : DEFAULT_FILTER_SETTINGS.maxSpeed,
+    };
+  } catch {
+    return DEFAULT_FILTER_SETTINGS;
+  }
+}
+
 export function RecordingPage() {
   const navigate = useNavigate();
-  const {isRecording, trackPoints, error, start, stop} = useGpsRecorder();
+  const [filterSettings, setFilterSettings] = useState<FilterSettings>(() => loadStoredFilterSettings());
+  const filters = useMemo(
+    () => [
+      accuracyGate(25),
+      warmupGate(3000),
+      minDistanceGate(2),
+      maxSpeedGate(filterSettings.maxSpeed),
+    ],
+    [filterSettings.maxSpeed],
+  );
+  const {isRecording, trackPoints, error, consecutiveRejections, start, stop} = useGpsRecorder(filters);
   const {addRun} = useRunStore();
   const [debugPoints, setDebugPoints] = useState<TrackPoint[] | null>(null);
   const [recordingDebugOpen, setRecordingDebugOpen] = useState(false);
@@ -202,6 +229,14 @@ export function RecordingPage() {
       // ignore storage errors
     }
   }, [radii]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filterSettings));
+    } catch {
+      // ignore storage errors
+    }
+  }, [filterSettings]);
 
   useEffect(() => {
     start();
@@ -302,9 +337,13 @@ export function RecordingPage() {
       {recordingDebugOpen && (
         <RecordingDebugPanel
           trackPoints={trackPoints}
+          consecutiveRejections={consecutiveRejections}
           radii={radii}
           onChangeRadii={setRadii}
           onResetRadii={() => setRadii(DEFAULT_RADII)}
+          filterSettings={filterSettings}
+          onChangeFilterSettings={setFilterSettings}
+          onResetFilterSettings={() => setFilterSettings(DEFAULT_FILTER_SETTINGS)}
           onClose={() => setRecordingDebugOpen(false)}
         />
       )}

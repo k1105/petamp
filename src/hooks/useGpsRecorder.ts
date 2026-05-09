@@ -7,13 +7,17 @@ interface GpsRecorderState {
   isRecording: boolean
   trackPoints: TrackPoint[]
   error: string | null
+  consecutiveRejections: number
 }
+
+const RECOVERY_AFTER_REJECTIONS = 3
 
 export function useGpsRecorder(filters: PointFilter[] = defaultFilters()) {
   const [state, setState] = useState<GpsRecorderState>({
     isRecording: false,
     trackPoints: [],
     error: null,
+    consecutiveRejections: 0,
   })
   const watchIdRef = useRef<number | null>(null)
   const recordingStartedAtRef = useRef<number>(0)
@@ -26,7 +30,7 @@ export function useGpsRecorder(filters: PointFilter[] = defaultFilters()) {
       return
     }
     recordingStartedAtRef.current = Date.now()
-    setState(s => ({ ...s, isRecording: true, error: null }))
+    setState(s => ({ ...s, isRecording: true, error: null, consecutiveRejections: 0 }))
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
@@ -45,9 +49,22 @@ export function useGpsRecorder(filters: PointFilter[] = defaultFilters()) {
             history: accepted,
             recordingStartedAt: recordingStartedAtRef.current,
           }
-          const ok = applyFilters(point, ctx, filtersRef.current)
+          const passes = applyFilters(point, ctx, filtersRef.current)
+
+          // 連続棄却から回復: filterで弾かれてもN回連続したら強制採用してbaselineをリセット
+          let ok = passes
+          let nextConsecutive = passes ? 0 : s.consecutiveRejections + 1
+          if (!passes && s.consecutiveRejections + 1 >= RECOVERY_AFTER_REJECTIONS) {
+            ok = true
+            nextConsecutive = 0
+          }
+
           const tagged: TrackPoint = ok ? point : { ...point, rejected: true }
-          return { ...s, trackPoints: [...s.trackPoints, tagged] }
+          return {
+            ...s,
+            trackPoints: [...s.trackPoints, tagged],
+            consecutiveRejections: nextConsecutive,
+          }
         })
       },
       (err) => {

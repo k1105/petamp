@@ -7,21 +7,43 @@ export interface RadiusSettings {
   dotRadius: number
 }
 
-interface Props {
-  trackPoints: TrackPoint[]
-  radii: RadiusSettings
-  onChangeRadii: (next: RadiusSettings) => void
-  onClose: () => void
-  onResetRadii: () => void
+export interface FilterSettings {
+  maxSpeed: number
 }
 
-export function RecordingDebugPanel({ trackPoints, radii, onChangeRadii, onClose, onResetRadii }: Props) {
+interface Props {
+  trackPoints: TrackPoint[]
+  consecutiveRejections: number
+  radii: RadiusSettings
+  onChangeRadii: (next: RadiusSettings) => void
+  onResetRadii: () => void
+  filterSettings: FilterSettings
+  onChangeFilterSettings: (next: FilterSettings) => void
+  onResetFilterSettings: () => void
+  onClose: () => void
+}
+
+export function RecordingDebugPanel({
+  trackPoints,
+  consecutiveRejections,
+  radii,
+  onChangeRadii,
+  onResetRadii,
+  filterSettings,
+  onChangeFilterSettings,
+  onResetFilterSettings,
+  onClose,
+}: Props) {
   const accepted = trackPoints.filter(p => !p.rejected).length
   const rejected = trackPoints.length - accepted
   const latest = trackPoints.at(-1)
 
   const setRadius = (key: keyof RadiusSettings, value: number) => {
     onChangeRadii({ ...radii, [key]: value })
+  }
+
+  const setFilter = (key: keyof FilterSettings, value: number) => {
+    onChangeFilterSettings({ ...filterSettings, [key]: value })
   }
 
   return (
@@ -43,8 +65,27 @@ export function RecordingDebugPanel({ trackPoints, radii, onChangeRadii, onClose
             <dt>最新 rejected</dt>
             <dd>{latest ? (latest.rejected ? 'yes' : 'no') : '—'}</dd>
           </div>
+          <div>
+            <dt>連続棄却</dt>
+            <dd>{consecutiveRejections}</dd>
+          </div>
         </dl>
 
+        <div className="debug-section-label">フィルタ閾値</div>
+        <div className="debug-sliders">
+          <SliderRow
+            label="最大速度"
+            value={filterSettings.maxSpeed}
+            min={3}
+            max={100}
+            step={1}
+            unit="m/s"
+            secondary={`≈ ${(filterSettings.maxSpeed * 3.6).toFixed(0)} km/h`}
+            onChange={v => setFilter('maxSpeed', v)}
+          />
+        </div>
+
+        <div className="debug-section-label">表示半径</div>
         <div className="debug-sliders">
           <SliderRow
             label="白チューブ半径 (採用)"
@@ -76,6 +117,10 @@ export function RecordingDebugPanel({ trackPoints, radii, onChangeRadii, onClose
         </div>
 
         <div className="debug-actions">
+          <button className="btn-ghost" onClick={onResetFilterSettings}>
+            <Icon icon="lucide:rotate-ccw" />
+            <span>フィルタをリセット</span>
+          </button>
           <button className="btn-ghost" onClick={onResetRadii}>
             <Icon icon="lucide:rotate-ccw" />
             <span>半径をリセット</span>
@@ -91,7 +136,7 @@ export function RecordingDebugPanel({ trackPoints, radii, onChangeRadii, onClose
 }
 
 function SliderRow({
-  label, value, min, max, step, unit, onChange,
+  label, value, min, max, step, unit, secondary, onChange,
 }: {
   label: string
   value: number
@@ -99,13 +144,17 @@ function SliderRow({
   max: number
   step: number
   unit: string
+  secondary?: string
   onChange: (v: number) => void
 }) {
   return (
     <div className="debug-slider-row">
       <div className="debug-slider-head">
         <span className="debug-slider-label">{label}</span>
-        <span className="debug-slider-value">{value.toFixed(1)} {unit}</span>
+        <span className="debug-slider-value">
+          {value.toFixed(value < 10 ? 1 : 0)} {unit}
+          {secondary && <span className="debug-slider-secondary"> ({secondary})</span>}
+        </span>
       </div>
       <input
         type="range"
