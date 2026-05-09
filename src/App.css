@@ -120,15 +120,13 @@
 
 .run-tile {
   position: relative;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 10px 10px 12px;
+  background: transparent;
+  border: none;
+  padding: 4px 4px 8px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   cursor: pointer;
-  overflow: hidden;
 }
 
 .run-tile:active {
