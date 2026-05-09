@@ -1179,15 +1179,18 @@
 }
 
 /* Phase 1: green disc grows from FAB origin to cover the screen.
-   Mask = "fully filled inside the disc, transparent outside". */
+   Mask = "fully filled inside the disc, transparent outside".
+   Color stops use absolute lengths (not percentages of the gradient extent)
+   so the visible disc radius is exactly --disc-radius regardless of how the
+   browser computes the gradient's extent. */
 .transition-overlay.phase-expanding {
   -webkit-mask-image: radial-gradient(
-    circle var(--disc-radius) at var(--origin-x) var(--origin-y),
-    #000 99%, transparent 100%
+    circle at var(--origin-x) var(--origin-y),
+    #000 var(--disc-radius), transparent calc(var(--disc-radius) + 1px)
   );
   mask-image: radial-gradient(
-    circle var(--disc-radius) at var(--origin-x) var(--origin-y),
-    #000 99%, transparent 100%
+    circle at var(--origin-x) var(--origin-y),
+    #000 var(--disc-radius), transparent calc(var(--disc-radius) + 1px)
   );
   animation: transition-disc-expand 400ms cubic-bezier(0.4, 0, 0.6, 1) forwards;
 }
@@ -1198,17 +1201,18 @@
 }
 
 /* Phases 2-4: hole at centre grows. Mask = "transparent inside the hole,
-   fully filled outside". /record is visible through the hole. */
+   fully filled outside". /record is visible through the hole.
+   Length-based stops keep the hole radius exactly --hole-radius. */
 .transition-overlay.phase-iris,
 .transition-overlay.phase-iris-paused,
 .transition-overlay.phase-iris-finishing {
   -webkit-mask-image: radial-gradient(
-    circle var(--hole-radius) at 50% 50%,
-    transparent 99%, #000 100%
+    circle at 50% 50%,
+    transparent var(--hole-radius), #000 calc(var(--hole-radius) + 1px)
   );
   mask-image: radial-gradient(
-    circle var(--hole-radius) at 50% 50%,
-    transparent 99%, #000 100%
+    circle at 50% 50%,
+    transparent var(--hole-radius), #000 calc(var(--hole-radius) + 1px)
   );
 }
 
