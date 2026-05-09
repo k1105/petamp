@@ -1219,13 +1219,14 @@
   animation: transition-iris-grow 350ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
 }
 
+/* Pause target: 70vw is the DIAMETER → radius = 35vw. */
 @keyframes transition-iris-grow {
   from { --hole-radius: 0px; }
-  to { --hole-radius: 70vw; }
+  to { --hole-radius: 35vw; }
 }
 
 .transition-overlay.phase-iris-paused {
-  --hole-radius: 70vw;
+  --hole-radius: 35vw;
 }
 
 .transition-overlay.phase-iris-finishing {
@@ -1233,7 +1234,7 @@
 }
 
 @keyframes transition-iris-finish {
-  from { --hole-radius: 70vw; }
+  from { --hole-radius: 35vw; }
   to { --hole-radius: 200vmax; }
 }
 
@@ -1351,13 +1352,13 @@
 .run-detail-bubble:active { transform: scale(0.96); }
 
 /* Area name positioned just above the iris hole's top edge. Iris circle is
-   centred at (50dvh, 50%) with radius 70vw, so its top edge is at
-   y = 50dvh - 70vw. Place the text 24px above that, so it sits on the green
-   ring while paused and gets clipped when the hole grows past it during the
-   finishing phase. */
+   centred at (50dvh, 50%) with radius 35vw (= 70vw diameter), so its top
+   edge is at y = 50dvh - 35vw. Place the text 24px above that, so it sits
+   on the green ring while paused and gets clipped when the hole grows past
+   it during the finishing phase. */
 .transition-area {
   position: absolute;
-  top: calc(50dvh - 70vw - 60px);
+  top: calc(50dvh - 35vw - 60px);
   left: 50%;
   color: #fff;
   font-size: 28px;
