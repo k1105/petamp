@@ -62,6 +62,7 @@
   background: transparent;
   border-top: 1px solid var(--border);
   border-radius: var(--radius) var(--radius) 0 0;
+  height: 70dvh;
   max-height: 75dvh;
   transform: translateY(calc(100% - 32px));
   transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
@@ -244,6 +245,17 @@
   will-change: transform;
 }
 
+/* When list/settings tab is open, FAB slides over the corresponding icon.
+   Δx = list-toggle/settings-btn center − FAB center
+       = (50% − 92px) − 50% = −92px (mirror for settings) */
+.fab.fab-sheet.fab-pos-list {
+  transform: translateX(-92px);
+}
+
+.fab.fab-sheet.fab-pos-settings {
+  transform: translateX(92px);
+}
+
 .bottom-sheet.armed .fab.fab-sheet {
   transform: translateY(-30dvh) scale(1.8);
   box-shadow: 0 16px 48px rgba(28, 151, 94, 0.55);
@@ -292,6 +304,18 @@
 
 .list-toggle-btn:active {
   opacity: 0.85;
+}
+
+.list-toggle-btn,
+.settings-btn {
+  transition: opacity 0.2s, color 0.2s, transform 0.2s;
+}
+
+/* When this tab is active, FAB sits on top of it — hide the icon glyph
+   but keep the button tappable so a second press closes the sheet. */
+.list-toggle-btn.is-active,
+.settings-btn.is-active {
+  color: transparent;
 }
 
 .bottom-sheet.armed .list-toggle-btn {

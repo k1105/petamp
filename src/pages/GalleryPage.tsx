@@ -130,7 +130,7 @@ export function GalleryPage() {
       <div ref={sheetRef} className={`bottom-sheet ${listOpen ? 'open' : ''} ${armed ? 'armed' : ''}`}>
         <div className="bottom-sheet-shape">
           <button
-            className="list-toggle-btn"
+            className={`list-toggle-btn${listOpen && sheetView === 'list' ? ' is-active' : ''}`}
             onClick={() => {
               if (listOpen && sheetView === 'list') {
                 setListOpen(false)
@@ -145,7 +145,7 @@ export function GalleryPage() {
           </button>
           <button
             ref={fabRef}
-            className="fab fab-sheet"
+            className={`fab fab-sheet${listOpen && !armed ? ` fab-pos-${sheetView}` : ''}`}
             onClick={handleFabClick}
             aria-label={armed ? 'START' : '記録開始'}
           >
@@ -153,7 +153,7 @@ export function GalleryPage() {
             {armed && <span className="fab-label">START</span>}
           </button>
           <button
-            className="settings-btn"
+            className={`settings-btn${listOpen && sheetView === 'settings' ? ' is-active' : ''}`}
             onClick={() => {
               if (listOpen && sheetView === 'settings') {
                 setListOpen(false)
