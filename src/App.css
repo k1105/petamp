@@ -240,7 +240,11 @@
 }
 
 .fab.fab-sheet .fab-label {
-  transition: opacity 0.2s;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transition: opacity 0.2s, transform 0.2s;
 }
 
 .bottom-sheet.armed .fab.fab-sheet .fab-icon {
@@ -249,7 +253,7 @@
 }
 
 .bottom-sheet.armed .fab.fab-sheet .fab-label {
-  transform: scale(calc(1 / 1.8));
+  transform: translate(-50%, -50%) scale(calc(1 / 1.8));
   letter-spacing: 0.08em;
 }
 

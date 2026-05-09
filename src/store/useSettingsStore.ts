@@ -30,9 +30,9 @@ export const DEFAULT_FILTER_SETTINGS: FilterSettings = {
 
 export const DEFAULT_UI_SETTINGS: UiSettings = {
   fabIconSize: 52,
-  eyeYOffset: -3,
+  eyeYOffset: -12,
   eyeSizeScale: 1.15,
-  pupilSizeScale: 1.15,
+  pupilSizeScale: 1.10,
 }
 
 interface SettingsState {
