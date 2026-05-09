@@ -102,7 +102,8 @@ export function BaseMap({
     <MapContext.Provider value={{ map }}>
       <div
         ref={containerRef}
-        style={{ width: '100%', height: '100%', opacity: loaded ? 1 : 0, transition: 'opacity 0.4s' }}
+        className="map-canvas"
+        style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.4s' }}
       />
       {!lockTarget && (
         <button

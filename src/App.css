@@ -22,6 +22,11 @@
 
 .map-container {
   position: absolute;
+  inset: 0;
+}
+
+.map-canvas {
+  position: absolute;
   inset: 15dvh 0;
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 8%, #000 92%, transparent 100%);
   mask-image: linear-gradient(to bottom, transparent 0%, #000 8%, #000 92%, transparent 100%);
