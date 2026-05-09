@@ -177,16 +177,17 @@
   position: absolute;
   width: 56px;
   height: 56px;
-  /* center-aligned with FAB vertically: FAB top + (64-56)/2 = -64*0.6 + 4 */
-  top: calc(-64px * 0.6 + 4px);
-  /* gap from FAB right-edge: 32px */
+  /* top-aligned with FAB circle */
+  top: calc(-64px * 0.6);
+  /* gap from FAB left-edge: 32px */
   left: calc(50% - 32px - 32px - 56px);
   background: transparent;
   border: none;
   color: var(--accent);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding: 0;
   font-size: 32px;
   cursor: pointer;
   z-index: 22;
