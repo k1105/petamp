@@ -152,7 +152,13 @@ export function RunDetailPage() {
   const [run, setRun] = useState<Run | null>(null)
   const [mapVisible, setMapVisible] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
-  const { runs, updateRun } = useRunStore()
+  const { runs, loadRuns, updateRun } = useRunStore()
+
+  // 直リンクでrunsが空のままならロード（next/prev算出用）
+  useEffect(() => {
+    if (runs.length === 0) loadRuns()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const { currentTime, isPlaying, duration, setDuration, play, stop, seekTo, reset } = useAnimation()
   const acceptedRunPoints = useMemo(() => acceptedPoints(run?.trackPoints ?? []), [run])
   const { gain } = useElevationStats(acceptedRunPoints)
@@ -202,6 +208,9 @@ export function RunDetailPage() {
   if (!run) return <div className="page loading">読み込み中...</div>
 
   const dist = totalDistance(acceptedRunPoints)
+  const currentIdx = runs.findIndex(r => r.id === run.id)
+  const prevRun = currentIdx > 0 ? runs[currentIdx - 1] : null
+  const nextRun = currentIdx >= 0 && currentIdx < runs.length - 1 ? runs[currentIdx + 1] : null
 
   return (
     <div className="page" style={!mapVisible ? { background: 'var(--accent)' } : undefined}>
@@ -230,6 +239,25 @@ export function RunDetailPage() {
         aria-label="パスデータを表示"
       >
         <Icon icon="lucide:braces" />
+      </button>
+
+      <button
+        className="run-nav-btn run-nav-prev"
+        onClick={() => prevRun && navigate(`/run/${prevRun.id}`)}
+        disabled={!prevRun}
+        aria-label="前のラン"
+        title="前のラン"
+      >
+        <Icon icon="lucide:chevron-left" />
+      </button>
+      <button
+        className="run-nav-btn run-nav-next"
+        onClick={() => nextRun && navigate(`/run/${nextRun.id}`)}
+        disabled={!nextRun}
+        aria-label="次のラン"
+        title="次のラン"
+      >
+        <Icon icon="lucide:chevron-right" />
       </button>
 
       <div className="bottom-bar">
