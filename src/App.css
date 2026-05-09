@@ -98,11 +98,13 @@
    ~70dvh - 38px from top (= bottom-sheet's collapsed top + FAB top + scale
    re-centre - translateY(-30dvh)). The bubble's tail is at its bottom-left,
    poking down-left toward the eye, so the bubble itself sits above-right. */
+/* Position (top/left) is computed and assigned in JS each frame from the
+   FAB's getBoundingClientRect, so the bubble stays aligned with the actual
+   eye even if dvh-based layout jitters on initial load or during transforms. */
 .speech-bubble {
   position: fixed;
-  top: calc(70dvh - 150px);
-  left: 50%;
-  transform: translateX(-50%);
+  top: 0;
+  left: 0;
   z-index: 30;
   background: #fff;
   color: #0a0a0a;
@@ -116,6 +118,7 @@
   cursor: pointer;
   white-space: nowrap;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  transform-origin: bottom 50%;
   animation: speech-bubble-pop 0.28s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
@@ -132,13 +135,11 @@
   z-index: -1;
 }
 
-.speech-bubble:active {
-  transform: translateX(-50%) scale(0.96);
-}
+.speech-bubble:active { transform: scale(0.96); }
 
 @keyframes speech-bubble-pop {
-  from { opacity: 0; transform: translateX(-50%) scale(0.7); }
-  to { opacity: 1; transform: translateX(-50%) scale(1); }
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 /* Tap outside the open sheet (i.e. above it on the map) → close.
@@ -443,14 +444,11 @@
   line-height: 1;
 }
 
-/* "TAP TO START" label rendered outside the FAB visual, directly under the
-   armed eye character. Armed FAB visual centre ≈ 70dvh - 38px from top, blob
-   bottom ≈ 70dvh + 19px. Place label ~30px below that. */
+/* Position computed in JS (just under the armed FAB's actual rect). */
 .start-label {
   position: fixed;
-  top: calc(70dvh + 50px);
-  left: 50%;
-  transform: translateX(-50%);
+  top: 0;
+  left: 0;
   z-index: 30;
   color: #fff;
   font-size: 14px;
@@ -460,6 +458,7 @@
   white-space: nowrap;
   pointer-events: none;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  transform-origin: top center;
   animation: speech-bubble-pop 0.32s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
@@ -1313,12 +1312,13 @@
 
 .run-detail-eye:active { transform: scale(0.94); }
 
-/* Speech bubble that pops out of the run-detail eye on tap. Sits above-left
-   of the eye with its tail at the bottom-right pointing back toward the eye. */
+/* Speech bubble that pops out of the run-detail eye on tap. Position
+   (top/left) is set in JS from eyeRef.getBoundingClientRect() so initial
+   layout/dvh jitter doesn't cause misalignment. */
 .run-detail-bubble {
   position: fixed;
-  bottom: calc(15dvh + 124px);     /* eye-bottom (15dvh+24) + eye-h (88) + 12px gap */
-  right: 60px;                     /* shifted left of eye so tail aims at eye centre */
+  top: 0;
+  left: 0;
   z-index: 31;
   background: #fff;
   color: #0a0a0a;
@@ -1332,6 +1332,7 @@
   cursor: pointer;
   white-space: nowrap;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  transform-origin: bottom right;
   animation: speech-bubble-pop 0.28s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 

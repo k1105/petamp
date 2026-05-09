@@ -112,6 +112,8 @@ export function GalleryPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
   const fabRef = useRef<HTMLButtonElement>(null)
+  const speechBubbleRef = useRef<HTMLButtonElement>(null)
+  const startLabelRef = useRef<HTMLDivElement>(null)
   const armedRef = useRef(armed)
   armedRef.current = armed
   useMetaballSheet({ canvasRef, sheetRef, fabRef, armedRef })
@@ -122,6 +124,34 @@ export function GalleryPage() {
     if (armed) setBubblePhrase(pickPhrase(null))
     else setBubblePhrase(null)
   }, [armed])
+
+  // Position the speech bubble + start label relative to the FAB's actual
+  // bounding rect each frame (only while armed). This avoids dvh-based layout
+  // jitter on initial load and follows the FAB during its armed transform.
+  useEffect(() => {
+    if (!armed) return
+    let raf = 0
+    const tick = () => {
+      const fab = fabRef.current
+      if (fab) {
+        const r = fab.getBoundingClientRect()
+        const cx = r.left + r.width / 2
+        const bubble = speechBubbleRef.current
+        if (bubble) {
+          bubble.style.left = `${cx - bubble.offsetWidth / 2}px`
+          bubble.style.top = `${r.top - 16 - bubble.offsetHeight}px`
+        }
+        const label = startLabelRef.current
+        if (label) {
+          label.style.left = `${cx - label.offsetWidth / 2}px`
+          label.style.top = `${r.bottom + 18}px`
+        }
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [armed, bubblePhrase])
 
   const handleRunSelect = (runId: string) => {
     const fab = fabRef.current
@@ -164,6 +194,7 @@ export function GalleryPage() {
       {armed && <div className="armed-backdrop" onClick={() => setArmed(false)} />}
       {armed && bubblePhrase && (
         <button
+          ref={speechBubbleRef}
           key={bubblePhrase}
           className="speech-bubble"
           onClick={(e) => {
@@ -175,7 +206,7 @@ export function GalleryPage() {
           {bubblePhrase}
         </button>
       )}
-      {armed && <div className="start-label">TAP TO START</div>}
+      {armed && <div ref={startLabelRef} className="start-label">TAP TO START</div>}
       {listOpen && !armed && (
         <div className="sheet-backdrop" onClick={() => setListOpen(false)} />
       )}

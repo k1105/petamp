@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import { SphereGeometry, CylinderGeometry } from '@luma.gl/engine'
@@ -170,6 +170,8 @@ export function RunDetailPage() {
   const [mapVisible, setMapVisible] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
   const [bubblePhrase, setBubblePhrase] = useState<string | null>(null)
+  const eyeRef = useRef<HTMLButtonElement>(null)
+  const detailBubbleRef = useRef<HTMLButtonElement>(null)
   const { runs, loadRuns, updateRun } = useRunStore()
   const [runsLoaded, setRunsLoaded] = useState(false)
 
@@ -201,6 +203,31 @@ export function RunDetailPage() {
       })
     })
   }, [run?.id])
+
+  // Position the speech bubble relative to the eye's actual rendered rect.
+  // Avoids dvh-based layout jitter on initial load. Only re-runs while a
+  // bubble is showing.
+  useEffect(() => {
+    if (!bubblePhrase) return
+    const place = () => {
+      const eye = eyeRef.current
+      const bubble = detailBubbleRef.current
+      if (!eye || !bubble) return
+      const r = eye.getBoundingClientRect()
+      const cx = r.left + r.width / 2
+      // Bubble sits above-left of the eye; tail at bottom-right points back.
+      bubble.style.left = `${cx - bubble.offsetWidth + 18}px`
+      bubble.style.top = `${r.top - 12 - bubble.offsetHeight}px`
+    }
+    place()
+    const ro = new ResizeObserver(place)
+    if (eyeRef.current) ro.observe(eyeRef.current)
+    window.addEventListener('resize', place)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', place)
+    }
+  }, [bubblePhrase])
 
   useEffect(() => {
     if (!id) return
@@ -323,6 +350,7 @@ export function RunDetailPage() {
       {/* Persistent eye carried over from the gallery → run-detail transition.
           Tapping cycles a (mock) commentary phrase about the run. */}
       <button
+        ref={eyeRef}
         type="button"
         className="run-detail-eye"
         onClick={() => setBubblePhrase(prev => pickDetailPhrase(prev))}
@@ -332,6 +360,7 @@ export function RunDetailPage() {
       </button>
       {bubblePhrase && (
         <button
+          ref={detailBubbleRef}
           type="button"
           key={bubblePhrase}
           className="run-detail-bubble"
