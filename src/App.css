@@ -241,7 +241,7 @@
 
 .fab.fab-sheet .fab-label {
   position: absolute;
-  top: 50%;
+  top: 72%;
   left: 50%;
   transform: translate(-50%, -50%);
   transition: opacity 0.2s, transform 0.2s;
