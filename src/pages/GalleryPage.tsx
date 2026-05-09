@@ -83,6 +83,19 @@ function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
   return <DeckOverlay layers={layers} />
 }
 
+// Mock phrases for the armed-state speech bubble. Will be replaced by
+// local-LLM generation later; for now a fixed pool that cycles on tap.
+const SPEECH_PHRASES = [
+  'このへんは初めてだ',
+  'ホームグラウンド！',
+  '今日はさかみちある？',
+] as const
+
+function pickPhrase(current: string | null): string {
+  const others = SPEECH_PHRASES.filter(p => p !== current)
+  return others[Math.floor(Math.random() * others.length)]
+}
+
 export function GalleryPage() {
   const navigate = useNavigate()
   const { runs, loadRuns, removeRun } = useRunStore()
@@ -90,6 +103,7 @@ export function GalleryPage() {
   const [listOpen, setListOpen] = useState(false)
   const [armed, setArmed] = useState(false)
   const [sheetView, setSheetView] = useState<'list' | 'settings'>('list')
+  const [bubblePhrase, setBubblePhrase] = useState<string | null>(null)
   const dots = useGalleryAnimation(runs)
   const initialCenter = useCurrentPosition()
   const [searchParams] = useSearchParams()
@@ -103,6 +117,11 @@ export function GalleryPage() {
   useMetaballSheet({ canvasRef, sheetRef, fabRef, armedRef })
 
   useEffect(() => { loadRuns(isDebug) }, [isDebug])
+
+  useEffect(() => {
+    if (armed) setBubblePhrase(pickPhrase(null))
+    else setBubblePhrase(null)
+  }, [armed])
 
   const handleFabClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -126,6 +145,19 @@ export function GalleryPage() {
       </div>
 
       {armed && <div className="armed-backdrop" onClick={() => setArmed(false)} />}
+      {armed && bubblePhrase && (
+        <button
+          key={bubblePhrase}
+          className="speech-bubble"
+          onClick={(e) => {
+            e.stopPropagation()
+            setBubblePhrase(prev => pickPhrase(prev))
+          }}
+          aria-label={`発話: ${bubblePhrase} (タップで切替)`}
+        >
+          {bubblePhrase}
+        </button>
+      )}
       {listOpen && !armed && (
         <div className="sheet-backdrop" onClick={() => setListOpen(false)} />
       )}
