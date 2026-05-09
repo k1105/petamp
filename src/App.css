@@ -1263,18 +1263,19 @@
   to { opacity: 0; }
 }
 
-/* Eye that travels from the gallery FAB centre to the bottom-right corner.
-   52px = default ui.fabIconSize (matches the visible eye inside the FAB).
-   Sibling to .transition-overlay so the overlay's fade-out doesn't apply. */
+/* Eye that travels from the gallery FAB centre to the map's bottom-right
+   corner (above the bottom-bar). 88px — bigger than the gallery FAB eye (52px).
+   Sibling to .transition-overlay so the overlay's fade-out doesn't apply.
+   Map canvas inset: 15dvh 0 → map bottom edge at y = 85dvh. */
 .transition-eye {
   position: fixed;
   top: 0;
   left: 0;
-  width: 52px;
-  height: 52px;
+  width: 88px;
+  height: 88px;
   z-index: 110;
   pointer-events: none;
-  transform: translate(calc(var(--origin-x) - 26px), calc(var(--origin-y) - 26px));
+  transform: translate(calc(var(--origin-x) - 44px), calc(var(--origin-y) - 44px));
 }
 
 .transition-eye.phase-run-fade {
@@ -1282,22 +1283,23 @@
 }
 
 @keyframes transition-eye-to-br {
-  from { transform: translate(calc(var(--origin-x) - 26px), calc(var(--origin-y) - 26px)); }
-  to   { transform: translate(calc(100vw - 76px), calc(100dvh - 76px)); }
+  from { transform: translate(calc(var(--origin-x) - 44px), calc(var(--origin-y) - 44px)); }
+  to   { transform: translate(calc(100vw - 112px), calc(85dvh - 112px)); }
 }
 
 .transition-eye.phase-run-settle {
-  transform: translate(calc(100vw - 76px), calc(100dvh - 76px));
+  transform: translate(calc(100vw - 112px), calc(85dvh - 112px));
 }
 
-/* Persistent eye on /run/:id at bottom-right. Coords match transition-eye's
-   final position so the handoff is seamless. */
+/* Persistent eye on /run/:id anchored to the map's bottom-right corner.
+   bottom = page-bottom - map-bottom + 24px = 100dvh - 85dvh + 24 = 15dvh + 24.
+   Coords match transition-eye's final position so the handoff is seamless. */
 .run-detail-eye {
   position: fixed;
-  bottom: 24px;
+  bottom: calc(15dvh + 24px);
   right: 24px;
-  width: 52px;
-  height: 52px;
+  width: 88px;
+  height: 88px;
   z-index: 30;
   pointer-events: none;
 }
