@@ -22,7 +22,7 @@
 
 .map-container {
   position: absolute;
-  inset: 0;
+  inset: 15dvh 0;
 }
 
 /* ---- Bottom bar (recording / detail) ---- */
