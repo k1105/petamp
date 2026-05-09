@@ -947,3 +947,161 @@
 .back-btn svg,
 .debug-btn svg { font-size: 18px; }
 
+/* ---- Shape editor ---- */
+.shape-editor {
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  padding: 16px 24px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.shape-editor-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.shape-editor-header h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.link-ghost {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.link-ghost:hover { color: var(--text); }
+
+.shape-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
+  align-items: start;
+}
+
+.shape-editor-svg {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 100%;
+  height: auto;
+  touch-action: none;
+}
+
+.shape-editor-numeric {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.anchor-block {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.anchor-block h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.anchor-row {
+  display: grid;
+  grid-template-columns: 36px 1fr 1fr;
+  gap: 6px;
+  align-items: center;
+}
+
+.anchor-label {
+  color: var(--text-muted);
+}
+
+.anchor-row input[type="number"] {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: 12px;
+  width: 100%;
+}
+
+.shape-editor-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.preview-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.preview-controls h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.preview-phase {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: ui-monospace, monospace;
+}
+
+.preview-svg {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 100%;
+  height: auto;
+}
+
+.preview-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.shape-editor-export {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shape-editor-export h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.shape-editor-export pre {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  color: var(--text-muted);
+  overflow: auto;
+  margin: 0;
+}
+

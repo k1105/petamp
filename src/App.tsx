@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { GalleryPage } from './pages/GalleryPage'
 import { RecordingPage } from './pages/RecordingPage'
 import { RunDetailPage } from './pages/RunDetailPage'
+import { ShapeEditorPage } from './pages/ShapeEditorPage'
 import './App.css'
 
 function App() {
@@ -11,6 +12,7 @@ function App() {
         <Route path="/" element={<GalleryPage />} />
         <Route path="/record" element={<RecordingPage />} />
         <Route path="/run/:id" element={<RunDetailPage />} />
+        <Route path="/shape-editor" element={<ShapeEditorPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
