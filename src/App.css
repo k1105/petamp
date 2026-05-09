@@ -317,22 +317,9 @@
   box-shadow: 0 16px 48px rgba(28, 151, 94, 0.55);
 }
 
-.fab.fab-sheet .fab-label {
-  position: absolute;
-  top: 72%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  transition: opacity 0.2s, transform 0.2s;
-}
-
 .bottom-sheet.armed .fab.fab-sheet .fab-icon {
   /* keep icon size visually similar after parent scale */
   transform: scale(calc(1 / 1.8));
-}
-
-.bottom-sheet.armed .fab.fab-sheet .fab-label {
-  transform: translate(-50%, -50%) scale(calc(1 / 1.8));
-  letter-spacing: 0.08em;
 }
 
 /* ---- List toggle (left of FAB on gallery) ---- */
@@ -456,10 +443,24 @@
   line-height: 1;
 }
 
-.fab-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
+/* "TAP TO START" label rendered outside the FAB visual, directly under the
+   armed eye character. Armed FAB visual centre ≈ 70dvh - 38px from top, blob
+   bottom ≈ 70dvh + 19px. Place label ~30px below that. */
+.start-label {
+  position: fixed;
+  top: calc(70dvh + 50px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  animation: speech-bubble-pop 0.32s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
 /* ---- Orbit toggle ---- */
@@ -1150,5 +1151,109 @@
   color: var(--text-muted);
   overflow: auto;
   margin: 0;
+}
+
+/* ---- Iris transition (gallery → /record) ----
+   Custom-property animations need @property to interpolate. Two registered
+   length properties drive the disc-expand and iris-grow phases respectively.
+   The overlay uses radial-gradient masks parameterised by these properties. */
+@property --disc-radius {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --hole-radius {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+.transition-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--accent);
+  pointer-events: none;
+  --origin-x: 50vw;
+  --origin-y: 50vh;
+}
+
+/* Phase 1: green disc grows from FAB origin to cover the screen.
+   Mask = "fully filled inside the disc, transparent outside". */
+.transition-overlay.phase-expanding {
+  -webkit-mask-image: radial-gradient(
+    circle var(--disc-radius) at var(--origin-x) var(--origin-y),
+    #000 99%, transparent 100%
+  );
+  mask-image: radial-gradient(
+    circle var(--disc-radius) at var(--origin-x) var(--origin-y),
+    #000 99%, transparent 100%
+  );
+  animation: transition-disc-expand 400ms cubic-bezier(0.4, 0, 0.6, 1) forwards;
+}
+
+@keyframes transition-disc-expand {
+  from { --disc-radius: 32px; }
+  to { --disc-radius: 200vmax; }
+}
+
+/* Phases 2-4: hole at centre grows. Mask = "transparent inside the hole,
+   fully filled outside". /record is visible through the hole. */
+.transition-overlay.phase-iris,
+.transition-overlay.phase-iris-paused,
+.transition-overlay.phase-iris-finishing {
+  -webkit-mask-image: radial-gradient(
+    circle var(--hole-radius) at 50% 50%,
+    transparent 99%, #000 100%
+  );
+  mask-image: radial-gradient(
+    circle var(--hole-radius) at 50% 50%,
+    transparent 99%, #000 100%
+  );
+}
+
+.transition-overlay.phase-iris {
+  animation: transition-iris-grow 350ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+@keyframes transition-iris-grow {
+  from { --hole-radius: 0px; }
+  to { --hole-radius: 70vw; }
+}
+
+.transition-overlay.phase-iris-paused {
+  --hole-radius: 70vw;
+}
+
+.transition-overlay.phase-iris-finishing {
+  animation: transition-iris-finish 500ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes transition-iris-finish {
+  from { --hole-radius: 70vw; }
+  to { --hole-radius: 200vmax; }
+}
+
+/* Area name shown over the iris hole during the paused phase. */
+.transition-area {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 110;
+  color: #fff;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+  animation: transition-area-fade 320ms ease-out;
+}
+
+@keyframes transition-area-fade {
+  from { opacity: 0; transform: translate(-50%, -42%); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
 }
 

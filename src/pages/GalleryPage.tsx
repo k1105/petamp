@@ -16,6 +16,7 @@ import { acceptedPoints } from '../utils/recordingFilters'
 import { useGalleryAnimation } from '../hooks/useGalleryAnimation'
 import { useCurrentPosition } from '../hooks/useCurrentPosition'
 import { useMetaballSheet } from '../hooks/useMetaballSheet'
+import { useTransitionStore } from '../store/useTransitionStore'
 import type { DotPosition } from '../hooks/useGalleryAnimation'
 import type { Run } from '../types'
 
@@ -97,7 +98,6 @@ function pickPhrase(current: string | null): string {
 }
 
 export function GalleryPage() {
-  const navigate = useNavigate()
   const { runs, loadRuns, removeRun } = useRunStore()
   const ui = useSettingsStore(s => s.ui)
   const [listOpen, setListOpen] = useState(false)
@@ -126,7 +126,16 @@ export function GalleryPage() {
   const handleFabClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (armed) {
-      navigate('/record')
+      const fab = fabRef.current
+      if (!fab) return
+      const rect = fab.getBoundingClientRect()
+      const origin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+      // Snapshot the area name (if any) from the current AreaLabel render so the
+      // transition overlay can display it during the iris-paused phase. Reading
+      // the DOM avoids reaching into the BaseMap context from outside.
+      const areaName = document.querySelector('.area-label')?.textContent ?? null
+      useTransitionStore.getState().start(origin, areaName)
+      // Navigation to /record is performed by the overlay when the iris phase begins.
     } else {
       setArmed(true)
       setListOpen(false)
@@ -158,6 +167,7 @@ export function GalleryPage() {
           {bubblePhrase}
         </button>
       )}
+      {armed && <div className="start-label">TAP TO START</div>}
       {listOpen && !armed && (
         <div className="sheet-backdrop" onClick={() => setListOpen(false)} />
       )}
@@ -184,10 +194,9 @@ export function GalleryPage() {
             ref={fabRef}
             className={`fab fab-sheet${listOpen && !armed ? ` fab-pos-${sheetView}` : ''}`}
             onClick={handleFabClick}
-            aria-label={armed ? 'START' : '記録開始'}
+            aria-label={armed ? 'TAP TO START' : '記録開始'}
           >
             <span className="fab-icon" style={{ width: ui.fabIconSize, height: ui.fabIconSize }}><EyesIcon /></span>
-            {armed && <span className="fab-label">START</span>}
           </button>
           <button
             className={`settings-btn${listOpen && sheetView === 'settings' ? ' is-active' : ''}`}
