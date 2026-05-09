@@ -11,7 +11,7 @@ import { useSettingsStore } from '../store/useSettingsStore'
 import { SettingsPanel } from '../components/gallery/SettingsPanel'
 import { RunTile } from '../components/gallery/RunTile'
 import { EyesIcon } from '../components/gallery/EyesIcon'
-import { FabBlob } from '../components/gallery/FabBlob'
+import { MetaballOverlay } from '../components/gallery/MetaballOverlay'
 import { buildTubeSegments, buildTubeJoints } from '../utils/tubeData'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { useGalleryAnimation } from '../hooks/useGalleryAnimation'
@@ -126,6 +126,8 @@ export function GalleryPage() {
         <div className="sheet-backdrop" onClick={() => setListOpen(false)} />
       )}
 
+      <MetaballOverlay sheetRef={sheetRef} fabRef={fabRef} armed={armed} />
+
       <div ref={sheetRef} className={`bottom-sheet ${listOpen ? 'open' : ''} ${armed ? 'armed' : ''}`}>
         <div className="bottom-sheet-shape">
           <button
@@ -148,7 +150,6 @@ export function GalleryPage() {
             onClick={handleFabClick}
             aria-label={armed ? 'START' : '記録開始'}
           >
-            <FabBlob fabRef={fabRef} />
             <span className="fab-icon" style={{ width: ui.fabIconSize, height: ui.fabIconSize }}><EyesIcon /></span>
             {armed && <span className="fab-label">START</span>}
           </button>

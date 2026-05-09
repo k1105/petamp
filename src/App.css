@@ -59,7 +59,7 @@
   left: 0;
   right: 0;
   z-index: 20;
-  background: var(--accent);
+  background: transparent;
   border-radius: var(--radius) var(--radius) 0 0;
   height: 70dvh;
   max-height: 75dvh;
@@ -67,6 +67,17 @@
   transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
   display: flex;
   flex-direction: column;
+}
+
+/* Metaball overlay: full-screen SVG that draws the sheet rect + FAB blob
+   inside a single feGaussianBlur+threshold filter group so they merge. */
+.metaball-svg {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
 }
 
 /* metaball: rendered by Canvas 2D (useMetaballSheet) */
@@ -235,20 +246,6 @@
   flex-shrink: 0;
 }
 
-/* The blob (SVG) replaces the circular background. Its viewBox is 256×256
-   centered at (0,0) but rendered at the FAB's 64×64 box, so the path is
-   drawn at the FAB's actual radius. overflow:visible lets deformation
-   extend past the button bounds. */
-.fab-blob {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 256px;
-  height: 256px;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  overflow: visible;
-}
 
 .fab:active {
   opacity: 0.85;
