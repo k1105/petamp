@@ -154,10 +154,15 @@ export function RunDetailPage() {
   const [mapVisible, setMapVisible] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
   const { runs, loadRuns, updateRun } = useRunStore()
+  const [runsLoaded, setRunsLoaded] = useState(false)
 
-  // 直リンクでrunsが空のままならロード（next/prev算出用）
+  // 直リンクでrunsが空のままならロード（next/prev算出 + 404判定用）
   useEffect(() => {
-    if (runs.length === 0) loadRuns()
+    if (runs.length > 0) {
+      setRunsLoaded(true)
+      return
+    }
+    loadRuns().finally(() => setRunsLoaded(true))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const { currentTime, isPlaying, duration, setDuration, play, stop, seekTo, reset } = useAnimation()
@@ -189,6 +194,9 @@ export function RunDetailPage() {
       reset()
       return
     }
+    // runs ロード完了前に loadRun→redirect を走らせると、たまたま読み込み待ち
+    // 中の有効なIDで誤って "/" へ飛ぶ。runs 確定後に判定する。
+    if (!runsLoaded) return
     loadRun(id).then(r => {
       if (!r) {
         navigate('/', { replace: true })
@@ -198,7 +206,7 @@ export function RunDetailPage() {
       setDuration(buildTripLayerData(r).duration)
       reset()
     })
-  }, [id, runs])
+  }, [id, runs, runsLoaded])
 
   const center = useMemo((): [number, number] | undefined => {
     if (!run || acceptedRunPoints.length === 0) return undefined
