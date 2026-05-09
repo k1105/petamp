@@ -125,15 +125,6 @@ export function GalleryPage() {
 
       {armed && <div className="armed-backdrop" onClick={() => setArmed(false)} />}
 
-      <button
-        className="settings-btn"
-        onClick={() => setSettingsOpen(true)}
-        aria-label="設定"
-        title="設定"
-      >
-        <Icon icon="lucide:settings" />
-      </button>
-
       <canvas ref={canvasRef} className="metaball-canvas" />
 
       <div ref={sheetRef} className={`bottom-sheet ${listOpen ? 'open' : ''} ${armed ? 'armed' : ''}`}>
@@ -153,6 +144,14 @@ export function GalleryPage() {
           >
             <span className="fab-icon" style={{ width: ui.fabIconSize, height: ui.fabIconSize }}><EyesIcon /></span>
             {armed && <span className="fab-label">START</span>}
+          </button>
+          <button
+            className="settings-btn"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="設定"
+            title="設定"
+          >
+            <Icon icon="lucide:settings" />
           </button>
         </div>
         <div className="bottom-sheet-handle" onClick={() => setListOpen(v => !v)} />
