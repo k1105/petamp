@@ -10,23 +10,14 @@ import {PathDebugPanel} from "../components/recording/PathDebugPanel";
 import {useGpsRecorder} from "../hooks/useGpsRecorder";
 import {useCurrentPosition} from "../hooks/useCurrentPosition";
 import {useRunStore} from "../store/useRunStore";
+import {useSettingsStore, type Radii} from "../store/useSettingsStore";
 import {buildTubeSegments, buildTubeJoints} from "../utils/tubeData";
 import {acceptedPoints, accuracyGate, warmupGate, minDistanceGate, maxSpeedGate} from "../utils/recordingFilters";
-import {RecordingDebugPanel, type RadiusSettings, type FilterSettings} from "../components/recording/RecordingDebugPanel";
+import {RecordingDebugPanel} from "../components/recording/RecordingDebugPanel";
 import type {Run, TrackPoint} from "../types";
 
 const sphere = new SphereGeometry({radius: 1, nlat: 20, nlong: 20});
 const cylinder = new CylinderGeometry({radius: 1, height: 1, nradial: 12});
-const DEFAULT_RADII: RadiusSettings = {
-  tubeRadius: 1.3,
-  rawTubeRadius: 1.2,
-  dotRadius: 9.5,
-};
-const DEFAULT_FILTER_SETTINGS: FilterSettings = {
-  maxSpeed: 15,
-};
-const RADII_STORAGE_KEY = "petamp.recording.radii";
-const FILTER_STORAGE_KEY = "petamp.recording.filterSettings";
 const MIN_ZOOM = 12.5;
 
 const FIT_INTERVAL = 20;
@@ -76,7 +67,7 @@ function RecordingLayers({
   trackPoints: TrackPoint[];
   acceptedTrackPoints: TrackPoint[];
   fallbackPosition: [number, number] | null;
-  radii: RadiusSettings;
+  radii: Radii;
 }) {
   const zoom = useMapZoom();
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5));
@@ -174,37 +165,14 @@ function RecordingLayers({
   return <DeckOverlay layers={layers} />;
 }
 
-function loadStoredRadii(): RadiusSettings {
-  try {
-    const raw = localStorage.getItem(RADII_STORAGE_KEY);
-    if (!raw) return DEFAULT_RADII;
-    const parsed = JSON.parse(raw);
-    return {
-      tubeRadius: typeof parsed.tubeRadius === "number" ? parsed.tubeRadius : DEFAULT_RADII.tubeRadius,
-      rawTubeRadius: typeof parsed.rawTubeRadius === "number" ? parsed.rawTubeRadius : DEFAULT_RADII.rawTubeRadius,
-      dotRadius: typeof parsed.dotRadius === "number" ? parsed.dotRadius : DEFAULT_RADII.dotRadius,
-    };
-  } catch {
-    return DEFAULT_RADII;
-  }
-}
-
-function loadStoredFilterSettings(): FilterSettings {
-  try {
-    const raw = localStorage.getItem(FILTER_STORAGE_KEY);
-    if (!raw) return DEFAULT_FILTER_SETTINGS;
-    const parsed = JSON.parse(raw);
-    return {
-      maxSpeed: typeof parsed.maxSpeed === "number" ? parsed.maxSpeed : DEFAULT_FILTER_SETTINGS.maxSpeed,
-    };
-  } catch {
-    return DEFAULT_FILTER_SETTINGS;
-  }
-}
-
 export function RecordingPage() {
   const navigate = useNavigate();
-  const [filterSettings, setFilterSettings] = useState<FilterSettings>(() => loadStoredFilterSettings());
+  const radii = useSettingsStore(s => s.radii);
+  const setRadii = useSettingsStore(s => s.setRadii);
+  const resetRadii = useSettingsStore(s => s.resetRadii);
+  const filterSettings = useSettingsStore(s => s.filterSettings);
+  const setFilterSettings = useSettingsStore(s => s.setFilterSettings);
+  const resetFilterSettings = useSettingsStore(s => s.resetFilterSettings);
   const filters = useMemo(
     () => [
       accuracyGate(25),
@@ -218,25 +186,8 @@ export function RecordingPage() {
   const {addRun} = useRunStore();
   const [debugPoints, setDebugPoints] = useState<TrackPoint[] | null>(null);
   const [recordingDebugOpen, setRecordingDebugOpen] = useState(false);
-  const [radii, setRadii] = useState<RadiusSettings>(() => loadStoredRadii());
   const initialCenter = useCurrentPosition();
   const acceptedTrackPoints = useMemo(() => acceptedPoints(trackPoints), [trackPoints]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(RADII_STORAGE_KEY, JSON.stringify(radii));
-    } catch {
-      // ignore storage errors
-    }
-  }, [radii]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filterSettings));
-    } catch {
-      // ignore storage errors
-    }
-  }, [filterSettings]);
 
   useEffect(() => {
     start();
@@ -340,10 +291,10 @@ export function RecordingPage() {
           consecutiveRejections={consecutiveRejections}
           radii={radii}
           onChangeRadii={setRadii}
-          onResetRadii={() => setRadii(DEFAULT_RADII)}
+          onResetRadii={resetRadii}
           filterSettings={filterSettings}
           onChangeFilterSettings={setFilterSettings}
-          onResetFilterSettings={() => setFilterSettings(DEFAULT_FILTER_SETTINGS)}
+          onResetFilterSettings={resetFilterSettings}
           onClose={() => setRecordingDebugOpen(false)}
         />
       )}

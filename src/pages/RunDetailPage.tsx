@@ -14,6 +14,7 @@ import { useRunStore } from '../store/useRunStore'
 import { positionAtTime } from '../hooks/useGalleryAnimation'
 import { buildTubeSegments, buildTubeJoints } from '../utils/tubeData'
 import { acceptedPoints } from '../utils/recordingFilters'
+import { useSettingsStore } from '../store/useSettingsStore'
 import { buildTripLayerData } from '../utils/tripLayerData'
 import { totalDistance } from '../utils/geoUtils'
 import { formatDistance, formatElevation, formatDate } from '../utils/formatters'
@@ -22,7 +23,6 @@ import type { Run } from '../types'
 
 const sphere = new SphereGeometry({ radius: 1, nlat: 20, nlong: 20 })
 const cylinder = new CylinderGeometry({ radius: 1, height: 1, nradial: 12 })
-const TUBE_RADIUS = 3
 const MIN_ZOOM = 12.5
 
 function DetailLayers({
@@ -30,6 +30,7 @@ function DetailLayers({
 }: { run: Run; currentTime: number; isPlaying: boolean; mapVisible: boolean }) {
   const zoom = useMapZoom()
   const { map } = useMap()
+  const radii = useSettingsStore(s => s.radii)
 
   // 経路全体が画面中央に収まるようにフィット（bbox中心 = 画面中心）
   useEffect(() => {
@@ -62,8 +63,8 @@ function DetailLayers({
 
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5))
   const pts = useMemo(() => acceptedPoints(run.trackPoints), [run])
-  const tubeData = useMemo(() => buildTubeSegments(pts, TUBE_RADIUS), [pts])
-  const jointData = useMemo(() => buildTubeJoints(pts, TUBE_RADIUS), [pts])
+  const tubeData = useMemo(() => buildTubeSegments(pts, radii.tubeRadius), [pts, radii.tubeRadius])
+  const jointData = useMemo(() => buildTubeJoints(pts, radii.tubeRadius), [pts, radii.tubeRadius])
 
   // マップ非表示時は白+黒、表示時はグレー+グリーン
   const tubeColor: [number, number, number, number] = mapVisible
@@ -101,7 +102,7 @@ function DetailLayers({
           data: dotData,
           mesh: sphere,
           getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
-          getScale: [TUBE_RADIUS * 1.5, TUBE_RADIUS * 1.5, TUBE_RADIUS * 1.5],
+          getScale: [radii.dotRadius, radii.dotRadius, radii.dotRadius],
           getColor: dotColor,
           material: mat,
         }),
@@ -133,12 +134,12 @@ function DetailLayers({
         data: dotData,
         mesh: sphere,
         getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
-        getScale: [TUBE_RADIUS * 1.5, TUBE_RADIUS * 1.5, TUBE_RADIUS * 1.5],
+        getScale: [radii.dotRadius, radii.dotRadius, radii.dotRadius],
         getColor: dotColor,
         material: mat,
       }),
     ]
-  }, [tubeData, jointData, dotData, t, mapVisible])
+  }, [tubeData, jointData, dotData, t, mapVisible, radii.dotRadius])
 
   return <DeckOverlay layers={layers} />
 }

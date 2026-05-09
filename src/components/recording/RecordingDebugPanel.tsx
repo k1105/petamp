@@ -1,24 +1,15 @@
 import { Icon } from '@iconify/react'
 import type { TrackPoint } from '../../types'
-
-export interface RadiusSettings {
-  tubeRadius: number
-  rawTubeRadius: number
-  dotRadius: number
-}
-
-export interface FilterSettings {
-  maxSpeed: number
-}
+import type { Radii, FilterSettings } from '../../store/useSettingsStore'
 
 interface Props {
   trackPoints: TrackPoint[]
   consecutiveRejections: number
-  radii: RadiusSettings
-  onChangeRadii: (next: RadiusSettings) => void
+  radii: Radii
+  onChangeRadii: (partial: Partial<Radii>) => void
   onResetRadii: () => void
   filterSettings: FilterSettings
-  onChangeFilterSettings: (next: FilterSettings) => void
+  onChangeFilterSettings: (partial: Partial<FilterSettings>) => void
   onResetFilterSettings: () => void
   onClose: () => void
 }
@@ -38,12 +29,12 @@ export function RecordingDebugPanel({
   const rejected = trackPoints.length - accepted
   const latest = trackPoints.at(-1)
 
-  const setRadius = (key: keyof RadiusSettings, value: number) => {
-    onChangeRadii({ ...radii, [key]: value })
+  const setRadius = (key: keyof Radii, value: number) => {
+    onChangeRadii({ [key]: value })
   }
 
   const setFilter = (key: keyof FilterSettings, value: number) => {
-    onChangeFilterSettings({ ...filterSettings, [key]: value })
+    onChangeFilterSettings({ [key]: value })
   }
 
   return (

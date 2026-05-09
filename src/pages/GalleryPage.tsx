@@ -6,6 +6,7 @@ import { Icon } from '@iconify/react'
 import { BaseMap, useMapZoom } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { useRunStore } from '../store/useRunStore'
+import { useSettingsStore } from '../store/useSettingsStore'
 import { RunCard } from '../components/gallery/RunCard'
 import { buildTubeSegments, buildTubeJoints } from '../utils/tubeData'
 import { acceptedPoints } from '../utils/recordingFilters'
@@ -15,18 +16,15 @@ import { useMetaballSheet } from '../hooks/useMetaballSheet'
 import type { DotPosition } from '../hooks/useGalleryAnimation'
 import type { Run } from '../types'
 
-const TUBE_RADIUS = 3
 const sphere = new SphereGeometry({ radius: 1, nlat: 20, nlong: 20 })
 const cylinder = new CylinderGeometry({ radius: 1, height: 1, nradial: 12 })
 const MIN_ZOOM = 12.5
-
 const SPHERE_REF_ZOOM = 13
-const SPHERE_TARGET_RADIUS = TUBE_RADIUS * 3
-const SPHERE_MAX_RADIUS = TUBE_RADIUS * 3
 
 function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
   const zoom = useMapZoom()
   const navigate = useNavigate()
+  const radii = useSettingsStore(s => s.radii)
 
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5))
   const tubeColor: [number, number, number, number] = [160, 160, 160, Math.round(255 * t)]
@@ -34,8 +32,8 @@ function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
   const mat = { ambient: 1, diffuse: 0, shininess: 0, specularColor: [0, 0, 0] as [number, number, number] }
 
   const sphereRadius = Math.min(
-    SPHERE_TARGET_RADIUS * Math.pow(2, SPHERE_REF_ZOOM - zoom),
-    SPHERE_MAX_RADIUS
+    radii.dotRadius * Math.pow(2, SPHERE_REF_ZOOM - zoom),
+    radii.dotRadius
   )
 
   const layers = useMemo(() => {
@@ -46,7 +44,7 @@ function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
         return [
           new SimpleMeshLayer({
             id: `run-tube-${run.id}`,
-            data: buildTubeSegments(pts, TUBE_RADIUS),
+            data: buildTubeSegments(pts, radii.tubeRadius),
             mesh: cylinder,
             getPosition: d => d.position,
             getScale: d => d.scale,
@@ -58,7 +56,7 @@ function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
           }),
           new SimpleMeshLayer({
             id: `run-joints-${run.id}`,
-            data: buildTubeJoints(pts, TUBE_RADIUS),
+            data: buildTubeJoints(pts, radii.tubeRadius),
             mesh: sphere,
             getPosition: d => d.position,
             getScale: d => d.scale,
@@ -77,7 +75,7 @@ function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
         material: mat,
       }),
     ]
-  }, [runs, dots, t, sphereRadius])
+  }, [runs, dots, t, sphereRadius, radii.tubeRadius])
 
   return <DeckOverlay layers={layers} />
 }
