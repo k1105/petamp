@@ -8,7 +8,7 @@ import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AreaLabel } from '../components/map/AreaLabel'
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
-import { RunCard } from '../components/gallery/RunCard'
+import { RunTile } from '../components/gallery/RunTile'
 import { buildTubeSegments, buildTubeJoints } from '../utils/tubeData'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { useGalleryAnimation } from '../hooks/useGalleryAnimation'
@@ -146,9 +146,9 @@ export function GalleryPage() {
         {runs.length === 0 ? (
           <p className="empty-hint">記録したランがここに表示されます</p>
         ) : (
-          <div className="run-list">
+          <div className="run-grid">
             {runs.map(run => (
-              <RunCard key={run.id} run={run} onDelete={removeRun} />
+              <RunTile key={run.id} run={run} onDelete={removeRun} />
             ))}
           </div>
         )}

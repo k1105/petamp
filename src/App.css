@@ -109,13 +109,89 @@
   background-clip: content-box;
 }
 
-.run-list {
+.run-grid {
   flex: 1;
   overflow-y: auto;
   padding: 8px 16px calc(16px + var(--safe-bottom));
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.run-tile {
+  position: relative;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 10px 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.run-tile:active {
+  opacity: 0.85;
+}
+
+.run-tile-svg-wrap {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.run-tile-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.run-tile-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.run-tile-name {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.run-tile-stats {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.run-tile-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.5;
+}
+
+.run-tile-delete:active {
+  opacity: 1;
 }
 
 .empty-hint {
@@ -453,55 +529,6 @@
   color: var(--text-muted);
 }
 
-/* ---- Run card ---- */
-.run-card {
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 14px 16px;
-  cursor: pointer;
-  transition: border-color 0.15s;
-}
-
-.run-card:active {
-  border-color: var(--accent);
-}
-
-.run-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 4px;
-}
-
-.run-card-name {
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.run-card-delete {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 12px;
-  padding: 4px 8px;
-}
-
-.run-card-date {
-  color: var(--text-muted);
-  font-size: 11px;
-  margin-bottom: 8px;
-}
-
-.run-card-stats {
-  display: flex;
-  gap: 14px;
-  font-size: 13px;
-  color: var(--accent);
-  font-weight: 600;
-}
-
 /* ---- Animation control ---- */
 .animation-control {
   display: flex;
@@ -834,8 +861,6 @@
   gap: 8px;
 }
 .record-button svg { font-size: 18px; }
-
-.run-card-delete svg { font-size: 16px; vertical-align: middle; }
 
 .animation-buttons button svg { font-size: 18px; vertical-align: middle; }
 
