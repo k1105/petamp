@@ -1234,26 +1234,29 @@
   to { --hole-radius: 200vmax; }
 }
 
-/* Area name shown over the iris hole during the paused phase. */
+/* Area name positioned just above the iris hole's top edge. Iris circle is
+   centred at (50dvh, 50%) with radius 70vw, so its top edge is at
+   y = 50dvh - 70vw. Place the text 24px above that, so it sits on the green
+   ring while paused and gets clipped when the hole grows past it during the
+   finishing phase. */
 .transition-area {
-  position: fixed;
-  top: 50%;
+  position: absolute;
+  top: calc(50dvh - 70vw - 60px);
   left: 50%;
-  z-index: 110;
   color: #fff;
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-align: center;
   white-space: nowrap;
   pointer-events: none;
   text-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   animation: transition-area-fade 320ms ease-out;
 }
 
 @keyframes transition-area-fade {
-  from { opacity: 0; transform: translate(-50%, -42%); }
-  to { opacity: 1; transform: translate(-50%, -50%); }
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
