@@ -26,6 +26,7 @@ import type { Run } from '../types'
 const sphere = new SphereGeometry({ radius: 1, nlat: 20, nlong: 20 })
 const cylinder = new CylinderGeometry({ radius: 1, height: 1, nradial: 12 })
 const MIN_ZOOM = 12.5
+const FIT_MAX_ZOOM = 17
 
 function DetailLayers({
   run, currentTime, isPlaying, mapVisible,
@@ -46,7 +47,7 @@ function DetailLayers({
       [Math.min(...lngs), Math.min(...lats)],
       [Math.max(...lngs), Math.max(...lats)],
     ]
-    map.fitBounds(bounds, { padding: 60, duration: 300 })
+    map.fitBounds(bounds, { padding: 60, duration: 300, maxZoom: FIT_MAX_ZOOM })
   }, [map, run])
 
   const dotData = useMemo(() => {
