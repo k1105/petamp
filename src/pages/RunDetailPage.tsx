@@ -164,7 +164,10 @@ export function RunDetailPage() {
       return
     }
     loadRun(id).then(r => {
-      if (!r) return
+      if (!r) {
+        navigate('/', { replace: true })
+        return
+      }
       setRun(r)
       setDuration(buildTripLayerData(r).duration)
       reset()
