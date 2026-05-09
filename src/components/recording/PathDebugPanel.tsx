@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import type { TrackPoint } from '../../types'
+import { useReverseGeocode } from '../../hooks/useReverseGeocode'
 
 interface Props {
   trackPoints: TrackPoint[]
@@ -21,20 +22,25 @@ export function PathDebugPanel({ trackPoints, onProceed, onCancel, proceedLabel 
     const last = trackPoints[trackPoints.length - 1]
     const durationMs = last.timestamp - first.timestamp
     const altitudes = trackPoints.map(p => p.altitude).filter((a): a is number => a !== null)
+    const lats = trackPoints.map(p => p.lat)
+    const lngs = trackPoints.map(p => p.lng)
+    const latMin = Math.min(...lats)
+    const latMax = Math.max(...lats)
+    const lngMin = Math.min(...lngs)
+    const lngMax = Math.max(...lngs)
     return {
       count: trackPoints.length,
       durationSec: Math.round(durationMs / 1000),
       startedAt: new Date(first.timestamp).toISOString(),
       finishedAt: new Date(last.timestamp).toISOString(),
       altitudeCount: altitudes.length,
-      bbox: {
-        latMin: Math.min(...trackPoints.map(p => p.lat)),
-        latMax: Math.max(...trackPoints.map(p => p.lat)),
-        lngMin: Math.min(...trackPoints.map(p => p.lng)),
-        lngMax: Math.max(...trackPoints.map(p => p.lng)),
-      },
+      centerLng: (lngMin + lngMax) / 2,
+      centerLat: (latMin + latMax) / 2,
+      bbox: { latMin, latMax, lngMin, lngMax },
     }
   }, [trackPoints])
+
+  const areaName = useReverseGeocode(summary?.centerLng, summary?.centerLat)
 
   const handleCopy = async () => {
     try {
@@ -62,6 +68,8 @@ export function PathDebugPanel({ trackPoints, onProceed, onCancel, proceedLabel 
           <h2 className="debug-title">パスデータ デバッグ</h2>
           <span className="debug-badge">{trackPoints.length} points</span>
         </div>
+
+        {areaName && <div className="debug-area">{areaName}</div>}
 
         {summary ? (
           <dl className="debug-summary">

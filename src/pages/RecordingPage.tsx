@@ -5,6 +5,7 @@ import {SphereGeometry, CylinderGeometry} from "@luma.gl/engine";
 import {Icon} from "@iconify/react";
 import {BaseMap, useMap, useMapZoom} from "../components/map/BaseMap";
 import {DeckOverlay} from "../components/map/DeckOverlay";
+import {AreaLabel} from "../components/map/AreaLabel";
 import {LiveStats} from "../components/recording/LiveStats";
 import {PathDebugPanel} from "../components/recording/PathDebugPanel";
 import {useGpsRecorder} from "../hooks/useGpsRecorder";
@@ -239,6 +240,7 @@ export function RecordingPage() {
               fallbackPosition={initialCenter ?? null}
               radii={radii}
             />
+            <AreaLabel />
           </BaseMap>
         )}
       </div>

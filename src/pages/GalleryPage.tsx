@@ -5,6 +5,7 @@ import { SphereGeometry, CylinderGeometry } from '@luma.gl/engine'
 import { Icon } from '@iconify/react'
 import { BaseMap, useMapZoom } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
+import { AreaLabel } from '../components/map/AreaLabel'
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { RunCard } from '../components/gallery/RunCard'
@@ -113,6 +114,7 @@ export function GalleryPage() {
         {initialCenter !== undefined && (
           <BaseMap initialCenter={initialCenter ?? undefined} initialZoom={13}>
             <GalleryLayers runs={runs} dots={dots} />
+            <AreaLabel />
           </BaseMap>
         )}
       </div>

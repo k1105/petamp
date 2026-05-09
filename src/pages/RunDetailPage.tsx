@@ -6,6 +6,7 @@ import mapboxgl from 'mapbox-gl'
 import { Icon } from '@iconify/react'
 import { BaseMap, useMap, useMapZoom } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
+import { AreaLabel } from '../components/map/AreaLabel'
 import { AnimationControl } from '../components/detail/AnimationControl'
 import { PathDebugPanel } from '../components/recording/PathDebugPanel'
 import { useAnimation } from '../hooks/useAnimation'
@@ -190,6 +191,7 @@ export function RunDetailPage() {
       <div className="map-container">
         <BaseMap initialCenter={center} initialZoom={14} lockTarget mapVisible={mapVisible}>
           <DetailLayers run={run} currentTime={currentTime} isPlaying={isPlaying} mapVisible={mapVisible} />
+          <AreaLabel />
         </BaseMap>
       </div>
 
