@@ -101,7 +101,8 @@
 .speech-bubble {
   position: fixed;
   top: calc(70dvh - 150px);
-  left: calc(50% + 36px);
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 30;
   background: #fff;
   color: #0a0a0a;
@@ -122,7 +123,8 @@
   content: '';
   position: absolute;
   bottom: -4px;
-  left: 12px;
+  left: 50%;
+  margin-left: -6px;
   width: 12px;
   height: 12px;
   background: #fff;
@@ -131,12 +133,12 @@
 }
 
 .speech-bubble:active {
-  transform: scale(0.96);
+  transform: translateX(-50%) scale(0.96);
 }
 
 @keyframes speech-bubble-pop {
-  from { opacity: 0; transform: scale(0.7); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: translateX(-50%) scale(0.7); }
+  to { opacity: 1; transform: translateX(-50%) scale(1); }
 }
 
 /* Tap outside the open sheet (i.e. above it on the map) → close.
