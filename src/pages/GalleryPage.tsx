@@ -11,11 +11,11 @@ import { useSettingsStore } from '../store/useSettingsStore'
 import { SettingsPanel } from '../components/gallery/SettingsPanel'
 import { RunTile } from '../components/gallery/RunTile'
 import { EyesIcon } from '../components/gallery/EyesIcon'
-import { MetaballOverlay } from '../components/gallery/MetaballOverlay'
 import { buildTubeSegments, buildTubeJoints } from '../utils/tubeData'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { useGalleryAnimation } from '../hooks/useGalleryAnimation'
 import { useCurrentPosition } from '../hooks/useCurrentPosition'
+import { useMetaballSheet } from '../hooks/useMetaballSheet'
 import type { DotPosition } from '../hooks/useGalleryAnimation'
 import type { Run } from '../types'
 
@@ -95,8 +95,12 @@ export function GalleryPage() {
   const [searchParams] = useSearchParams()
   const isDebug = searchParams.get('debug') === '1'
 
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
   const fabRef = useRef<HTMLButtonElement>(null)
+  const armedRef = useRef(armed)
+  armedRef.current = armed
+  useMetaballSheet({ canvasRef, sheetRef, fabRef, armedRef })
 
   useEffect(() => { loadRuns(isDebug) }, [isDebug])
 
@@ -126,7 +130,7 @@ export function GalleryPage() {
         <div className="sheet-backdrop" onClick={() => setListOpen(false)} />
       )}
 
-      <MetaballOverlay sheetRef={sheetRef} fabRef={fabRef} armed={armed} />
+      <canvas ref={canvasRef} className="metaball-canvas" />
 
       <div ref={sheetRef} className={`bottom-sheet ${listOpen ? 'open' : ''} ${armed ? 'armed' : ''}`}>
         <div className="bottom-sheet-shape">
