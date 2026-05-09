@@ -1,0 +1,120 @@
+import { Icon } from '@iconify/react'
+import type { TrackPoint } from '../../types'
+
+export interface RadiusSettings {
+  tubeRadius: number
+  rawTubeRadius: number
+  dotRadius: number
+}
+
+interface Props {
+  trackPoints: TrackPoint[]
+  radii: RadiusSettings
+  onChangeRadii: (next: RadiusSettings) => void
+  onClose: () => void
+  onResetRadii: () => void
+}
+
+export function RecordingDebugPanel({ trackPoints, radii, onChangeRadii, onClose, onResetRadii }: Props) {
+  const accepted = trackPoints.filter(p => !p.rejected).length
+  const rejected = trackPoints.length - accepted
+  const latest = trackPoints.at(-1)
+
+  const setRadius = (key: keyof RadiusSettings, value: number) => {
+    onChangeRadii({ ...radii, [key]: value })
+  }
+
+  return (
+    <div className="debug-overlay" role="dialog" aria-label="記録デバッグ">
+      <div className="debug-panel">
+        <div className="debug-header">
+          <h2 className="debug-title">記録デバッグ</h2>
+          <span className="debug-badge">{trackPoints.length} points</span>
+        </div>
+
+        <dl className="debug-summary">
+          <div><dt>採用</dt><dd>{accepted}</dd></div>
+          <div><dt>不採用</dt><dd>{rejected}</dd></div>
+          <div>
+            <dt>最新 accuracy</dt>
+            <dd>{latest?.accuracy != null ? `${latest.accuracy.toFixed(1)} m` : '—'}</dd>
+          </div>
+          <div>
+            <dt>最新 rejected</dt>
+            <dd>{latest ? (latest.rejected ? 'yes' : 'no') : '—'}</dd>
+          </div>
+        </dl>
+
+        <div className="debug-sliders">
+          <SliderRow
+            label="白チューブ半径 (採用)"
+            value={radii.tubeRadius}
+            min={0.5}
+            max={10}
+            step={0.1}
+            unit="m"
+            onChange={v => setRadius('tubeRadius', v)}
+          />
+          <SliderRow
+            label="赤チューブ半径 (全点)"
+            value={radii.rawTubeRadius}
+            min={0.2}
+            max={10}
+            step={0.1}
+            unit="m"
+            onChange={v => setRadius('rawTubeRadius', v)}
+          />
+          <SliderRow
+            label="自己位置ドット半径"
+            value={radii.dotRadius}
+            min={1}
+            max={20}
+            step={0.5}
+            unit="m"
+            onChange={v => setRadius('dotRadius', v)}
+          />
+        </div>
+
+        <div className="debug-actions">
+          <button className="btn-ghost" onClick={onResetRadii}>
+            <Icon icon="lucide:rotate-ccw" />
+            <span>半径をリセット</span>
+          </button>
+          <button className="btn-ghost" onClick={onClose}>
+            <Icon icon="lucide:x" />
+            <span>閉じる</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SliderRow({
+  label, value, min, max, step, unit, onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  unit: string
+  onChange: (v: number) => void
+}) {
+  return (
+    <div className="debug-slider-row">
+      <div className="debug-slider-head">
+        <span className="debug-slider-label">{label}</span>
+        <span className="debug-slider-value">{value.toFixed(1)} {unit}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={e => onChange(Number(e.currentTarget.value))}
+      />
+    </div>
+  )
+}

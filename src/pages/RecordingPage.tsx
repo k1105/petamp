@@ -12,12 +12,17 @@ import {useCurrentPosition} from "../hooks/useCurrentPosition";
 import {useRunStore} from "../store/useRunStore";
 import {buildTubeSegments, buildTubeJoints} from "../utils/tubeData";
 import {acceptedPoints} from "../utils/recordingFilters";
+import {RecordingDebugPanel, type RadiusSettings} from "../components/recording/RecordingDebugPanel";
 import type {Run, TrackPoint} from "../types";
 
 const sphere = new SphereGeometry({radius: 1, nlat: 20, nlong: 20});
 const cylinder = new CylinderGeometry({radius: 1, height: 1, nradial: 12});
-const TUBE_RADIUS = 3;
-const RAW_TUBE_RADIUS = 1.2;
+const DEFAULT_RADII: RadiusSettings = {
+  tubeRadius: 3,
+  rawTubeRadius: 1.2,
+  dotRadius: 4.5,
+};
+const RADII_STORAGE_KEY = "petamp.recording.radii";
 const MIN_ZOOM = 12.5;
 
 const FIT_INTERVAL = 20;
@@ -62,25 +67,27 @@ function RecordingLayers({
   trackPoints,
   acceptedTrackPoints,
   fallbackPosition,
+  radii,
 }: {
   trackPoints: TrackPoint[];
   acceptedTrackPoints: TrackPoint[];
   fallbackPosition: [number, number] | null;
+  radii: RadiusSettings;
 }) {
   const zoom = useMapZoom();
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5));
 
   const tubeData = useMemo(
-    () => buildTubeSegments(acceptedTrackPoints, TUBE_RADIUS),
-    [acceptedTrackPoints],
+    () => buildTubeSegments(acceptedTrackPoints, radii.tubeRadius),
+    [acceptedTrackPoints, radii.tubeRadius],
   );
   const jointData = useMemo(
-    () => buildTubeJoints(acceptedTrackPoints, TUBE_RADIUS),
-    [acceptedTrackPoints],
+    () => buildTubeJoints(acceptedTrackPoints, radii.tubeRadius),
+    [acceptedTrackPoints, radii.tubeRadius],
   );
   const rawTubeData = useMemo(
-    () => buildTubeSegments(trackPoints, RAW_TUBE_RADIUS),
-    [trackPoints],
+    () => buildTubeSegments(trackPoints, radii.rawTubeRadius),
+    [trackPoints, radii.rawTubeRadius],
   );
   const dotData = useMemo(() => {
     const last = acceptedTrackPoints.at(-1);
@@ -153,14 +160,29 @@ function RecordingLayers({
         mesh: sphere,
         getPosition: (d: {position: [number, number]}) =>
           [d.position[0], d.position[1], 0] as [number, number, number],
-        getScale: [TUBE_RADIUS * 1.5, TUBE_RADIUS * 1.5, TUBE_RADIUS * 1.5],
+        getScale: [radii.dotRadius, radii.dotRadius, radii.dotRadius],
         getColor: dotColor,
         material: mat,
       }),
     ];
-  }, [tubeData, jointData, rawTubeData, dotData, t]);
+  }, [tubeData, jointData, rawTubeData, dotData, t, radii.dotRadius]);
 
   return <DeckOverlay layers={layers} />;
+}
+
+function loadStoredRadii(): RadiusSettings {
+  try {
+    const raw = localStorage.getItem(RADII_STORAGE_KEY);
+    if (!raw) return DEFAULT_RADII;
+    const parsed = JSON.parse(raw);
+    return {
+      tubeRadius: typeof parsed.tubeRadius === "number" ? parsed.tubeRadius : DEFAULT_RADII.tubeRadius,
+      rawTubeRadius: typeof parsed.rawTubeRadius === "number" ? parsed.rawTubeRadius : DEFAULT_RADII.rawTubeRadius,
+      dotRadius: typeof parsed.dotRadius === "number" ? parsed.dotRadius : DEFAULT_RADII.dotRadius,
+    };
+  } catch {
+    return DEFAULT_RADII;
+  }
 }
 
 export function RecordingPage() {
@@ -168,8 +190,18 @@ export function RecordingPage() {
   const {isRecording, trackPoints, error, start, stop} = useGpsRecorder();
   const {addRun} = useRunStore();
   const [debugPoints, setDebugPoints] = useState<TrackPoint[] | null>(null);
+  const [recordingDebugOpen, setRecordingDebugOpen] = useState(false);
+  const [radii, setRadii] = useState<RadiusSettings>(() => loadStoredRadii());
   const initialCenter = useCurrentPosition();
   const acceptedTrackPoints = useMemo(() => acceptedPoints(trackPoints), [trackPoints]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(RADII_STORAGE_KEY, JSON.stringify(radii));
+    } catch {
+      // ignore storage errors
+    }
+  }, [radii]);
 
   useEffect(() => {
     start();
@@ -219,6 +251,7 @@ export function RecordingPage() {
               trackPoints={trackPoints}
               acceptedTrackPoints={acceptedTrackPoints}
               fallbackPosition={initialCenter ?? null}
+              radii={radii}
             />
           </BaseMap>
         )}
@@ -230,6 +263,15 @@ export function RecordingPage() {
         aria-label="閉じる"
       >
         <Icon icon="lucide:x" />
+      </button>
+
+      <button
+        className="debug-btn"
+        onClick={() => setRecordingDebugOpen(true)}
+        title="記録デバッグ"
+        aria-label="記録デバッグ"
+      >
+        <Icon icon="lucide:braces" />
       </button>
 
       <div className="bottom-bar">
@@ -254,6 +296,16 @@ export function RecordingPage() {
           trackPoints={debugPoints}
           onProceed={handleProceed}
           onCancel={handleCancelDebug}
+        />
+      )}
+
+      {recordingDebugOpen && (
+        <RecordingDebugPanel
+          trackPoints={trackPoints}
+          radii={radii}
+          onChangeRadii={setRadii}
+          onResetRadii={() => setRadii(DEFAULT_RADII)}
+          onClose={() => setRecordingDebugOpen(false)}
         />
       )}
     </div>

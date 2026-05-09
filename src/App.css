@@ -664,6 +664,39 @@
   text-align: center;
 }
 
+.debug-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.debug-slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.debug-slider-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+}
+
+.debug-slider-label {
+  color: var(--text-muted);
+}
+
+.debug-slider-value {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.debug-slider-row input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
 .debug-textarea {
   flex: 1;
   min-height: 160px;
