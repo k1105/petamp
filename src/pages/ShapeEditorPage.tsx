@@ -80,8 +80,11 @@ export function ShapeEditorPage() {
       const svg = editorRef.current
       if (!svg) return
       const rect = svg.getBoundingClientRect()
-      const sx = e.clientX - rect.left - EDITOR_CX
-      const sy = e.clientY - rect.top - EDITOR_CY
+      // SVG renders at CSS size but coords are in viewBox units → scale.
+      const scaleX = EDITOR_W / rect.width
+      const scaleY = EDITOR_H / rect.height
+      const sx = (e.clientX - rect.left) * scaleX - EDITOR_CX
+      const sy = (e.clientY - rect.top) * scaleY - EDITOR_CY
       setPeak(prev => {
         const next = prev.slice() as [Anchor, Anchor, Anchor, Anchor]
         const a = { ...next[drag.anchorIdx] }
