@@ -40,12 +40,14 @@ export function useGpsRecorder(filters: PointFilter[] = defaultFilters()) {
           accuracy,
         }
         setState(s => {
+          const accepted = s.trackPoints.filter(p => !p.rejected)
           const ctx = {
-            history: s.trackPoints,
+            history: accepted,
             recordingStartedAt: recordingStartedAtRef.current,
           }
-          if (!applyFilters(point, ctx, filtersRef.current)) return s
-          return { ...s, trackPoints: [...s.trackPoints, point] }
+          const ok = applyFilters(point, ctx, filtersRef.current)
+          const tagged: TrackPoint = ok ? point : { ...point, rejected: true }
+          return { ...s, trackPoints: [...s.trackPoints, tagged] }
         })
       },
       (err) => {

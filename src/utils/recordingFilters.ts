@@ -50,3 +50,7 @@ export function applyFilters(
 ): boolean {
   return filters.every(f => f(candidate, ctx))
 }
+
+export function acceptedPoints(points: TrackPoint[]): TrackPoint[] {
+  return points.filter(p => !p.rejected)
+}

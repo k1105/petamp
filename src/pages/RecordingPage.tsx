@@ -11,11 +11,13 @@ import {useGpsRecorder} from "../hooks/useGpsRecorder";
 import {useCurrentPosition} from "../hooks/useCurrentPosition";
 import {useRunStore} from "../store/useRunStore";
 import {buildTubeSegments, buildTubeJoints} from "../utils/tubeData";
+import {acceptedPoints} from "../utils/recordingFilters";
 import type {Run, TrackPoint} from "../types";
 
 const sphere = new SphereGeometry({radius: 1, nlat: 20, nlong: 20});
 const cylinder = new CylinderGeometry({radius: 1, height: 1, nradial: 12});
 const TUBE_RADIUS = 3;
+const RAW_TUBE_RADIUS = 1.2;
 const MIN_ZOOM = 12.5;
 
 const FIT_INTERVAL = 20;
@@ -58,34 +60,46 @@ function BoundsFitter({trackPoints}: {trackPoints: TrackPoint[]}) {
 
 function RecordingLayers({
   trackPoints,
+  acceptedTrackPoints,
   fallbackPosition,
 }: {
   trackPoints: TrackPoint[];
+  acceptedTrackPoints: TrackPoint[];
   fallbackPosition: [number, number] | null;
 }) {
   const zoom = useMapZoom();
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5));
 
   const tubeData = useMemo(
-    () => buildTubeSegments(trackPoints, TUBE_RADIUS),
-    [trackPoints],
+    () => buildTubeSegments(acceptedTrackPoints, TUBE_RADIUS),
+    [acceptedTrackPoints],
   );
   const jointData = useMemo(
-    () => buildTubeJoints(trackPoints, TUBE_RADIUS),
+    () => buildTubeJoints(acceptedTrackPoints, TUBE_RADIUS),
+    [acceptedTrackPoints],
+  );
+  const rawTubeData = useMemo(
+    () => buildTubeSegments(trackPoints, RAW_TUBE_RADIUS),
     [trackPoints],
   );
   const dotData = useMemo(() => {
-    const last = trackPoints.at(-1);
+    const last = acceptedTrackPoints.at(-1);
     const pos: [number, number] | null = last
       ? [last.lng, last.lat]
       : fallbackPosition;
     return pos ? [{position: pos}] : [];
-  }, [trackPoints, fallbackPosition]);
+  }, [acceptedTrackPoints, fallbackPosition]);
 
   const tubeColor: [number, number, number, number] = [
     160,
     160,
     160,
+    Math.round(255 * t),
+  ];
+  const rawTubeColor: [number, number, number, number] = [
+    230,
+    60,
+    60,
     Math.round(255 * t),
   ];
   const dotColor: [number, number, number, number] = [
@@ -104,6 +118,16 @@ function RecordingLayers({
   const layers = useMemo(() => {
     if (t === 0) return [];
     return [
+      new SimpleMeshLayer({
+        id: "raw-tube",
+        data: rawTubeData,
+        mesh: cylinder,
+        getPosition: (d) => d.position,
+        getScale: (d) => d.scale,
+        getOrientation: (d) => d.orientation,
+        getColor: rawTubeColor,
+        material: mat,
+      }),
       new SimpleMeshLayer({
         id: "live-tube",
         data: tubeData,
@@ -134,7 +158,7 @@ function RecordingLayers({
         material: mat,
       }),
     ];
-  }, [tubeData, jointData, dotData, t]);
+  }, [tubeData, jointData, rawTubeData, dotData, t]);
 
   return <DeckOverlay layers={layers} />;
 }
@@ -145,6 +169,7 @@ export function RecordingPage() {
   const {addRun} = useRunStore();
   const [debugPoints, setDebugPoints] = useState<TrackPoint[] | null>(null);
   const initialCenter = useCurrentPosition();
+  const acceptedTrackPoints = useMemo(() => acceptedPoints(trackPoints), [trackPoints]);
 
   useEffect(() => {
     start();
@@ -189,9 +214,10 @@ export function RecordingPage() {
       <div className="map-container">
         {initialCenter !== undefined && (
           <BaseMap initialCenter={initialCenter ?? undefined} initialZoom={INITIAL_ZOOM}>
-            <BoundsFitter trackPoints={trackPoints} />
+            <BoundsFitter trackPoints={acceptedTrackPoints} />
             <RecordingLayers
               trackPoints={trackPoints}
+              acceptedTrackPoints={acceptedTrackPoints}
               fallbackPosition={initialCenter ?? null}
             />
           </BaseMap>
@@ -208,7 +234,7 @@ export function RecordingPage() {
 
       <div className="bottom-bar">
         {error && <div className="error-banner">{error}</div>}
-        <LiveStats trackPoints={trackPoints} />
+        <LiveStats trackPoints={acceptedTrackPoints} />
         <div className="bottom-bar-actions">
           <button
             className="toggle-btn"

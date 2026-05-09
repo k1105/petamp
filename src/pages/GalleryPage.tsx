@@ -8,6 +8,7 @@ import { DeckOverlay } from '../components/map/DeckOverlay'
 import { useRunStore } from '../store/useRunStore'
 import { RunCard } from '../components/gallery/RunCard'
 import { buildTubeSegments, buildTubeJoints } from '../utils/tubeData'
+import { acceptedPoints } from '../utils/recordingFilters'
 import { useGalleryAnimation } from '../hooks/useGalleryAnimation'
 import { useCurrentPosition } from '../hooks/useCurrentPosition'
 import { useMetaballSheet } from '../hooks/useMetaballSheet'
@@ -40,29 +41,32 @@ function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
   const layers = useMemo(() => {
     if (t === 0) return []
     return [
-      ...runs.flatMap(run => [
-        new SimpleMeshLayer({
-          id: `run-tube-${run.id}`,
-          data: buildTubeSegments(run.trackPoints, TUBE_RADIUS),
-          mesh: cylinder,
-          getPosition: d => d.position,
-          getScale: d => d.scale,
-          getOrientation: d => d.orientation,
-          getColor: tubeColor,
-          material: mat,
-          pickable: true,
-          onClick: () => { navigate(`/run/${run.id}`) },
-        }),
-        new SimpleMeshLayer({
-          id: `run-joints-${run.id}`,
-          data: buildTubeJoints(run.trackPoints, TUBE_RADIUS),
-          mesh: sphere,
-          getPosition: d => d.position,
-          getScale: d => d.scale,
-          getColor: tubeColor,
-          material: mat,
-        }),
-      ]),
+      ...runs.flatMap(run => {
+        const pts = acceptedPoints(run.trackPoints)
+        return [
+          new SimpleMeshLayer({
+            id: `run-tube-${run.id}`,
+            data: buildTubeSegments(pts, TUBE_RADIUS),
+            mesh: cylinder,
+            getPosition: d => d.position,
+            getScale: d => d.scale,
+            getOrientation: d => d.orientation,
+            getColor: tubeColor,
+            material: mat,
+            pickable: true,
+            onClick: () => { navigate(`/run/${run.id}`) },
+          }),
+          new SimpleMeshLayer({
+            id: `run-joints-${run.id}`,
+            data: buildTubeJoints(pts, TUBE_RADIUS),
+            mesh: sphere,
+            getPosition: d => d.position,
+            getScale: d => d.scale,
+            getColor: tubeColor,
+            material: mat,
+          }),
+        ]
+      }),
       new SimpleMeshLayer({
         id: 'gallery-dots',
         data: dots,

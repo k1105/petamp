@@ -13,6 +13,7 @@ import { useElevationStats } from '../hooks/useElevationStats'
 import { useRunStore } from '../store/useRunStore'
 import { positionAtTime } from '../hooks/useGalleryAnimation'
 import { buildTubeSegments, buildTubeJoints } from '../utils/tubeData'
+import { acceptedPoints } from '../utils/recordingFilters'
 import { buildTripLayerData } from '../utils/tripLayerData'
 import { totalDistance } from '../utils/geoUtils'
 import { formatDistance, formatElevation, formatDate } from '../utils/formatters'
@@ -33,10 +34,10 @@ function DetailLayers({
   // 経路全体が画面中央に収まるようにフィット（bbox中心 = 画面中心）
   useEffect(() => {
     if (!map) return
-    const pts = run.trackPoints
-    if (pts.length === 0) return
-    const lngs = pts.map(p => p.lng)
-    const lats = pts.map(p => p.lat)
+    const fitPts = acceptedPoints(run.trackPoints)
+    if (fitPts.length === 0) return
+    const lngs = fitPts.map(p => p.lng)
+    const lats = fitPts.map(p => p.lat)
     const bounds: [[number, number], [number, number]] = [
       [Math.min(...lngs), Math.min(...lats)],
       [Math.max(...lngs), Math.max(...lats)],
@@ -60,8 +61,9 @@ function DetailLayers({
   }, [map, currentTime, isPlaying])
 
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5))
-  const tubeData = useMemo(() => buildTubeSegments(run.trackPoints, TUBE_RADIUS), [run])
-  const jointData = useMemo(() => buildTubeJoints(run.trackPoints, TUBE_RADIUS), [run])
+  const pts = useMemo(() => acceptedPoints(run.trackPoints), [run])
+  const tubeData = useMemo(() => buildTubeSegments(pts, TUBE_RADIUS), [pts])
+  const jointData = useMemo(() => buildTubeJoints(pts, TUBE_RADIUS), [pts])
 
   // マップ非表示時は白+黒、表示時はグレー+グリーン
   const tubeColor: [number, number, number, number] = mapVisible
@@ -149,7 +151,8 @@ export function RunDetailPage() {
   const [debugOpen, setDebugOpen] = useState(false)
   const { runs } = useRunStore()
   const { currentTime, isPlaying, duration, setDuration, play, stop, seekTo, reset } = useAnimation()
-  const { gain } = useElevationStats(run?.trackPoints ?? [])
+  const acceptedRunPoints = useMemo(() => acceptedPoints(run?.trackPoints ?? []), [run])
+  const { gain } = useElevationStats(acceptedRunPoints)
 
   useEffect(() => {
     if (!id) return
@@ -169,14 +172,14 @@ export function RunDetailPage() {
   }, [id, runs])
 
   const center = useMemo((): [number, number] | undefined => {
-    if (!run || run.trackPoints.length === 0) return undefined
-    const mid = run.trackPoints[Math.floor(run.trackPoints.length / 2)]
+    if (!run || acceptedRunPoints.length === 0) return undefined
+    const mid = acceptedRunPoints[Math.floor(acceptedRunPoints.length / 2)]
     return [mid.lng, mid.lat]
-  }, [run])
+  }, [run, acceptedRunPoints])
 
   if (!run) return <div className="page loading">読み込み中...</div>
 
-  const dist = totalDistance(run.trackPoints)
+  const dist = totalDistance(acceptedRunPoints)
 
   return (
     <div className="page" style={!mapVisible ? { background: 'var(--accent)' } : undefined}>

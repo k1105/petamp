@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Run } from '../types'
+import { acceptedPoints } from '../utils/recordingFilters'
 
 export interface DotPosition {
   runId: string
@@ -7,7 +8,7 @@ export interface DotPosition {
 }
 
 export function positionAtTime(run: Run, loopSec: number): [number, number] | null {
-  const pts = run.trackPoints
+  const pts = acceptedPoints(run.trackPoints)
   if (pts.length < 2) return null
 
   const absTs = run.startedAt + loopSec * 1000
