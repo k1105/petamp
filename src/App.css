@@ -701,20 +701,20 @@
   transform: translateY(-50%);
   width: 40px;
   height: 40px;
-  border-radius: 50%;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 32px;
   cursor: pointer;
   z-index: 10;
 }
 
-.run-nav-prev { left: 16px; }
-.run-nav-next { right: 16px; }
+.run-nav-prev { left: 8px; }
+.run-nav-next { right: 8px; }
 
 .run-nav-btn:disabled {
   opacity: 0.25;
@@ -722,7 +722,7 @@
 }
 
 .run-nav-btn:not(:disabled):active {
-  opacity: 0.8;
+  opacity: 0.7;
 }
 
 .debug-section-label {

@@ -35,6 +35,7 @@ function DetailLayers({
   const radii = useSettingsStore(s => s.radii)
 
   // 経路全体が画面中央に収まるようにフィット（bbox中心 = 画面中心）
+  // run が切り替わったら再フィット
   useEffect(() => {
     if (!map) return
     const fitPts = acceptedPoints(run.trackPoints)
@@ -45,8 +46,8 @@ function DetailLayers({
       [Math.min(...lngs), Math.min(...lats)],
       [Math.max(...lngs), Math.max(...lats)],
     ]
-    map.fitBounds(bounds, { padding: 60, duration: 0 })
-  }, [map])
+    map.fitBounds(bounds, { padding: 60, duration: 300 })
+  }, [map, run])
 
   const dotData = useMemo(() => {
     const pos = positionAtTime(run, currentTime)
