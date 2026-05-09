@@ -46,10 +46,13 @@ export function TransitionOverlay() {
     : undefined
 
   return (
-    <div className={`transition-overlay phase-${phase}`} style={style}>
+    <>
+      <div className={`transition-overlay phase-${phase}`} style={style} />
+      {/* Sibling, not child — the overlay's mask-image would otherwise clip
+          this text away inside the iris hole. */}
       {(phase === 'iris-paused' || phase === 'iris-finishing') && areaName && (
         <div className="transition-area">{areaName}</div>
       )}
-    </div>
+    </>
   )
 }
