@@ -18,9 +18,9 @@ import type {Run, TrackPoint} from "../types";
 const sphere = new SphereGeometry({radius: 1, nlat: 20, nlong: 20});
 const cylinder = new CylinderGeometry({radius: 1, height: 1, nradial: 12});
 const DEFAULT_RADII: RadiusSettings = {
-  tubeRadius: 3,
+  tubeRadius: 1.3,
   rawTubeRadius: 1.2,
-  dotRadius: 4.5,
+  dotRadius: 9.5,
 };
 const RADII_STORAGE_KEY = "petamp.recording.radii";
 const MIN_ZOOM = 12.5;
