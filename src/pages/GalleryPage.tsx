@@ -122,6 +122,13 @@ export function GalleryPage() {
       <div ref={sheetRef} className={`bottom-sheet ${listOpen ? 'open' : ''} ${armed ? 'armed' : ''}`}>
         <div className="bottom-sheet-shape">
           <button
+            className="list-toggle-btn"
+            onClick={() => setListOpen(v => !v)}
+            aria-label={listOpen ? 'ラン一覧を閉じる' : 'ラン一覧を開く'}
+          >
+            <Icon icon="lucide:layout-list" />
+          </button>
+          <button
             ref={fabRef}
             className="fab fab-sheet"
             onClick={handleFabClick}
