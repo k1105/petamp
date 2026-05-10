@@ -33,25 +33,28 @@ export function MapBoundsConstraint({ runs, paddingMeters }: Props) {
       return
     }
     const padded = expandBboxByMeters(bbox, paddingMeters)
-    // Defensive: skip if any side ended up non-finite (shouldn't happen now
-    // that computeRunsBbox filters NaN inputs, but cheap to verify).
     const flat = [padded[0][0], padded[0][1], padded[1][0], padded[1][1]]
     if (!flat.every(Number.isFinite)) return
 
     const bounds = padded as unknown as LngLatBoundsLike
 
     map.setMaxBounds(bounds)
-    const camera = map.cameraForBounds(bounds, { padding: 0 })
-    if (camera?.zoom != null && Number.isFinite(camera.zoom)) {
-      map.setMinZoom(Math.max(0, camera.zoom))
-    }
 
-    // First successful constraint apply: snap the camera onto the area so the
-    // initial GPS-anchored center doesn't leave the user staring at an arbitrary
-    // edge clamp. Subsequent run additions only update the constraint.
     if (!fittedRef.current) {
-      map.fitBounds(bounds, { padding: 0, duration: 0 })
+      // BaseMap was created with `bounds: padded` so the camera is already at
+      // the fit zoom. Adopt that as the minZoom verbatim — using
+      // cameraForBounds here can disagree by tiny fractions (pitch / rounding)
+      // and would otherwise visibly jolt the camera up on first paint.
+      map.setMinZoom(Math.max(0, map.getZoom()))
       fittedRef.current = true
+    } else {
+      // Runs changed after first apply (e.g. new recording); recompute fit
+      // zoom for the (potentially expanded) bounds and re-fit instantly.
+      const camera = map.cameraForBounds(bounds, { padding: 0 })
+      if (camera?.zoom != null && Number.isFinite(camera.zoom)) {
+        map.setMinZoom(Math.max(0, camera.zoom))
+      }
+      map.fitBounds(bounds, { padding: 0, duration: 0 })
     }
   }, [map, runs, paddingMeters])
 
