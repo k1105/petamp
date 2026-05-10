@@ -28,8 +28,10 @@ export function MapBoundsConstraint({ runs, paddingMeters }: Props) {
     const bbox = computeRunsBbox(runs)
     if (!bbox) {
       // No runs yet — leave camera unconstrained.
-      map.setMaxBounds(undefined)
-      map.setMinZoom(undefined)
+      // Mapbox accepts null/undefined at runtime to clear, but the TS type
+      // is narrow, so cast.
+      ;(map.setMaxBounds as (b: unknown) => unknown)(null)
+      ;(map.setMinZoom as (z: unknown) => unknown)(null)
       return
     }
     const padded = expandBboxByMeters(bbox, paddingMeters)

@@ -50,7 +50,13 @@ function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
       tubeLayers.push(new SimpleMeshLayer({
         id: `run-tube-${run.id}`,
         data: [{ position: mesh.anchor }],
-        mesh: { positions: mesh.positions, normals: mesh.normals, indices: mesh.indices },
+        mesh: {
+          attributes: {
+            POSITION: { value: mesh.positions, size: 3 },
+            NORMAL: { value: mesh.normals, size: 3 },
+          },
+          indices: { value: mesh.indices, size: 1 },
+        },
         getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
         getColor: tubeColor,
         material: mat,

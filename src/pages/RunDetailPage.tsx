@@ -83,7 +83,13 @@ function DetailLayers({
       ? new SimpleMeshLayer({
           id: 'run-tube',
           data: [{ position: tubeMesh.anchor }],
-          mesh: { positions: tubeMesh.positions, normals: tubeMesh.normals, indices: tubeMesh.indices },
+          mesh: {
+            attributes: {
+              POSITION: { value: tubeMesh.positions, size: 3 },
+              NORMAL: { value: tubeMesh.normals, size: 3 },
+            },
+            indices: { value: tubeMesh.indices, size: 1 },
+          },
           getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
           getColor: tubeColor,
           material: mat,
