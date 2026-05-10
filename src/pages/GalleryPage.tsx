@@ -28,7 +28,15 @@ const sphere = new SphereGeometry({ radius: 1, nlat: 20, nlong: 20 })
 const MIN_ZOOM = 12.5
 const SPHERE_REF_ZOOM = 13
 
-function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
+function GalleryLayers({
+  runs,
+  dots,
+  currentPosition,
+}: {
+  runs: Run[]
+  dots: DotPosition[]
+  currentPosition: [number, number] | null
+}) {
   const zoom = useMapZoom()
   const navigate = useNavigate()
   const radii = useSettingsStore(s => s.radii)
@@ -67,6 +75,18 @@ function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
         onClick: () => { navigate(`/run/${run.id}`) },
       }))
     }
+    const currentPosLayer = currentPosition
+      ? new SimpleMeshLayer({
+          id: 'gallery-current-pos',
+          // Same sphere asset as /record's live-dot so the visual is identical.
+          data: [{ position: currentPosition }],
+          mesh: sphere,
+          getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
+          getScale: [radii.dotRadius, radii.dotRadius, radii.dotRadius],
+          getColor: [28, 151, 94, 255],
+          material: mat,
+        })
+      : null
     return [
       ...tubeLayers,
       new SimpleMeshLayer({
@@ -78,8 +98,9 @@ function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
         getColor: dotColor,
         material: mat,
       }),
+      ...(currentPosLayer ? [currentPosLayer] : []),
     ]
-  }, [runs, dots, t, sphereRadius, radii.tubeRadius])
+  }, [runs, dots, currentPosition, t, sphereRadius, radii.tubeRadius, radii.dotRadius])
 
   return <DeckOverlay layers={layers} />
 }
@@ -226,10 +247,17 @@ export function GalleryPage() {
       const areaName = document.querySelector('.area-label')?.textContent ?? null
       useTransitionStore.getState().startRecord(origin, areaName)
       // Navigation to /record is performed by the overlay when the iris phase begins.
-    } else {
-      setArmed(true)
-      setListOpen(false)
+      return
     }
+    // When the user has navigated to a recorded group, tapping the eye snaps
+    // back to home (= focus on current GPS) instead of arming. Arming happens
+    // on the next tap once they're at home.
+    if (homeGroup && currentGroupId !== 'home') {
+      setCurrentGroupId('home')
+      return
+    }
+    setArmed(true)
+    setListOpen(false)
   }
 
   return (
@@ -241,7 +269,7 @@ export function GalleryPage() {
             initialZoom={HOME_FIXED_ZOOM}
             initialBounds={initialBounds}
           >
-            <GalleryLayers runs={runs} dots={dots} />
+            <GalleryLayers runs={runs} dots={dots} currentPosition={initialCenter ?? null} />
             <AreaLabel />
             <MapBoundsConstraint
               bbox={currentGroup?.bbox ?? null}
