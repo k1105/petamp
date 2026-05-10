@@ -6,7 +6,9 @@ export type LngLatBbox = [[number, number], [number, number]]
 
 const METERS_PER_LAT_DEG = 110540
 
-/** 全 run の accepted points を走査して合併bboxを返す。pointsゼロなら null。 */
+/** 全 run の accepted points を走査して合併bboxを返す。有効点ゼロなら null。
+   NaN/Infinity混入点はスキップ — これがないと any=true のまま min/max が
+   Infinity から動かず、後続の expandBboxByMeters で NaN bbox を産んでしまう */
 export function computeRunsBbox(runs: Run[]): LngLatBbox | null {
   let minLng = Infinity
   let minLat = Infinity
@@ -16,6 +18,7 @@ export function computeRunsBbox(runs: Run[]): LngLatBbox | null {
   for (const run of runs) {
     const pts = acceptedPoints(run.trackPoints)
     for (const p of pts) {
+      if (!Number.isFinite(p.lng) || !Number.isFinite(p.lat)) continue
       if (p.lng < minLng) minLng = p.lng
       if (p.lng > maxLng) maxLng = p.lng
       if (p.lat < minLat) minLat = p.lat

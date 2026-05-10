@@ -27,19 +27,22 @@ export function MapBoundsConstraint({ runs, paddingMeters }: Props) {
     if (!map) return
     const bbox = computeRunsBbox(runs)
     if (!bbox) {
-      // No runs yet — leave camera unconstrained.
-      // Mapbox accepts null/undefined at runtime to clear, but the TS type
-      // is narrow, so cast.
-      ;(map.setMaxBounds as (b: unknown) => unknown)(null)
-      ;(map.setMinZoom as (z: unknown) => unknown)(null)
+      // No runs (yet, or none with valid coords) — skip applying constraints.
+      // Don't call setMaxBounds(null): mapbox-gl 3.x converts the falsy input
+      // through LngLatBounds.convert which produces (NaN, NaN) and throws.
       return
     }
     const padded = expandBboxByMeters(bbox, paddingMeters)
+    // Defensive: skip if any side ended up non-finite (shouldn't happen now
+    // that computeRunsBbox filters NaN inputs, but cheap to verify).
+    const flat = [padded[0][0], padded[0][1], padded[1][0], padded[1][1]]
+    if (!flat.every(Number.isFinite)) return
+
     const bounds = padded as unknown as LngLatBoundsLike
 
     map.setMaxBounds(bounds)
     const camera = map.cameraForBounds(bounds, { padding: 0 })
-    if (camera?.zoom != null) {
+    if (camera?.zoom != null && Number.isFinite(camera.zoom)) {
       map.setMinZoom(Math.max(0, camera.zoom))
     }
 
