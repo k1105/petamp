@@ -7,7 +7,8 @@ import { BaseMap, useMapZoom } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AreaLabel } from '../components/map/AreaLabel'
 import { MapBoundsConstraint } from '../components/map/MapBoundsConstraint'
-import { computeRunsBbox, expandBboxByMeters } from '../utils/runBbox'
+import { expandBboxByMeters } from '../utils/runBbox'
+import { groupRunsByBboxOverlap, pickInitialGroup } from '../utils/runGroups'
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { SettingsPanel } from '../components/gallery/SettingsPanel'
@@ -121,14 +122,33 @@ export function GalleryPage() {
     loadRuns(isDebug).finally(() => setRunsLoaded(true))
   }, [isDebug])
 
-  // Computed once runs are loaded; used to seed the mapbox `bounds` option
-  // so the map mounts already at the fit zoom (no post-mount snap).
+  // Phase 2: cluster runs into groups and pick a current group. The map is
+  // constrained to the selected group's bbox; switching groups updates the
+  // constraint (Phase 3 will add the swipe/tap UI; for now we lock to the
+  // initial selection — the group containing the user's current GPS, falling
+  // back to the first group).
+  const groups = useMemo(
+    () => groupRunsByBboxOverlap(runs, ui.mapPaddingMeters),
+    [runs, ui.mapPaddingMeters],
+  )
+  const [currentGroupId, setCurrentGroupId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!runsLoaded) return
+    if (currentGroupId && groups.some(g => g.id === currentGroupId)) return
+    const initial = pickInitialGroup(groups, initialCenter ?? null)
+    setCurrentGroupId(initial?.id ?? null)
+  }, [runsLoaded, groups, currentGroupId, initialCenter])
+
+  const currentGroup = useMemo(
+    () => groups.find(g => g.id === currentGroupId) ?? null,
+    [groups, currentGroupId],
+  )
+
+  // initialBounds for BaseMap mount — derived from the selected group's bbox.
   const initialBounds = useMemo(() => {
-    if (!runsLoaded) return undefined
-    const bbox = computeRunsBbox(runs)
-    if (!bbox) return undefined
-    return expandBboxByMeters(bbox, ui.mapPaddingMeters) as [[number, number], [number, number]]
-  }, [runsLoaded, runs, ui.mapPaddingMeters])
+    if (!runsLoaded || !currentGroup) return undefined
+    return expandBboxByMeters(currentGroup.bbox, ui.mapPaddingMeters) as [[number, number], [number, number]]
+  }, [runsLoaded, currentGroup, ui.mapPaddingMeters])
 
   useEffect(() => {
     if (armed) setBubblePhrase(pickPhrase(null))
@@ -201,7 +221,7 @@ export function GalleryPage() {
           >
             <GalleryLayers runs={runs} dots={dots} />
             <AreaLabel />
-            <MapBoundsConstraint runs={runs} paddingMeters={ui.mapPaddingMeters} />
+            <MapBoundsConstraint bbox={currentGroup?.bbox ?? null} paddingMeters={ui.mapPaddingMeters} />
           </BaseMap>
         )}
       </div>
