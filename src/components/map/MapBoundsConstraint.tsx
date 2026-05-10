@@ -8,6 +8,17 @@ interface Props {
       sw/ne order; will be expanded internally by paddingMeters. */
   bbox: LngLatBbox | null
   paddingMeters: number
+  /** ms — group switch animation length. 0 = instant snap. */
+  transitionMs?: number
+}
+
+const DEFAULT_TRANSITION_MS = 700
+
+function unionBbox(a: LngLatBbox, b: LngLatBbox): LngLatBbox {
+  return [
+    [Math.min(a[0][0], b[0][0]), Math.min(a[0][1], b[0][1])],
+    [Math.max(a[1][0], b[1][0]), Math.max(a[1][1], b[1][1])],
+  ]
 }
 
 /**
@@ -15,11 +26,20 @@ interface Props {
  * what fits that bbox in the viewport. The bbox itself is computed by the
  * caller — Phase 1 passed the all-runs union, Phase 2+ passes the currently-
  * selected group's bbox so switching groups updates the constraint.
+ *
+ * Group switch transition: maxBounds is temporarily widened to the
+ * old∪new bbox (and minZoom dropped) so `fitBounds` can animate the camera
+ * across the gap. On `moveend` the constraints are re-tightened to the new
+ * group only.
  */
-export function MapBoundsConstraint({ bbox, paddingMeters }: Props) {
+export function MapBoundsConstraint({
+  bbox,
+  paddingMeters,
+  transitionMs = DEFAULT_TRANSITION_MS,
+}: Props) {
   const { map } = useMap()
   const fittedRef = useRef(false)
-  const lastBboxKeyRef = useRef<string>('')
+  const lastPaddedRef = useRef<LngLatBbox | null>(null)
 
   useEffect(() => {
     if (!map || !bbox) return
@@ -27,30 +47,42 @@ export function MapBoundsConstraint({ bbox, paddingMeters }: Props) {
     const flat = [padded[0][0], padded[0][1], padded[1][0], padded[1][1]]
     if (!flat.every(Number.isFinite)) return
 
-    const bounds = padded as unknown as LngLatBoundsLike
-    const key = flat.join(',')
-    const bboxChanged = key !== lastBboxKeyRef.current
-    lastBboxKeyRef.current = key
-
-    map.setMaxBounds(bounds)
+    const newBounds = padded as unknown as LngLatBoundsLike
 
     if (!fittedRef.current) {
-      // BaseMap was created with `bounds: padded` so the camera is already at
-      // the fit zoom. Adopt that as minZoom verbatim — cameraForBounds here
-      // can disagree by tiny fractions (pitch / rounding) and would otherwise
-      // visibly jolt the camera up on first paint.
+      // First apply: BaseMap was created with `bounds: padded`, camera is
+      // already at the fit position. Just lock the constraint.
+      map.setMaxBounds(newBounds)
       map.setMinZoom(Math.max(0, map.getZoom()))
       fittedRef.current = true
-    } else if (bboxChanged) {
-      // Group switched (or runs expanded the current group's bbox). Recompute
-      // the fit zoom and snap there.
-      const camera = map.cameraForBounds(bounds, { padding: 0 })
-      if (camera?.zoom != null && Number.isFinite(camera.zoom)) {
-        map.setMinZoom(Math.max(0, camera.zoom))
-      }
-      map.fitBounds(bounds, { padding: 0, duration: 0 })
+      lastPaddedRef.current = padded
+      return
     }
-  }, [map, bbox, paddingMeters])
+
+    const prevPadded = lastPaddedRef.current
+    const prevKey = prevPadded ? prevPadded.flat().join(',') : ''
+    const newKey = flat.join(',')
+    if (prevKey === newKey) return // bbox unchanged, nothing to do
+    lastPaddedRef.current = padded
+
+    const newCamera = map.cameraForBounds(newBounds, { padding: 0 })
+    const newMinZoom =
+      newCamera?.zoom != null && Number.isFinite(newCamera.zoom)
+        ? Math.max(0, newCamera.zoom)
+        : 0
+
+    // Temporarily widen the cage so fitBounds can move the camera across the
+    // gap between groups instead of being clamped at the old edge.
+    const transitBbox = prevPadded ? unionBbox(prevPadded, padded) : padded
+    map.setMaxBounds(transitBbox as unknown as LngLatBoundsLike)
+    map.setMinZoom(0)
+
+    map.fitBounds(newBounds, { padding: 0, duration: transitionMs })
+    map.once('moveend', () => {
+      map.setMaxBounds(newBounds)
+      map.setMinZoom(newMinZoom)
+    })
+  }, [map, bbox, paddingMeters, transitionMs])
 
   return null
 }
