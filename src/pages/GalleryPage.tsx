@@ -7,6 +7,7 @@ import { BaseMap, useMapZoom } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AreaLabel } from '../components/map/AreaLabel'
 import { MapBoundsConstraint } from '../components/map/MapBoundsConstraint'
+import { computeRunsBbox, expandBboxByMeters } from '../utils/runBbox'
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { SettingsPanel } from '../components/gallery/SettingsPanel'
@@ -115,7 +116,19 @@ export function GalleryPage() {
   armedRef.current = armed
   useMetaballSheet({ canvasRef, sheetRef, fabRef, armedRef })
 
-  useEffect(() => { loadRuns(isDebug) }, [isDebug])
+  const [runsLoaded, setRunsLoaded] = useState(false)
+  useEffect(() => {
+    loadRuns(isDebug).finally(() => setRunsLoaded(true))
+  }, [isDebug])
+
+  // Computed once runs are loaded; used to seed the mapbox `bounds` option
+  // so the map mounts already at the fit zoom (no post-mount snap).
+  const initialBounds = useMemo(() => {
+    if (!runsLoaded) return undefined
+    const bbox = computeRunsBbox(runs)
+    if (!bbox) return undefined
+    return expandBboxByMeters(bbox, ui.mapPaddingMeters) as [[number, number], [number, number]]
+  }, [runsLoaded, runs, ui.mapPaddingMeters])
 
   useEffect(() => {
     if (armed) setBubblePhrase(pickPhrase(null))
@@ -180,8 +193,12 @@ export function GalleryPage() {
   return (
     <div className="page">
       <div className="map-container">
-        {initialCenter !== undefined && (
-          <BaseMap initialCenter={initialCenter ?? undefined} initialZoom={13}>
+        {initialCenter !== undefined && runsLoaded && (
+          <BaseMap
+            initialCenter={initialCenter ?? undefined}
+            initialZoom={13}
+            initialBounds={initialBounds}
+          >
             <GalleryLayers runs={runs} dots={dots} />
             <AreaLabel />
             <MapBoundsConstraint runs={runs} paddingMeters={ui.mapPaddingMeters} />

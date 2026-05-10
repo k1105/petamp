@@ -36,6 +36,10 @@ interface BaseMapProps {
   children?: React.ReactNode
   initialCenter?: [number, number]
   initialZoom?: number
+  /** If supplied, map is created via the mapbox `bounds` option so the camera
+      lands directly at the bbox-fit zoom and centre — avoids the "mount at
+      initialZoom then snap to fit" jolt that setMinZoom triggers post-mount. */
+  initialBounds?: [[number, number], [number, number]]
   lockTarget?: boolean   // orbit-only, no pan toggle shown
   mapVisible?: boolean   // hide/show mapbox canvas
 }
@@ -44,6 +48,7 @@ export function BaseMap({
   children,
   initialCenter = [139.6503, 35.6762],
   initialZoom = 14,
+  initialBounds,
   lockTarget = false,
   mapVisible = true,
 }: BaseMapProps) {
@@ -57,14 +62,20 @@ export function BaseMap({
   useEffect(() => {
     if (!containerRef.current) return
 
-    const m = new mapboxgl.Map({
+    const opts: mapboxgl.MapOptions = {
       container: containerRef.current,
       style: 'mapbox://styles/mapbox/dark-v11',
-      center: initialCenter,
-      zoom: initialZoom,
       pitch: 45,
       antialias: true,
-    })
+    }
+    if (initialBounds) {
+      opts.bounds = initialBounds
+      opts.fitBoundsOptions = { padding: 0 }
+    } else {
+      opts.center = initialCenter
+      opts.zoom = initialZoom
+    }
+    const m = new mapboxgl.Map(opts)
 
     m.on('load', () => {
       const layers = m.getStyle()?.layers ?? []
