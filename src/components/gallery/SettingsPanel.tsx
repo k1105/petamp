@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { Icon } from '@iconify/react'
 import { useSettingsStore } from '../../store/useSettingsStore'
+import { resetAllCharacterMemory } from '../../character'
 
 export function SettingsPanel() {
   const ui = useSettingsStore(s => s.ui)
@@ -8,6 +10,24 @@ export function SettingsPanel() {
   const radii = useSettingsStore(s => s.radii)
   const setRadii = useSettingsStore(s => s.setRadii)
   const resetRadii = useSettingsStore(s => s.resetRadii)
+  const [resetting, setResetting] = useState(false)
+  const [resetDone, setResetDone] = useState(false)
+
+  const onResetMemory = async () => {
+    if (resetting) return
+    const ok = window.confirm(
+      'ペタンプの記憶をすべて消します。\n（過去の対話・要約・関係値・プロンプトログ）\n\nRunの記録は消えません。よろしいですか？',
+    )
+    if (!ok) return
+    setResetting(true)
+    try {
+      await resetAllCharacterMemory()
+      setResetDone(true)
+      window.setTimeout(() => setResetDone(false), 2000)
+    } finally {
+      setResetting(false)
+    }
+  }
 
   return (
     <div className="settings-content">
@@ -103,6 +123,20 @@ export function SettingsPanel() {
         <button className="btn-ghost" onClick={resetUi}>
           <Icon icon="lucide:rotate-ccw" />
           <span>UIをリセット</span>
+        </button>
+      </div>
+
+      <div className="debug-section-label">ペタンプ</div>
+      <div className="debug-actions">
+        <button
+          className="btn-ghost"
+          onClick={() => void onResetMemory()}
+          disabled={resetting}
+        >
+          <Icon icon="lucide:trash-2" />
+          <span>
+            {resetting ? '消去中…' : resetDone ? '消去しました' : 'ペタンプの記憶をリセット'}
+          </span>
         </button>
       </div>
     </div>

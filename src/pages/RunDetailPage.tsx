@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import { SphereGeometry } from '@luma.gl/engine'
@@ -23,6 +23,8 @@ import { buildTripLayerData } from '../utils/tripLayerData'
 import { totalDistance } from '../utils/geoUtils'
 import { formatDistance, formatElevation, formatDate } from '../utils/formatters'
 import { loadRun } from '../db/runRepository'
+import { getMemoryStore, petampCharacter } from '../character'
+import type { EpisodicMemory } from '../character'
 import type { Run } from '../types'
 
 const sphere = new SphereGeometry({ radius: 1, nlat: 20, nlong: 20 })
@@ -117,29 +119,14 @@ function DetailLayers({
   return <DeckOverlay layers={layers} />
 }
 
-// Mock phrases for the eye's speech bubble on /run/:id. Will be replaced
-// by local-LLM generation that comments on the run later; this is the same
-// cycle-on-tap mock as the gallery armed bubble.
-const RUN_DETAIL_PHRASES = [
-  'さかみちがあるね',
-  'まっすぐで気持ちよかったな',
-  'いい天気だった',
-] as const
-
-function pickDetailPhrase(current: string | null): string {
-  const others = RUN_DETAIL_PHRASES.filter(p => p !== current)
-  return others[Math.floor(Math.random() * others.length)]
-}
-
 export function RunDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [run, setRun] = useState<Run | null>(null)
   const [mapVisible, setMapVisible] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
-  const [bubblePhrase, setBubblePhrase] = useState<string | null>(null)
-  const eyeRef = useRef<HTMLButtonElement>(null)
-  const detailBubbleRef = useRef<HTMLButtonElement>(null)
+  const [memories, setMemories] = useState<EpisodicMemory[]>([])
+  const [memoryVisible, setMemoryVisible] = useState(true)
   const { runs, loadRuns, updateRun } = useRunStore()
   const [runsLoaded, setRunsLoaded] = useState(false)
 
@@ -156,6 +143,23 @@ export function RunDetailPage() {
   const acceptedRunPoints = useMemo(() => acceptedPoints(run?.trackPoints ?? []), [run])
   const { gain } = useElevationStats(acceptedRunPoints)
 
+  // このRunに紐づく episodic memory を取得
+  useEffect(() => {
+    if (!run) return
+    let cancelled = false
+    void getMemoryStore()
+      .queryEpisodic({
+        characterId: petampCharacter.id,
+        relatedTo: [{ kind: 'run', id: run.id }],
+      })
+      .then(eps => {
+        if (!cancelled) setMemories(eps)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [run])
+
   // 過去のラン (areaName未保存) を初回表示時にバックフィル
   useEffect(() => {
     if (!run || run.areaName) return
@@ -171,31 +175,6 @@ export function RunDetailPage() {
       })
     })
   }, [run?.id])
-
-  // Position the speech bubble relative to the eye's actual rendered rect.
-  // Avoids dvh-based layout jitter on initial load. Only re-runs while a
-  // bubble is showing.
-  useEffect(() => {
-    if (!bubblePhrase) return
-    const place = () => {
-      const eye = eyeRef.current
-      const bubble = detailBubbleRef.current
-      if (!eye || !bubble) return
-      const r = eye.getBoundingClientRect()
-      const cx = r.left + r.width / 2
-      // Bubble sits above-left of the eye; tail at bottom-right points back.
-      bubble.style.left = `${cx - bubble.offsetWidth + 18}px`
-      bubble.style.top = `${r.top - 12 - bubble.offsetHeight}px`
-    }
-    place()
-    const ro = new ResizeObserver(place)
-    if (eyeRef.current) ro.observe(eyeRef.current)
-    window.addEventListener('resize', place)
-    return () => {
-      ro.disconnect()
-      window.removeEventListener('resize', place)
-    }
-  }, [bubblePhrase])
 
   useEffect(() => {
     if (!id) return
@@ -261,6 +240,16 @@ export function RunDetailPage() {
       >
         <Icon icon="lucide:braces" />
       </button>
+      {memories.length > 0 && (
+        <button
+          className={`memory-toggle-btn ${memoryVisible ? 'active' : ''}`}
+          onClick={() => setMemoryVisible(v => !v)}
+          title={memoryVisible ? 'ペタンプの記憶を隠す' : 'ペタンプの記憶を表示'}
+          aria-label={memoryVisible ? 'ペタンプの記憶を隠す' : 'ペタンプの記憶を表示'}
+        >
+          <Icon icon={memoryVisible ? 'lucide:notebook-text' : 'lucide:notebook'} />
+        </button>
+      )}
 
       <button
         className="run-nav-btn run-nav-prev"
@@ -315,29 +304,27 @@ export function RunDetailPage() {
         />
       )}
 
+      {memories.length > 0 && memoryVisible && (
+        <div className="run-detail-memory">
+          <div className="run-detail-memory-card">
+            <div className="run-detail-memory-title">ペタンプが覚えていること</div>
+            {memories.map(m => (
+              <div key={m.id} style={{ marginTop: 4 }}>{m.summary}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Persistent eye carried over from the gallery → run-detail transition.
-          Tapping cycles a (mock) commentary phrase about the run. */}
+          Tapping enters the chat page for this run. */}
       <button
-        ref={eyeRef}
         type="button"
         className="run-detail-eye"
-        onClick={() => setBubblePhrase(prev => pickDetailPhrase(prev))}
-        aria-label="軌跡について話す"
+        onClick={() => navigate(`/run/${run.id}/chat`)}
+        aria-label="ペタンプと話す"
       >
         <EyesIcon />
       </button>
-      {bubblePhrase && (
-        <button
-          ref={detailBubbleRef}
-          type="button"
-          key={bubblePhrase}
-          className="run-detail-bubble"
-          onClick={() => setBubblePhrase(prev => pickDetailPhrase(prev))}
-          aria-label={`発話: ${bubblePhrase} (タップで切替)`}
-        >
-          {bubblePhrase}
-        </button>
-      )}
     </div>
   )
 }
