@@ -15,6 +15,7 @@ import { useElevationStats } from '../hooks/useElevationStats'
 import { useRunStore } from '../store/useRunStore'
 import { positionAtTime } from '../hooks/useGalleryAnimation'
 import { getTubeMesh } from '../utils/tubeMesh'
+import { effectiveRadius, bucketRadius } from '../utils/effectiveRadius'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { fetchAreaName } from '../hooks/useReverseGeocode'
@@ -67,7 +68,11 @@ function DetailLayers({
 
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5))
   const pts = useMemo(() => acceptedPoints(run.trackPoints), [run])
-  const tubeMesh = useMemo(() => getTubeMesh(run.id, pts, radii.tubeRadius), [run.id, pts, radii.tubeRadius])
+  const tubeRadius = bucketRadius(
+    effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius),
+  )
+  const dotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
+  const tubeMesh = useMemo(() => getTubeMesh(run.id, pts, tubeRadius), [run.id, pts, tubeRadius])
 
   // マップ非表示時は白+黒、表示時はグレー+グリーン
   const tubeColor: [number, number, number, number] = mapVisible
@@ -100,14 +105,14 @@ function DetailLayers({
       data: dotData,
       mesh: sphere,
       getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
-      getScale: [radii.dotRadius, radii.dotRadius, radii.dotRadius],
+      getScale: [dotRadius, dotRadius, dotRadius],
       getColor: dotColor,
       material: mat,
     })
     if (!mapVisible) return tubeLayer ? [tubeLayer, dotLayer] : [dotLayer]
     if (t === 0) return []
     return tubeLayer ? [tubeLayer, dotLayer] : [dotLayer]
-  }, [tubeMesh, dotData, t, mapVisible, radii.dotRadius])
+  }, [tubeMesh, dotData, t, mapVisible, dotRadius])
 
   return <DeckOverlay layers={layers} />
 }

@@ -76,21 +76,30 @@ export function RecordingDebugPanel({
           />
         </div>
 
-        <div className="debug-section-label">表示半径</div>
+        <div className="debug-section-label">表示半径 (m@閾値zoom)</div>
         <div className="debug-sliders">
           <SliderRow
-            label="白チューブ半径 (採用)"
+            label="閾値zoom (≧=m一定 / <=画面ピクセル一定)"
+            value={radii.zoomThreshold}
+            min={10}
+            max={20}
+            step={0.5}
+            unit=""
+            onChange={v => setRadius('zoomThreshold', v)}
+          />
+          <SliderRow
+            label="白チューブ半径"
             value={radii.tubeRadius}
-            min={0.5}
+            min={0.1}
             max={10}
             step={0.1}
             unit="m"
             onChange={v => setRadius('tubeRadius', v)}
           />
           <SliderRow
-            label="赤チューブ半径 (全点)"
+            label="赤チューブ半径"
             value={radii.rawTubeRadius}
-            min={0.2}
+            min={0.1}
             max={10}
             step={0.1}
             unit="m"
@@ -99,9 +108,9 @@ export function RecordingDebugPanel({
           <SliderRow
             label="自己位置ドット半径"
             value={radii.dotRadius}
-            min={1}
+            min={0.2}
             max={20}
-            step={0.5}
+            step={0.1}
             unit="m"
             onChange={v => setRadius('dotRadius', v)}
           />

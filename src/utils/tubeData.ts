@@ -3,7 +3,7 @@ import { haversineDistance } from './geoUtils'
 
 export interface TubeSegment {
   position: [number, number, number]
-  scale: [number, number, number]
+  length: number  // 区間の長さ (m) — 半径は layer 側で動的に当てる
   orientation: [number, number, number]  // [pitch, yaw, roll]
 }
 
@@ -18,18 +18,15 @@ function bearingDeg(lat1: number, lng1: number, lat2: number, lng2: number): num
 
 export interface TubeJoint {
   position: [number, number, number]
-  scale: [number, number, number]
 }
 
-export function buildTubeJoints(points: TrackPoint[], radius: number): TubeJoint[] {
-  const r = radius * 1.02
+export function buildTubeJoints(points: TrackPoint[]): TubeJoint[] {
   return points.map(p => ({
     position: [p.lng, p.lat, 0] as [number, number, number],
-    scale: [r, r, r] as [number, number, number],
   }))
 }
 
-export function buildTubeSegments(points: TrackPoint[], radius: number): TubeSegment[] {
+export function buildTubeSegments(points: TrackPoint[]): TubeSegment[] {
   const segments: TubeSegment[] = []
   for (let i = 0; i < points.length - 1; i++) {
     const a = points[i], b = points[i + 1]
@@ -42,7 +39,7 @@ export function buildTubeSegments(points: TrackPoint[], radius: number): TubeSeg
         (a.lat + b.lat) / 2,
         0,
       ],
-      scale: [radius, length, radius],
+      length,
       // yaw = -bearing: CylinderGeometry axis is Y (North), rotate CW to match bearing
       orientation: [0, -bearingDeg(a.lat, a.lng, b.lat, b.lng), 0],
     })

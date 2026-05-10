@@ -8,6 +8,7 @@ import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AreaLabel } from '../components/map/AreaLabel'
 import { MapBoundsConstraint } from '../components/map/MapBoundsConstraint'
 import { GroupNavigation } from '../components/map/GroupNavigation'
+import { GroupEdgeIndicator } from '../components/map/GroupEdgeIndicator'
 import { expandBboxByMeters } from '../utils/runBbox'
 import { groupRunsByBboxOverlap, makeHomeGroup } from '../utils/runGroups'
 import { useRunStore } from '../store/useRunStore'
@@ -16,6 +17,7 @@ import { SettingsPanel } from '../components/gallery/SettingsPanel'
 import { RunTile } from '../components/gallery/RunTile'
 import { EyesIcon } from '../components/gallery/EyesIcon'
 import { getTubeMesh } from '../utils/tubeMesh'
+import { effectiveRadius, bucketRadius } from '../utils/effectiveRadius'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { useGalleryAnimation } from '../hooks/useGalleryAnimation'
 import { useCurrentPosition } from '../hooks/useCurrentPosition'
@@ -26,7 +28,8 @@ import type { Run } from '../types'
 
 const sphere = new SphereGeometry({ radius: 1, nlat: 20, nlong: 20 })
 const MIN_ZOOM = 12.5
-const SPHERE_REF_ZOOM = 13
+// 現在位置(=自己位置)dotは過去ランの軌跡dotより少し大きく強調する。
+const CURRENT_DOT_SCALE = 1.2
 
 function GalleryLayers({
   runs,
@@ -46,9 +49,9 @@ function GalleryLayers({
   const dotColor: [number, number, number, number] = [28, 151, 94, Math.round(255 * t)]
   const mat = { ambient: 1, diffuse: 0, shininess: 0, specularColor: [0, 0, 0] as [number, number, number] }
 
-  const sphereRadius = Math.min(
-    radii.dotRadius * Math.pow(2, SPHERE_REF_ZOOM - zoom),
-    radii.dotRadius
+  const sphereRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
+  const tubeRadius = bucketRadius(
+    effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius),
   )
 
   const layers = useMemo(() => {
@@ -56,7 +59,7 @@ function GalleryLayers({
     const tubeLayers: SimpleMeshLayer[] = []
     for (const run of runs) {
       const pts = acceptedPoints(run.trackPoints)
-      const mesh = getTubeMesh(run.id, pts, radii.tubeRadius)
+      const mesh = getTubeMesh(run.id, pts, tubeRadius)
       if (!mesh) continue
       tubeLayers.push(new SimpleMeshLayer({
         id: `run-tube-${run.id}`,
@@ -82,7 +85,7 @@ function GalleryLayers({
           data: [{ position: currentPosition }],
           mesh: sphere,
           getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
-          getScale: [radii.dotRadius, radii.dotRadius, radii.dotRadius],
+          getScale: [sphereRadius * CURRENT_DOT_SCALE, sphereRadius * CURRENT_DOT_SCALE, sphereRadius * CURRENT_DOT_SCALE],
           getColor: [28, 151, 94, 255],
           material: mat,
         })
@@ -100,7 +103,7 @@ function GalleryLayers({
       }),
       ...(currentPosLayer ? [currentPosLayer] : []),
     ]
-  }, [runs, dots, currentPosition, t, sphereRadius, radii.tubeRadius, radii.dotRadius])
+  }, [runs, dots, currentPosition, t, sphereRadius, tubeRadius])
 
   return <DeckOverlay layers={layers} />
 }
@@ -108,8 +111,8 @@ function GalleryLayers({
 // Home (initial) state config — small fixed-size cage centred on GPS at a
 // fixed zoom, distinct from any recorded group. Pan-to-edge from here jumps
 // to the nearest real group.
-const HOME_HALF_SIZE_METERS = 500
-const HOME_FIXED_ZOOM = 15
+const HOME_HALF_SIZE_METERS = 150
+const HOME_FIXED_ZOOM = 17.5
 
 // Mock phrases for the armed-state speech bubble. Will be replaced by
 // local-LLM generation later; for now a fixed pool that cycles on tap.
@@ -131,7 +134,8 @@ export function GalleryPage() {
   const [armed, setArmed] = useState(false)
   const [sheetView, setSheetView] = useState<'list' | 'settings'>('list')
   const [bubblePhrase, setBubblePhrase] = useState<string | null>(null)
-  const dots = useGalleryAnimation(runs)
+  // ホーム画面 (Gallery) は通常 1/10 のスローモー: 60 → 6
+  const dots = useGalleryAnimation(runs, 6)
   const initialCenter = useCurrentPosition()
   const [searchParams] = useSearchParams()
   const isDebug = searchParams.get('debug') === '1'
@@ -282,9 +286,26 @@ export function GalleryPage() {
               paddingMeters={ui.mapPaddingMeters}
               onGroupChange={setCurrentGroupId}
             />
+            <GroupEdgeIndicator
+              currentGroup={currentGroup}
+              groups={allGroups}
+              paddingMeters={ui.mapPaddingMeters}
+              onTap={setCurrentGroupId}
+            />
           </BaseMap>
         )}
       </div>
+
+      {homeGroup && !armed && (
+        <button
+          className={`locate-btn${isHome ? ' is-active' : ''}`}
+          onClick={() => setCurrentGroupId('home')}
+          aria-label="現在位置に戻る"
+          title="現在位置に戻る"
+        >
+          <Icon icon="lucide:locate-fixed" />
+        </button>
+      )}
 
       {armed && <div className="armed-backdrop" onClick={() => setArmed(false)} />}
       {armed && bubblePhrase && (

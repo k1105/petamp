@@ -5,6 +5,9 @@ export function SettingsPanel() {
   const ui = useSettingsStore(s => s.ui)
   const setUi = useSettingsStore(s => s.setUi)
   const resetUi = useSettingsStore(s => s.resetUi)
+  const radii = useSettingsStore(s => s.radii)
+  const setRadii = useSettingsStore(s => s.setRadii)
+  const resetRadii = useSettingsStore(s => s.resetRadii)
 
   return (
     <div className="settings-content">
@@ -61,7 +64,42 @@ export function SettingsPanel() {
         />
       </div>
 
+      <div className="debug-section-label">軌跡サイズ</div>
+      <div className="debug-sliders">
+        <SliderRow
+          label="閾値zoom (これ以上はm一定 / 未満は画面ピクセル一定)"
+          value={radii.zoomThreshold}
+          min={10}
+          max={20}
+          step={0.5}
+          unit=""
+          onChange={v => setRadii({ zoomThreshold: v })}
+        />
+        <SliderRow
+          label="チューブ半径 (m@閾値zoom)"
+          value={radii.tubeRadius}
+          min={0.1}
+          max={10}
+          step={0.1}
+          unit="m"
+          onChange={v => setRadii({ tubeRadius: v })}
+        />
+        <SliderRow
+          label="ドット半径 (m@閾値zoom)"
+          value={radii.dotRadius}
+          min={0.2}
+          max={20}
+          step={0.1}
+          unit="m"
+          onChange={v => setRadii({ dotRadius: v })}
+        />
+      </div>
+
       <div className="debug-actions">
+        <button className="btn-ghost" onClick={resetRadii}>
+          <Icon icon="lucide:rotate-ccw" />
+          <span>軌跡サイズをリセット</span>
+        </button>
         <button className="btn-ghost" onClick={resetUi}>
           <Icon icon="lucide:rotate-ccw" />
           <span>UIをリセット</span>

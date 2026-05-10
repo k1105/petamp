@@ -2,9 +2,13 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 export interface Radii {
+  // zoomThreshold での実半径 (m)。アンカー1点。
+  // zoom >= zoomThreshold: そのまま (m単位固定 → 寄ると画面上で太く)
+  // zoom <  zoomThreshold: × 2^(zoomThreshold - zoom) で展開 (画面ピクセル一定)
   tubeRadius: number
   rawTubeRadius: number
   dotRadius: number
+  zoomThreshold: number
 }
 
 export interface FilterSettings {
@@ -20,9 +24,10 @@ export interface UiSettings {
 }
 
 export const DEFAULT_RADII: Radii = {
-  tubeRadius: 1.3,
-  rawTubeRadius: 1.2,
-  dotRadius: 9.5,
+  tubeRadius: 1.0,
+  rawTubeRadius: 0.9,
+  dotRadius: 3.0,
+  zoomThreshold: 16,
 }
 
 export const DEFAULT_FILTER_SETTINGS: FilterSettings = {
@@ -34,7 +39,7 @@ export const DEFAULT_UI_SETTINGS: UiSettings = {
   eyeYOffset: -12,
   eyeSizeScale: 1.15,
   pupilSizeScale: 1.10,
-  mapPaddingMeters: 200,
+  mapPaddingMeters: 100,
 }
 
 interface SettingsState {
@@ -65,6 +70,16 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'petamp.settings',
+      // v2: Radii の意味論が変わった (Fixed/Live二値 → 閾値1点アンカー)。旧値は捨て。
+      // v3: 新ロジック下で再調整したデフォルトを適用するため radii を再リセット。
+      version: 3,
+      migrate: (persistedState, version) => {
+        const s = (persistedState ?? {}) as Partial<SettingsState>
+        if (version < 3) {
+          return { ...s, radii: DEFAULT_RADII }
+        }
+        return s as SettingsState
+      },
       // Default merge replaces nested objects wholesale, so old persisted state
       // missing newly added fields (e.g. ui.mapPaddingMeters) leaves them
       // undefined and crashes consumers. Deep-merge keeps current defaults for

@@ -10,33 +10,25 @@ interface Props {
   onGroupChange: (id: string) => void
 }
 
-/** When the user pans within ~this many metres of any side of the current
- *  group's padded bbox, we treat that as "tried to leave" and jump. */
+/** When the user pans within ~this many metres of the current
+ *  group's padded bbox left/right edge, we treat that as "tried to leave" and jump. */
 const EDGE_THRESHOLD_METERS = 25
-const METERS_PER_LAT_DEG = 110540
 
-type EdgeDir = 'n' | 's' | 'e' | 'w'
+// グループ間遷移は左右のみ。上下方向はパン制約の縁として残るが遷移は発火しない。
+type EdgeDir = 'e' | 'w'
 
 function detectEdgeDirection(
   center: [number, number],
   paddedBbox: LngLatBbox,
   thresholdMeters: number,
 ): EdgeDir | null {
-  const [lng, lat] = center
+  const [lng] = center
   const meanLat = (paddedBbox[0][1] + paddedBbox[1][1]) / 2
   const mPerLng = 111320 * Math.cos((meanLat * Math.PI) / 180)
   const dW = (lng - paddedBbox[0][0]) * mPerLng
   const dE = (paddedBbox[1][0] - lng) * mPerLng
-  const dS = (lat - paddedBbox[0][1]) * METERS_PER_LAT_DEG
-  const dN = (paddedBbox[1][1] - lat) * METERS_PER_LAT_DEG
-  const sides: { side: EdgeDir; d: number }[] = [
-    { side: 'w', d: dW },
-    { side: 'e', d: dE },
-    { side: 's', d: dS },
-    { side: 'n', d: dN },
-  ]
-  sides.sort((a, b) => a.d - b.d)
-  if (sides[0].d <= thresholdMeters) return sides[0].side
+  if (dW <= dE && dW <= thresholdMeters) return 'w'
+  if (dE <= dW && dE <= thresholdMeters) return 'e'
   return null
 }
 
@@ -50,12 +42,8 @@ function pickNextGroup(
     if (g.id === current.id) continue
     const dlng = g.center[0] - current.center[0]
     const dlat = g.center[1] - current.center[1]
-    let inDir = false
-    if (direction === 'e' && dlng > 0) inDir = true
-    else if (direction === 'w' && dlng < 0) inDir = true
-    else if (direction === 'n' && dlat > 0) inDir = true
-    else if (direction === 's' && dlat < 0) inDir = true
-    if (!inDir) continue
+    if (direction === 'e' && dlng <= 0) continue
+    if (direction === 'w' && dlng >= 0) continue
     const dist = Math.hypot(dlng, dlat)
     if (!best || dist < best.dist) best = { g, dist }
   }

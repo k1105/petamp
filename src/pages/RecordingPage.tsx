@@ -13,6 +13,7 @@ import {useCurrentPosition} from "../hooks/useCurrentPosition";
 import {useRunStore} from "../store/useRunStore";
 import {useSettingsStore, type Radii} from "../store/useSettingsStore";
 import {buildTubeSegments, buildTubeJoints} from "../utils/tubeData";
+import {effectiveRadius} from "../utils/effectiveRadius";
 import {acceptedPoints, accuracyGate, warmupGate, minDistanceGate, maxSpeedGate} from "../utils/recordingFilters";
 import {fetchAreaName} from "../hooks/useReverseGeocode";
 import {RecordingDebugPanel} from "../components/recording/RecordingDebugPanel";
@@ -21,6 +22,8 @@ import type {Run, TrackPoint} from "../types";
 const sphere = new SphereGeometry({radius: 1, nlat: 20, nlong: 20});
 const cylinder = new CylinderGeometry({radius: 1, height: 1, nradial: 12});
 const MIN_ZOOM = 12.5;
+// 現在位置(=自己位置)dotは過去ランの軌跡dotより少し大きく強調する。
+const CURRENT_DOT_SCALE = 1.2;
 
 const FIT_INTERVAL = 20;
 const INITIAL_ZOOM = 17;
@@ -74,17 +77,23 @@ function RecordingLayers({
   const zoom = useMapZoom();
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5));
 
+  const tubeRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius);
+  const rawTubeRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.rawTubeRadius);
+  const baseDotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius);
+  const dotRadius = baseDotRadius * CURRENT_DOT_SCALE;
+  const jointRadius = tubeRadius * 1.02;
+
   const tubeData = useMemo(
-    () => buildTubeSegments(acceptedTrackPoints, radii.tubeRadius),
-    [acceptedTrackPoints, radii.tubeRadius],
+    () => buildTubeSegments(acceptedTrackPoints),
+    [acceptedTrackPoints],
   );
   const jointData = useMemo(
-    () => buildTubeJoints(acceptedTrackPoints, radii.tubeRadius),
-    [acceptedTrackPoints, radii.tubeRadius],
+    () => buildTubeJoints(acceptedTrackPoints),
+    [acceptedTrackPoints],
   );
   const rawTubeData = useMemo(
-    () => buildTubeSegments(trackPoints, radii.rawTubeRadius),
-    [trackPoints, radii.rawTubeRadius],
+    () => buildTubeSegments(trackPoints),
+    [trackPoints],
   );
   const dotData = useMemo(() => {
     const last = acceptedTrackPoints.at(-1);
@@ -127,27 +136,29 @@ function RecordingLayers({
         data: rawTubeData,
         mesh: cylinder,
         getPosition: (d) => d.position,
-        getScale: (d) => d.scale,
+        getScale: (d) => [rawTubeRadius, d.length, rawTubeRadius],
         getOrientation: (d) => d.orientation,
         getColor: rawTubeColor,
         material: mat,
+        updateTriggers: {getScale: rawTubeRadius},
       }),
       new SimpleMeshLayer({
         id: "live-tube",
         data: tubeData,
         mesh: cylinder,
         getPosition: (d) => d.position,
-        getScale: (d) => d.scale,
+        getScale: (d) => [tubeRadius, d.length, tubeRadius],
         getOrientation: (d) => d.orientation,
         getColor: tubeColor,
         material: mat,
+        updateTriggers: {getScale: tubeRadius},
       }),
       new SimpleMeshLayer({
         id: "live-joints",
         data: jointData,
         mesh: sphere,
         getPosition: (d) => d.position,
-        getScale: (d) => d.scale,
+        getScale: [jointRadius, jointRadius, jointRadius],
         getColor: tubeColor,
         material: mat,
       }),
@@ -157,12 +168,12 @@ function RecordingLayers({
         mesh: sphere,
         getPosition: (d: {position: [number, number]}) =>
           [d.position[0], d.position[1], 0] as [number, number, number],
-        getScale: [radii.dotRadius, radii.dotRadius, radii.dotRadius],
+        getScale: [dotRadius, dotRadius, dotRadius],
         getColor: dotColor,
         material: mat,
       }),
     ];
-  }, [tubeData, jointData, rawTubeData, dotData, t, radii.dotRadius]);
+  }, [tubeData, jointData, rawTubeData, dotData, t, tubeRadius, rawTubeRadius, dotRadius, jointRadius]);
 
   return <DeckOverlay layers={layers} />;
 }

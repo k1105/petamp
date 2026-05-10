@@ -707,6 +707,68 @@
   z-index: 10;
 }
 
+.locate-btn {
+  position: absolute;
+  top: 16px;
+  /* orbit-toggle (right:16) の隣に並べる: 16 + 40 + 8 = 64 */
+  right: 64px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  backdrop-filter: blur(10px);
+}
+.locate-btn.is-active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.locate-btn svg { font-size: 18px; }
+
+/* ---- Group edge indicator (隣接groupへの予告) ---- */
+.group-edge-indicator {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* 縦書き: 文字は90°回転して上から下へ */
+  writing-mode: vertical-rl;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  /* 下敷き無しでもマップ上で読めるように軽い影 */
+  text-shadow:
+    0 0 4px rgba(0, 0, 0, 0.5),
+    0 0 2px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  z-index: 9;
+  white-space: nowrap;
+  pointer-events: auto;
+  animation: group-edge-fade-in 0.18s ease-out;
+}
+.group-edge-indicator svg {
+  font-size: 18px;
+  /* svg自体は writing-mode で回らないので、向きはアイコン側で正しく出る */
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.5));
+}
+.group-edge-indicator-e { right: 16px; top: 50%; transform: translateY(-50%); }
+.group-edge-indicator-w { left: 16px; top: 50%; transform: translateY(-50%); }
+@keyframes group-edge-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 /* ---- Debug overlay ---- */
 .debug-overlay {
   position: fixed;
