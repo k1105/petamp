@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import { SphereGeometry } from '@luma.gl/engine'
-import mapboxgl from 'mapbox-gl'
 import { Icon } from '@iconify/react'
 import { EyesIcon } from '../components/gallery/EyesIcon'
 import { BaseMap, useMap, useMapZoom } from '../components/map/BaseMap'
@@ -32,8 +31,8 @@ const MIN_ZOOM = 12.5
 const FIT_MAX_ZOOM = 17
 
 function DetailLayers({
-  run, currentTime, isPlaying, mapVisible,
-}: { run: Run; currentTime: number; isPlaying: boolean; mapVisible: boolean }) {
+  run, currentTime, mapVisible,
+}: { run: Run; currentTime: number; mapVisible: boolean }) {
   const zoom = useMapZoom()
   const { map } = useMap()
   const radii = useSettingsStore(s => s.radii)
@@ -58,15 +57,6 @@ function DetailLayers({
     return pos ? [{ position: pos }] : []
   }, [run, currentTime])
 
-  // 再生中は動点にカメラ追従（transform直接更新でzoom animationを妨げない）
-  useEffect(() => {
-    if (!map || !isPlaying) return
-    const pos = positionAtTime(run, currentTime)
-    if (!pos) return
-    const m = map as unknown as { transform: { center: unknown }; triggerRepaint: () => void }
-    m.transform.center = (mapboxgl.LngLat as unknown as { convert: (v: [number, number]) => unknown }).convert(pos)
-    m.triggerRepaint()
-  }, [map, currentTime, isPlaying])
 
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5))
   const pts = useMemo(() => acceptedPoints(run.trackPoints), [run])
@@ -126,7 +116,9 @@ export function RunDetailPage() {
   const [mapVisible, setMapVisible] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
   const [memories, setMemories] = useState<EpisodicMemory[]>([])
-  const [memoryVisible, setMemoryVisible] = useState(true)
+  const [bubbleOpen, setBubbleOpen] = useState(false)
+  const eyeRef = useRef<HTMLButtonElement>(null)
+  const bubbleRef = useRef<HTMLDivElement>(null)
   const { runs, loadRuns, updateRun } = useRunStore()
   const [runsLoaded, setRunsLoaded] = useState(false)
 
@@ -140,8 +132,41 @@ export function RunDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const { currentTime, isPlaying, duration, setDuration, play, stop, seekTo, reset } = useAnimation()
+
+  // 終端到達 → 5秒待って先頭から再生
+  useEffect(() => {
+    if (isPlaying || duration <= 0 || currentTime < duration) return
+    const id = window.setTimeout(() => {
+      reset()
+      play()
+    }, 5000)
+    return () => window.clearTimeout(id)
+  }, [isPlaying, currentTime, duration, reset, play])
   const acceptedRunPoints = useMemo(() => acceptedPoints(run?.trackPoints ?? []), [run])
   const { gain } = useElevationStats(acceptedRunPoints)
+
+  // バブルの位置を eyeRef から計算 (multi-line で高さが変わるので毎回測る)
+  useEffect(() => {
+    if (!bubbleOpen) return
+    const place = () => {
+      const eye = eyeRef.current
+      const bubble = bubbleRef.current
+      if (!eye || !bubble) return
+      const r = eye.getBoundingClientRect()
+      const cx = r.left + r.width / 2
+      bubble.style.left = `${cx - bubble.offsetWidth + 18}px`
+      bubble.style.top = `${r.top - 12 - bubble.offsetHeight}px`
+    }
+    place()
+    const ro = new ResizeObserver(place)
+    if (eyeRef.current) ro.observe(eyeRef.current)
+    if (bubbleRef.current) ro.observe(bubbleRef.current)
+    window.addEventListener('resize', place)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', place)
+    }
+  }, [bubbleOpen, memories])
 
   // このRunに紐づく episodic memory を取得
   useEffect(() => {
@@ -205,6 +230,21 @@ export function RunDetailPage() {
     return [mid.lng, mid.lat]
   }, [run, acceptedRunPoints])
 
+  // BaseMapを初期マウント時から fit 後の zoom で立ち上げる。
+  // initialZoom=14 → fitBounds 寄せの間に dot/tube が別サイズで描画される問題を回避。
+  // BaseMap の useEffect は [] deps なので、後続のRun切替は既存fitBoundsで処理される。
+  const initialBounds = useMemo(():
+    | [[number, number], [number, number]]
+    | undefined => {
+    if (!run || acceptedRunPoints.length === 0) return undefined
+    const lngs = acceptedRunPoints.map(p => p.lng)
+    const lats = acceptedRunPoints.map(p => p.lat)
+    return [
+      [Math.min(...lngs), Math.min(...lats)],
+      [Math.max(...lngs), Math.max(...lats)],
+    ]
+  }, [run, acceptedRunPoints])
+
   if (!run) return <div className="page loading">読み込み中...</div>
 
   const dist = totalDistance(acceptedRunPoints)
@@ -215,8 +255,16 @@ export function RunDetailPage() {
   return (
     <div className="page" style={!mapVisible ? { background: 'var(--accent)' } : undefined}>
       <div className="map-container">
-        <BaseMap initialCenter={center} initialZoom={14} lockTarget mapVisible={mapVisible}>
-          <DetailLayers run={run} currentTime={currentTime} isPlaying={isPlaying} mapVisible={mapVisible} />
+        <BaseMap
+          initialCenter={center}
+          initialZoom={14}
+          initialBounds={initialBounds}
+          initialBoundsPadding={60}
+          initialBoundsMaxZoom={FIT_MAX_ZOOM}
+          lockTarget
+          mapVisible={mapVisible}
+        >
+          <DetailLayers run={run} currentTime={currentTime} mapVisible={mapVisible} />
           <AreaLabel override={run.areaName} />
         </BaseMap>
       </div>
@@ -240,16 +288,6 @@ export function RunDetailPage() {
       >
         <Icon icon="lucide:braces" />
       </button>
-      {memories.length > 0 && (
-        <button
-          className={`memory-toggle-btn ${memoryVisible ? 'active' : ''}`}
-          onClick={() => setMemoryVisible(v => !v)}
-          title={memoryVisible ? 'ペタンプの記憶を隠す' : 'ペタンプの記憶を表示'}
-          aria-label={memoryVisible ? 'ペタンプの記憶を隠す' : 'ペタンプの記憶を表示'}
-        >
-          <Icon icon={memoryVisible ? 'lucide:notebook-text' : 'lucide:notebook'} />
-        </button>
-      )}
 
       <button
         className="run-nav-btn run-nav-prev"
@@ -270,21 +308,20 @@ export function RunDetailPage() {
         <Icon icon="lucide:chevron-right" />
       </button>
 
-      <div className="bottom-bar">
-        <div className="run-meta">
-          <span className="run-meta-name">{run.name}</span>
-          <span className="run-meta-date">{formatDate(run.startedAt)}</span>
+      <div className="run-detail-meta">
+        <div className="run-detail-meta-name">{run.name}</div>
+        <div className="run-detail-meta-date">{formatDate(run.startedAt)}</div>
+        <div className="run-detail-meta-stat">
+          <span className="run-detail-meta-stat-label">距離</span>
+          <span className="run-detail-meta-stat-value">{formatDistance(dist)}</span>
         </div>
-        <div className="detail-stats">
-          <div className="stat">
-            <span className="stat-value">{formatDistance(dist)}</span>
-            <span className="stat-label">距離</span>
-          </div>
-          <div className="stat">
-            <span className="stat-value">↑{formatElevation(gain)}</span>
-            <span className="stat-label">獲得標高</span>
-          </div>
+        <div className="run-detail-meta-stat">
+          <span className="run-detail-meta-stat-label">獲得標高</span>
+          <span className="run-detail-meta-stat-value">↑{formatElevation(gain)}</span>
         </div>
+      </div>
+
+      <div className="run-detail-control">
         <AnimationControl
           currentTime={currentTime}
           duration={duration}
@@ -292,7 +329,6 @@ export function RunDetailPage() {
           onPlay={play}
           onStop={stop}
           onSeek={seekTo}
-          onReset={reset}
         />
       </div>
 
@@ -304,27 +340,48 @@ export function RunDetailPage() {
         />
       )}
 
-      {memories.length > 0 && memoryVisible && (
-        <div className="run-detail-memory">
-          <div className="run-detail-memory-card">
-            <div className="run-detail-memory-title">ペタンプが覚えていること</div>
-            {memories.map(m => (
-              <div key={m.id} style={{ marginTop: 4 }}>{m.summary}</div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Persistent eye carried over from the gallery → run-detail transition.
-          Tapping enters the chat page for this run. */}
+          Tapping pops a bubble; the bubble's inline link enters the chat. */}
       <button
+        ref={eyeRef}
         type="button"
         className="run-detail-eye"
-        onClick={() => navigate(`/run/${run.id}/chat`)}
-        aria-label="ペタンプと話す"
+        onClick={() => setBubbleOpen(v => !v)}
+        aria-label="ペタンプの吹き出しを開く"
       >
         <EyesIcon />
       </button>
+
+      {bubbleOpen && (
+        <>
+          <div className="run-detail-bubble-backdrop" onClick={() => setBubbleOpen(false)} />
+          <div ref={bubbleRef} className="run-detail-bubble">
+            {memories.length > 0 ? (
+              <>
+                <p className="run-detail-bubble-text">{memories[0].summary}</p>
+                <button
+                  type="button"
+                  className="run-detail-bubble-link"
+                  onClick={() => navigate(`/run/${run.id}/chat`)}
+                >
+                  もっと話す →
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="run-detail-bubble-text">このランについて、もっと教えて!</p>
+                <button
+                  type="button"
+                  className="run-detail-bubble-link"
+                  onClick={() => navigate(`/run/${run.id}/chat`)}
+                >
+                  話す →
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }

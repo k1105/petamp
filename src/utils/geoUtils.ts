@@ -39,6 +39,54 @@ export function elevationGain(points: TrackPoint[], threshold = 3): number {
   return gain
 }
 
+export function elevationLoss(points: TrackPoint[], threshold = 3): number {
+  const smoothed = smoothAltitudes(points)
+  let loss = 0
+  for (let i = 1; i < smoothed.length; i++) {
+    const prev = smoothed[i - 1]
+    const curr = smoothed[i]
+    if (prev === null || curr === null) continue
+    const diff = prev - curr
+    if (diff > threshold) loss += diff
+  }
+  return loss
+}
+
+/** Two-point initial bearing in degrees (0=N, 90=E). */
+export function bearing(a: TrackPoint, b: TrackPoint): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180
+  const lat1 = toRad(a.lat)
+  const lat2 = toRad(b.lat)
+  const dLng = toRad(b.lng - a.lng)
+  const y = Math.sin(dLng) * Math.cos(lat2)
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng)
+  const deg = (Math.atan2(y, x) * 180) / Math.PI
+  return (deg + 360) % 360
+}
+
+/** Signed delta between two bearings in [-180, 180]. */
+export function bearingDelta(b1: number, b2: number): number {
+  let d = b2 - b1
+  while (d > 180) d -= 360
+  while (d < -180) d += 360
+  return d
+}
+
+/** Whether two 2D segments (a-b) and (c-d) intersect (open segments). */
+export function segmentsIntersect2D(
+  a: [number, number], b: [number, number],
+  c: [number, number], d: [number, number],
+): boolean {
+  const cross = (x1: number, y1: number, x2: number, y2: number) => x1 * y2 - y1 * x2
+  const d1x = b[0] - a[0], d1y = b[1] - a[1]
+  const d2x = d[0] - c[0], d2y = d[1] - c[1]
+  const denom = cross(d1x, d1y, d2x, d2y)
+  if (Math.abs(denom) < 1e-12) return false
+  const t = cross(c[0] - a[0], c[1] - a[1], d2x, d2y) / denom
+  const u = cross(c[0] - a[0], c[1] - a[1], d1x, d1y) / denom
+  return t > 0 && t < 1 && u > 0 && u < 1
+}
+
 export function bboxCenter(points: TrackPoint[]): [number, number] | undefined {
   if (points.length === 0) return undefined
   let latMin = Infinity, latMax = -Infinity, lngMin = Infinity, lngMax = -Infinity

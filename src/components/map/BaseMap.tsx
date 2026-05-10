@@ -40,6 +40,10 @@ interface BaseMapProps {
       lands directly at the bbox-fit zoom and centre — avoids the "mount at
       initialZoom then snap to fit" jolt that setMinZoom triggers post-mount. */
   initialBounds?: [[number, number], [number, number]]
+  /** Pixel padding for initialBounds fit. Default 0. */
+  initialBoundsPadding?: number
+  /** Max zoom for initialBounds fit. */
+  initialBoundsMaxZoom?: number
   lockTarget?: boolean   // orbit-only, no pan toggle shown
   mapVisible?: boolean   // hide/show mapbox canvas
 }
@@ -49,6 +53,8 @@ export function BaseMap({
   initialCenter = [139.6503, 35.6762],
   initialZoom = 14,
   initialBounds,
+  initialBoundsPadding,
+  initialBoundsMaxZoom,
   lockTarget = false,
   mapVisible = true,
 }: BaseMapProps) {
@@ -70,7 +76,10 @@ export function BaseMap({
     }
     if (initialBounds) {
       opts.bounds = initialBounds
-      opts.fitBoundsOptions = { padding: 0 }
+      opts.fitBoundsOptions = {
+        padding: initialBoundsPadding ?? 0,
+        maxZoom: initialBoundsMaxZoom,
+      }
     } else {
       opts.center = initialCenter
       opts.zoom = initialZoom

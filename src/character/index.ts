@@ -20,6 +20,7 @@ export type {
   LLMOptions,
   LLMReply,
   LLMReplyResult,
+  LLMReplyTopic,
   LLMRole,
   LLMTextResult,
   LLMUsage,
@@ -66,9 +67,22 @@ export {
 
 export { petampCharacter, resolveCharacter } from './config'
 export {
+  onboardingScript,
+  renderText as renderOnboardingText,
+  type FinishStep,
+  type InputStep,
+  type OnboardingStep,
+  type OnboardingStepKind,
+  type TapStep,
+} from './onboarding/script'
+export {
+  generateHomeAmbientPhrase,
   getDialogueService,
   getMemoryStore,
   getPromptLogStore,
   hasApiKey,
   resetAllCharacterMemory,
+  resetOnboarding,
+  resetPromptLog,
 } from './wiring'
+export type { HomeAmbientInput } from './ambient'

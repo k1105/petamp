@@ -7,14 +7,20 @@ interface AnimationControlProps {
   onPlay: () => void
   onStop: () => void
   onSeek: (t: number) => void
-  onReset: () => void
 }
 
 export function AnimationControl({
-  currentTime, duration, isPlaying, onPlay, onStop, onSeek, onReset,
+  currentTime, duration, isPlaying, onPlay, onStop, onSeek,
 }: AnimationControlProps) {
   return (
     <div className="animation-control">
+      <button
+        className="animation-play-btn"
+        onClick={isPlaying ? onStop : onPlay}
+        aria-label={isPlaying ? '一時停止' : '再生'}
+      >
+        <Icon icon={isPlaying ? 'lucide:pause' : 'lucide:play'} />
+      </button>
       <input
         type="range"
         min={0}
@@ -24,14 +30,6 @@ export function AnimationControl({
         onChange={e => onSeek(Number(e.target.value))}
         className="animation-seek"
       />
-      <div className="animation-buttons">
-        <button onClick={onReset} aria-label="リセット">
-          <Icon icon="lucide:rotate-ccw" />
-        </button>
-        <button onClick={isPlaying ? onStop : onPlay} aria-label={isPlaying ? '一時停止' : '再生'}>
-          <Icon icon={isPlaying ? 'lucide:pause' : 'lucide:play'} />
-        </button>
-      </div>
     </div>
   )
 }

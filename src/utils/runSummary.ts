@@ -1,20 +1,11 @@
-import type { Run, TrackPoint } from '../types'
+import type { Run } from '../types'
 import type { RunSummary } from '../character'
-import { elevationGain, smoothAltitudes, totalDistance } from './geoUtils'
+import { elevationGain, elevationLoss, totalDistance } from './geoUtils'
 import { acceptedPoints } from './recordingFilters'
-
-function elevationLoss(points: TrackPoint[], threshold = 3): number {
-  const smoothed = smoothAltitudes(points)
-  let loss = 0
-  for (let i = 1; i < smoothed.length; i++) {
-    const prev = smoothed[i - 1]
-    const curr = smoothed[i]
-    if (prev === null || curr === null) continue
-    const diff = prev - curr
-    if (diff > threshold) loss += diff
-  }
-  return loss
-}
+import { buildRunSegments } from './runSegments'
+import { detectRunEvents } from './runEvents'
+import { analyzeRunTopology } from './runTopology'
+import { computePaceDistribution } from './runPaceDistribution'
 
 function timeOfDayLabel(hour: number): string {
   if (hour < 5) return 'night'
@@ -33,6 +24,16 @@ export function buildRunSummary(run: Run): RunSummary {
   const avgPaceSecPerKm =
     distanceM > 0 ? Math.round((durationSec / distanceM) * 1000) : null
 
+  const segments = buildRunSegments(run)
+  const rawEvents = detectRunEvents(run, segments)
+  const topology = analyzeRunTopology(run)
+  const paceDistribution = computePaceDistribution(run)
+  // out_and_back では revisit が当然発生するため、特徴ポイントから除外。
+  // u_turn も折り返し点として topology から自明なので情報量が低い。
+  const events = topology.shape === 'out_and_back'
+    ? rawEvents.filter(e => e.kind !== 'revisit' && e.kind !== 'u_turn')
+    : rawEvents
+
   return {
     runId: run.id,
     areaName: run.areaName,
@@ -43,7 +44,11 @@ export function buildRunSummary(run: Run): RunSummary {
     elevationLossM: elevationLoss(pts),
     avgPaceSecPerKm,
     timeOfDay: timeOfDayLabel(startHour),
-    stopCount: 0,
+    stopCount: events.filter(e => e.kind === 'stop').length,
     noteCount: run.notes.length,
+    segments,
+    events,
+    topology,
+    paceDistribution,
   }
 }

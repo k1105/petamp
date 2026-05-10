@@ -1,4 +1,5 @@
 import type { CharacterId } from './character'
+import type { LLMReplyTopic } from '../llm/client'
 
 export type ThreadId = string
 export type TurnId = string
@@ -14,6 +15,8 @@ export interface DialogueTurn {
   timestamp: number
   /** このターンが言及している外部オブジェクトへの参照。 */
   refs?: TurnRef[]
+  /** キャラ発話のとき、軌跡上のどこを指しているか。可視化レイヤが使う。 */
+  topic?: LLMReplyTopic
 }
 
 export interface TurnRef {

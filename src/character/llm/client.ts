@@ -6,14 +6,29 @@ export interface LLMMessage {
 }
 
 /**
+ * 発話が指す話題。軌跡ハイライト等の可視化のため、
+ * say が "全体について" か "特定セグメントについて" かを区別する。
+ */
+export interface LLMReplyTopic {
+  kind: 'whole' | 'segment'
+  /** kind='segment' のとき: 0-based のセグメント index。 */
+  segmentIndex?: number
+}
+
+/**
  * Inner Thought パターン。LLMには structured output で
- * { thought, say } を返させる。thoughtはユーザに表示せず、ログ・後段処理に使う。
+ * { thought, say, topic } を返させる。thoughtはユーザに表示せず、ログ・後段処理に使う。
  */
 export interface LLMReply {
   /** キャラ視点の内的独白。表示はしない。 */
   thought: string
   /** 実際にユーザに見せる発話。 */
   say: string
+  /**
+   * 発話が指す軌跡上の場所。可視化レイヤがハイライトする。
+   * 既存データとの互換性のため optional。新規生成では schema 側で必須。
+   */
+  topic?: LLMReplyTopic
 }
 
 export interface LLMOptions {

@@ -21,6 +21,7 @@ import { effectiveRadius, bucketRadius } from '../utils/effectiveRadius'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { useGalleryAnimation } from '../hooks/useGalleryAnimation'
 import { useCurrentPosition } from '../hooks/useCurrentPosition'
+import { useHomePhrase } from '../hooks/useHomePhrase'
 import { useMetaballSheet } from '../hooks/useMetaballSheet'
 import { useTransitionStore } from '../store/useTransitionStore'
 import type { DotPosition } from '../hooks/useGalleryAnimation'
@@ -114,17 +115,16 @@ function GalleryLayers({
 const HOME_HALF_SIZE_METERS = 150
 const HOME_FIXED_ZOOM = 17.5
 
-// Mock phrases for the armed-state speech bubble. Will be replaced by
-// local-LLM generation later; for now a fixed pool that cycles on tap.
-const SPEECH_PHRASES = [
+// Fallback phrases used while the LLM ambient phrase isn't ready (no API key,
+// network failure, or still generating). Picked once per arm; not cycled.
+const FALLBACK_PHRASES = [
   'このへんは初めてだ',
   'ホームグラウンド！',
   '今日はさかみちある？',
 ] as const
 
-function pickPhrase(current: string | null): string {
-  const others = SPEECH_PHRASES.filter(p => p !== current)
-  return others[Math.floor(Math.random() * others.length)]
+function pickFallback(): string {
+  return FALLBACK_PHRASES[Math.floor(Math.random() * FALLBACK_PHRASES.length)]
 }
 
 export function GalleryPage() {
@@ -197,10 +197,12 @@ export function GalleryPage() {
     return expandBboxByMeters(currentGroup.bbox, ui.mapPaddingMeters) as [[number, number], [number, number]]
   }, [runsLoaded, currentGroup, isHome, ui.mapPaddingMeters])
 
+  const homePhrase = useHomePhrase(initialCenter ?? undefined, runs, runsLoaded)
+
   useEffect(() => {
-    if (armed) setBubblePhrase(pickPhrase(null))
+    if (armed) setBubblePhrase(homePhrase ?? pickFallback())
     else setBubblePhrase(null)
-  }, [armed])
+  }, [armed, homePhrase])
 
   // Position the speech bubble + start label relative to the FAB's actual
   // bounding rect each frame (only while armed). This avoids dvh-based layout
@@ -313,11 +315,8 @@ export function GalleryPage() {
           ref={speechBubbleRef}
           key={bubblePhrase}
           className="speech-bubble"
-          onClick={(e) => {
-            e.stopPropagation()
-            setBubblePhrase(prev => pickPhrase(prev))
-          }}
-          aria-label={`発話: ${bubblePhrase} (タップで切替)`}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`発話: ${bubblePhrase}`}
         >
           {bubblePhrase}
         </button>

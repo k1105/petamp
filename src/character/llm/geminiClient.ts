@@ -48,16 +48,38 @@ const REPLY_SCHEMA = {
     },
     say: {
       type: 'string',
-      description: 'キャラがユーザに向けて実際に発する一言。',
+      description: 'キャラがユーザに向けて実際に発する一言。「seg N」「セグメント」などのメタなラベルは絶対に含めない。場所は「ここ」「あそこ」などの指示語で。',
+    },
+    topic: {
+      type: 'object',
+      description: '発話が指す軌跡上の場所。ビジュアル側でハイライトされる。1ターンに1箇所。',
+      properties: {
+        kind: {
+          type: 'string',
+          enum: ['whole', 'segment'],
+          description: '"whole" = ラン全体について話している / "segment" = 特定区間',
+        },
+        segmentIndex: {
+          type: 'integer',
+          description: 'kind=segment のとき、0-basedのセグメントindex。',
+        },
+      },
+      required: ['kind'],
     },
   },
-  required: ['thought', 'say'],
+  required: ['thought', 'say', 'topic'],
 }
 
 function isLLMReply(value: unknown): value is LLMReply {
   if (typeof value !== 'object' || value === null) return false
   const v = value as Record<string, unknown>
-  return typeof v.thought === 'string' && typeof v.say === 'string'
+  if (typeof v.thought !== 'string' || typeof v.say !== 'string') return false
+  if (v.topic !== undefined) {
+    if (typeof v.topic !== 'object' || v.topic === null) return false
+    const t = v.topic as Record<string, unknown>
+    if (t.kind !== 'whole' && t.kind !== 'segment') return false
+  }
+  return true
 }
 
 export interface GeminiClientOptions {
