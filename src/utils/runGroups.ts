@@ -134,3 +134,29 @@ export function pickInitialGroup(
   }
   return groups[0]
 }
+
+const METERS_PER_LAT_DEG = 110540
+
+/**
+ * Synthetic "home" group centred on the user's current GPS — a small fixed-
+ * size box that the camera locks to before the user has navigated to a
+ * recorded group. Pan-to-edge from here jumps to the nearest real group.
+ */
+export function makeHomeGroup(
+  gps: [number, number],
+  halfSizeMeters: number,
+): RunGroup {
+  const [lng, lat] = gps
+  const mPerLng = 111320 * Math.cos((lat * Math.PI) / 180)
+  const dLng = halfSizeMeters / mPerLng
+  const dLat = halfSizeMeters / METERS_PER_LAT_DEG
+  return {
+    id: 'home',
+    runIds: [],
+    bbox: [
+      [lng - dLng, lat - dLat],
+      [lng + dLng, lat + dLat],
+    ],
+    center: [lng, lat],
+  }
+}

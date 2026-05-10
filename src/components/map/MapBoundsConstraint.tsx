@@ -10,6 +10,9 @@ interface Props {
   paddingMeters: number
   /** ms — group switch animation length. 0 = instant snap. */
   transitionMs?: number
+  /** Fixed minZoom override (for the home pseudo-group). When supplied,
+      `cameraForBounds` is ignored and minZoom is locked to this value. */
+  fixedMinZoom?: number
 }
 
 const DEFAULT_TRANSITION_MS = 700
@@ -36,6 +39,7 @@ export function MapBoundsConstraint({
   bbox,
   paddingMeters,
   transitionMs = DEFAULT_TRANSITION_MS,
+  fixedMinZoom,
 }: Props) {
   const { map } = useMap()
   const fittedRef = useRef(false)
@@ -50,10 +54,13 @@ export function MapBoundsConstraint({
     const newBounds = padded as unknown as LngLatBoundsLike
 
     if (!fittedRef.current) {
-      // First apply: BaseMap was created with `bounds: padded`, camera is
-      // already at the fit position. Just lock the constraint.
+      // First apply: BaseMap was created with `bounds: padded` (or with
+      // initialZoom when home), camera is already at the fit position. Lock
+      // the constraint without animating.
       map.setMaxBounds(newBounds)
-      map.setMinZoom(Math.max(0, map.getZoom()))
+      map.setMinZoom(
+        fixedMinZoom != null ? fixedMinZoom : Math.max(0, map.getZoom()),
+      )
       fittedRef.current = true
       lastPaddedRef.current = padded
       return
@@ -65,11 +72,16 @@ export function MapBoundsConstraint({
     if (prevKey === newKey) return // bbox unchanged, nothing to do
     lastPaddedRef.current = padded
 
-    const newCamera = map.cameraForBounds(newBounds, { padding: 0 })
-    const newMinZoom =
-      newCamera?.zoom != null && Number.isFinite(newCamera.zoom)
-        ? Math.max(0, newCamera.zoom)
-        : 0
+    let newMinZoom: number
+    if (fixedMinZoom != null) {
+      newMinZoom = fixedMinZoom
+    } else {
+      const newCamera = map.cameraForBounds(newBounds, { padding: 0 })
+      newMinZoom =
+        newCamera?.zoom != null && Number.isFinite(newCamera.zoom)
+          ? Math.max(0, newCamera.zoom)
+          : 0
+    }
 
     // Temporarily widen the cage so fitBounds can move the camera across the
     // gap between groups instead of being clamped at the old edge.

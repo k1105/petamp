@@ -9,7 +9,7 @@ import { AreaLabel } from '../components/map/AreaLabel'
 import { MapBoundsConstraint } from '../components/map/MapBoundsConstraint'
 import { GroupNavigation } from '../components/map/GroupNavigation'
 import { expandBboxByMeters } from '../utils/runBbox'
-import { groupRunsByBboxOverlap, pickInitialGroup } from '../utils/runGroups'
+import { groupRunsByBboxOverlap, makeHomeGroup } from '../utils/runGroups'
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { SettingsPanel } from '../components/gallery/SettingsPanel'
@@ -84,6 +84,12 @@ function GalleryLayers({ runs, dots }: { runs: Run[]; dots: DotPosition[] }) {
   return <DeckOverlay layers={layers} />
 }
 
+// Home (initial) state config — small fixed-size cage centred on GPS at a
+// fixed zoom, distinct from any recorded group. Pan-to-edge from here jumps
+// to the nearest real group.
+const HOME_HALF_SIZE_METERS = 500
+const HOME_FIXED_ZOOM = 15
+
 // Mock phrases for the armed-state speech bubble. Will be replaced by
 // local-LLM generation later; for now a fixed pool that cycles on tap.
 const SPEECH_PHRASES = [
@@ -123,33 +129,48 @@ export function GalleryPage() {
     loadRuns(isDebug).finally(() => setRunsLoaded(true))
   }, [isDebug])
 
-  // Phase 2: cluster runs into groups and pick a current group. The map is
-  // constrained to the selected group's bbox; switching groups updates the
-  // constraint (Phase 3 will add the swipe/tap UI; for now we lock to the
-  // initial selection — the group containing the user's current GPS, falling
-  // back to the first group).
-  const groups = useMemo(
+  // Phase 2: cluster runs into actual groups.
+  const realGroups = useMemo(
     () => groupRunsByBboxOverlap(runs, ui.mapPaddingMeters),
     [runs, ui.mapPaddingMeters],
   )
+
+  // Phase 4: synthesise a "home" pseudo-group at GPS so the initial mount
+  // sits at a small fixed cage instead of snapping into a recorded group.
+  const homeGroup = useMemo(
+    () => (initialCenter ? makeHomeGroup(initialCenter, HOME_HALF_SIZE_METERS) : null),
+    [initialCenter],
+  )
+
+  // Combined list passed to GroupNavigation — pan-to-edge can move between
+  // home and any real group, and between real groups.
+  const allGroups = useMemo(
+    () => (homeGroup ? [homeGroup, ...realGroups] : realGroups),
+    [homeGroup, realGroups],
+  )
+
   const [currentGroupId, setCurrentGroupId] = useState<string | null>(null)
   useEffect(() => {
     if (!runsLoaded) return
-    if (currentGroupId && groups.some(g => g.id === currentGroupId)) return
-    const initial = pickInitialGroup(groups, initialCenter ?? null)
-    setCurrentGroupId(initial?.id ?? null)
-  }, [runsLoaded, groups, currentGroupId, initialCenter])
+    if (currentGroupId && allGroups.some(g => g.id === currentGroupId)) return
+    // Default to home when GPS is available; otherwise the first real group.
+    setCurrentGroupId(homeGroup ? 'home' : (realGroups[0]?.id ?? null))
+  }, [runsLoaded, allGroups, currentGroupId, homeGroup, realGroups])
 
   const currentGroup = useMemo(
-    () => groups.find(g => g.id === currentGroupId) ?? null,
-    [groups, currentGroupId],
+    () => allGroups.find(g => g.id === currentGroupId) ?? null,
+    [allGroups, currentGroupId],
   )
 
-  // initialBounds for BaseMap mount — derived from the selected group's bbox.
+  const isHome = currentGroup?.id === 'home'
+
+  // BaseMap initial position. Home: GPS center + fixed zoom (no `bounds`
+  // option since we want the explicit fixed scale, not bbox-fit). Real
+  // group: padded bbox passed via `bounds` for tight fit.
   const initialBounds = useMemo(() => {
-    if (!runsLoaded || !currentGroup) return undefined
+    if (!runsLoaded || !currentGroup || isHome) return undefined
     return expandBboxByMeters(currentGroup.bbox, ui.mapPaddingMeters) as [[number, number], [number, number]]
-  }, [runsLoaded, currentGroup, ui.mapPaddingMeters])
+  }, [runsLoaded, currentGroup, isHome, ui.mapPaddingMeters])
 
   useEffect(() => {
     if (armed) setBubblePhrase(pickPhrase(null))
@@ -217,15 +238,19 @@ export function GalleryPage() {
         {initialCenter !== undefined && runsLoaded && (
           <BaseMap
             initialCenter={initialCenter ?? undefined}
-            initialZoom={13}
+            initialZoom={HOME_FIXED_ZOOM}
             initialBounds={initialBounds}
           >
             <GalleryLayers runs={runs} dots={dots} />
             <AreaLabel />
-            <MapBoundsConstraint bbox={currentGroup?.bbox ?? null} paddingMeters={ui.mapPaddingMeters} />
+            <MapBoundsConstraint
+              bbox={currentGroup?.bbox ?? null}
+              paddingMeters={ui.mapPaddingMeters}
+              fixedMinZoom={isHome ? HOME_FIXED_ZOOM : undefined}
+            />
             <GroupNavigation
               currentGroup={currentGroup}
-              groups={groups}
+              groups={allGroups}
               paddingMeters={ui.mapPaddingMeters}
               onGroupChange={setCurrentGroupId}
             />
