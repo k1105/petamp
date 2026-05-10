@@ -52,6 +52,9 @@ export function OnboardingPage() {
   const onConfirmInput = async (s: InputStep) => {
     const trimmed = draftName.trim()
     if (!trimmed || busy) return
+    // iOSのキーボードを閉じてから遷移処理に入る。閉じ忘れると次stepの
+    // タップが「キーボードを閉じる」操作で消費されて進まない。
+    inputRef.current?.blur()
     setBusy(true)
     try {
       await saveName(s.saveAs, trimmed)
@@ -84,7 +87,14 @@ export function OnboardingPage() {
       )}
 
       {step.kind === 'input' && (
-        <div className="onboarding-input-area" onClick={e => e.stopPropagation()}>
+        <form
+          className="onboarding-input-area"
+          onClick={e => e.stopPropagation()}
+          onSubmit={e => {
+            e.preventDefault()
+            void onConfirmInput(step)
+          }}
+        >
           <input
             ref={inputRef}
             className="onboarding-input"
@@ -92,18 +102,19 @@ export function OnboardingPage() {
             value={draftName}
             onChange={e => setDraftName(e.target.value.slice(0, step.maxLength))}
             placeholder={step.placeholder}
-            onKeyDown={e => {
-              if (e.key === 'Enter') void onConfirmInput(step)
-            }}
+            inputMode="text"
+            enterKeyHint="done"
+            autoCapitalize="off"
+            autoCorrect="off"
           />
           <button
+            type="submit"
             className="onboarding-btn"
             disabled={!draftName.trim() || busy}
-            onClick={() => void onConfirmInput(step)}
           >
             {step.confirmLabel}
           </button>
-        </div>
+        </form>
       )}
 
       {step.kind === 'finish' && (
