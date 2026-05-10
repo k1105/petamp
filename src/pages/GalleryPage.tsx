@@ -175,12 +175,15 @@ export function GalleryPage() {
   )
 
   const [currentGroupId, setCurrentGroupId] = useState<string | null>(null)
+  // GPS確定 (success or null) を待ってから default group を決める。
+  // これでBaseMap マウント時から正しい中心 (= 現在位置 home) で立ち上がり、
+  // 「先にrealGroupに着地→後からhomeへ animate」のずれが起きない。
   useEffect(() => {
     if (!runsLoaded) return
+    if (initialCenter === undefined) return
     if (currentGroupId && allGroups.some(g => g.id === currentGroupId)) return
-    // Default to home when GPS is available; otherwise the first real group.
     setCurrentGroupId(homeGroup ? 'home' : (realGroups[0]?.id ?? null))
-  }, [runsLoaded, allGroups, currentGroupId, homeGroup, realGroups])
+  }, [runsLoaded, allGroups, currentGroupId, homeGroup, realGroups, initialCenter])
 
   const currentGroup = useMemo(
     () => allGroups.find(g => g.id === currentGroupId) ?? null,
@@ -255,12 +258,10 @@ export function GalleryPage() {
       // Navigation to /record is performed by the overlay when the iris phase begins.
       return
     }
-    // When the user has navigated to a recorded group, tapping the eye snaps
-    // back to home (= focus on current GPS) instead of arming. Arming happens
-    // on the next tap once they're at home.
+    // 別groupにいる場合は home へジャンプしつつ、同じタップで arm まで進める
+    // (旧仕様は2タップ必要だったが、1タップで record 確認モーダルへ)。
     if (homeGroup && currentGroupId !== 'home') {
       setCurrentGroupId('home')
-      return
     }
     setArmed(true)
     setListOpen(false)

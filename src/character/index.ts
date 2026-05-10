@@ -12,7 +12,15 @@ export type {
   RelationalState,
   SemanticMemory,
 } from './domain/memory'
-export type { RunSummary } from './domain/runSummary'
+export type {
+  PaceDistribution,
+  RunEvent,
+  RunEventKind,
+  RunSegment,
+  RunSummary,
+  RunTopology,
+  RunTopologyShape,
+} from './domain/runSummary'
 export type {
   LLMCallMeta,
   LLMClient,
