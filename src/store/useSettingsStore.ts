@@ -63,6 +63,22 @@ export const useSettingsStore = create<SettingsState>()(
       setUi: (partial) => set((s) => ({ ui: { ...s.ui, ...partial } })),
       resetUi: () => set({ ui: DEFAULT_UI_SETTINGS }),
     }),
-    { name: 'petamp.settings' },
+    {
+      name: 'petamp.settings',
+      // Default merge replaces nested objects wholesale, so old persisted state
+      // missing newly added fields (e.g. ui.mapPaddingMeters) leaves them
+      // undefined and crashes consumers. Deep-merge keeps current defaults for
+      // any key the persisted state doesn't carry.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<SettingsState>
+        return {
+          ...current,
+          ...p,
+          radii: { ...current.radii, ...(p.radii ?? {}) },
+          filterSettings: { ...current.filterSettings, ...(p.filterSettings ?? {}) },
+          ui: { ...current.ui, ...(p.ui ?? {}) },
+        }
+      },
+    },
   ),
 )
