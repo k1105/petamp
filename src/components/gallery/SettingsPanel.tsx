@@ -48,6 +48,19 @@ export function SettingsPanel() {
         />
       </div>
 
+      <div className="debug-section-label">マップ</div>
+      <div className="debug-sliders">
+        <SliderRow
+          label="軌跡周辺の余白"
+          value={ui.mapPaddingMeters}
+          min={50}
+          max={1000}
+          step={10}
+          unit="m"
+          onChange={v => setUi({ mapPaddingMeters: v })}
+        />
+      </div>
+
       <div className="debug-actions">
         <button className="btn-ghost" onClick={resetUi}>
           <Icon icon="lucide:rotate-ccw" />

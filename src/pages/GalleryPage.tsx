@@ -6,6 +6,7 @@ import { Icon } from '@iconify/react'
 import { BaseMap, useMapZoom } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AreaLabel } from '../components/map/AreaLabel'
+import { MapBoundsConstraint } from '../components/map/MapBoundsConstraint'
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { SettingsPanel } from '../components/gallery/SettingsPanel'
@@ -177,6 +178,7 @@ export function GalleryPage() {
           <BaseMap initialCenter={initialCenter ?? undefined} initialZoom={13}>
             <GalleryLayers runs={runs} dots={dots} />
             <AreaLabel />
+            <MapBoundsConstraint runs={runs} paddingMeters={ui.mapPaddingMeters} />
           </BaseMap>
         )}
       </div>

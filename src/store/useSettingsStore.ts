@@ -16,6 +16,7 @@ export interface UiSettings {
   eyeYOffset: number        // SVG単位 (-側で上, +側で下)
   eyeSizeScale: number      // 白目サイズ倍率
   pupilSizeScale: number    // 瞳サイズ倍率
+  mapPaddingMeters: number  // 軌跡bbox周囲のパディング (m) - gallery map制約
 }
 
 export const DEFAULT_RADII: Radii = {
@@ -33,6 +34,7 @@ export const DEFAULT_UI_SETTINGS: UiSettings = {
   eyeYOffset: -12,
   eyeSizeScale: 1.15,
   pupilSizeScale: 1.10,
+  mapPaddingMeters: 200,
 }
 
 interface SettingsState {
