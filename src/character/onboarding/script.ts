@@ -2,6 +2,10 @@
  * オンボーディング会話パターン。後から編集する際はこのファイルだけ触る。
  *
  * - text 内 `{name}` はユーザが登録した名前で置換される (input ステップ後の発話のみ有効)。
+ * - text 内 `|` は phrase break マーカー。OnboardingPage 側で各 phrase が
+ *   inline-block span として描画されるため、デバイス幅に関わらず `|` の位置
+ *   でしか改行が発生しない (単語/句の途中で折り返さない)。
+ * - text 内 `\n` は強制改行 (`<br />` として描画)。
  * - 'tap' ステップ: 画面のどこかをタップで次へ。
  * - 'input' ステップ: ユーザに入力させ、saveAs で指定したキーで semantic memory に保存。
  */
@@ -43,17 +47,17 @@ export const onboardingScript: OnboardingStep[] = [
   {
     id: 'greet',
     kind: 'tap',
-    text: 'はじめまして。ぼくはペタンプ。',
+    text: 'はじめまして。|ぼくはペタンプ。',
   },
   {
     id: 'self-intro',
     kind: 'tap',
-    text: 'ぼくは、きみの足あとの中に住んでいるよ。',
+    text: 'ぼくは、|きみの足あとの中に|住んでいるよ。',
   },
   {
     id: 'world-scope',
     kind: 'tap',
-    text: 'きみが走った道のかたち。それがぼくのセカイ、ぜんぶ。',
+    text: 'きみが走った道のかたち。|それがぼくのセカイ、|ぜんぶ。',
   },
   {
     id: 'ask-name',
@@ -67,22 +71,22 @@ export const onboardingScript: OnboardingStep[] = [
   {
     id: 'thank-name',
     kind: 'tap',
-    text: '{name}、いい名前だね。',
+    text: '{name}、|いい名前だね。',
   },
   {
     id: 'no-knowledge',
     kind: 'tap',
-    text: '{name}が走ると、ぼくのセカイが少し広がる。',
+    text: '{name}が走ると、|ぼくのセカイが|少し広がる。',
   },
   {
     id: 'curiosity',
     kind: 'tap',
-    text: 'いっしょにいろんなセカイをみてみたいな。',
+    text: 'いっしょに|いろんなセカイを|みてみたいな。',
   },
   {
     id: 'invite-run',
     kind: 'finish',
-    text: '{name}、ぼくの顔をタップして、\n最初のランをやってみて！',
+    text: '{name}、|ぼくの顔をタップして、\n最初のランを|やってみて！',
     confirmLabel: 'はじめる',
   },
 ]

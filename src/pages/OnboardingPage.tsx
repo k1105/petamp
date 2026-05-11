@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EyesIcon } from '../components/gallery/EyesIcon'
 import {
@@ -9,6 +9,26 @@ import {
   type InputStep,
   type OnboardingStep,
 } from '../character'
+
+/**
+ * text 内の `\n` を <br />、`|` 区切りの各 phrase を inline-block span として
+ * 描画する。inline-block で包むことで、ブラウザの行折り返しが `|` の位置で
+ * しか起きず、デバイス幅に関わらず単語の途中で改行されない。
+ */
+function renderBubbleText(text: string): ReactNode {
+  return text.split('\n').map((line, lineIdx) => (
+    <Fragment key={lineIdx}>
+      {lineIdx > 0 && <br />}
+      {line.split('|').map((phrase, phraseIdx) =>
+        phrase ? (
+          <span key={phraseIdx} className="onboarding-phrase">
+            {phrase}
+          </span>
+        ) : null,
+      )}
+    </Fragment>
+  ))
+}
 
 /** 名前を semantic memory に保存。 */
 async function saveName(key: string, name: string): Promise<void> {
@@ -79,7 +99,7 @@ export function OnboardingPage() {
       </div>
 
       <div key={step.id} className="onboarding-bubble">
-        {text}
+        {renderBubbleText(text)}
       </div>
 
       {step.kind === 'tap' && (
