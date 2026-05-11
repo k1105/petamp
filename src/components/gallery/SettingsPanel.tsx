@@ -2,6 +2,18 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import { useSettingsStore } from '../../store/useSettingsStore'
+import { useActivePalette } from '../../hooks/useActivePalette'
+import {
+  WEATHERS,
+  TIMES,
+  WEATHER_LABEL,
+  TIME_LABEL,
+  getDefaultPalette,
+  paletteKey,
+  type Palette,
+  type TimeOfDay,
+  type Weather,
+} from '../../utils/themePalettes'
 import {
   resetAllCharacterMemory,
   resetOnboarding,
@@ -9,6 +21,22 @@ import {
 } from '../../character'
 
 type AsyncActionKey = 'onboarding' | 'log' | 'all'
+
+function formatPalettesAsTs(overrides: Record<string, Partial<Palette> | undefined>): string {
+  const lines: string[] = ['{']
+  for (const w of WEATHERS) {
+    lines.push(`  ${w}: {`)
+    for (const t of TIMES) {
+      const def = getDefaultPalette(w, t)
+      const merged: Palette = { ...def, ...(overrides[paletteKey(w, t)] ?? {}) }
+      const pad = t.length < 7 ? ' '.repeat(7 - t.length) : ''
+      lines.push(`    ${t}:${pad} { bg: '${merged.bg.toUpperCase()}', accent: '${merged.accent.toUpperCase()}' },`)
+    }
+    lines.push('  },')
+  }
+  lines.push('}')
+  return lines.join('\n')
+}
 
 export function SettingsPanel() {
   const navigate = useNavigate()
@@ -18,9 +46,31 @@ export function SettingsPanel() {
   const radii = useSettingsStore(s => s.radii)
   const setRadii = useSettingsStore(s => s.setRadii)
   const resetRadii = useSettingsStore(s => s.resetRadii)
+  const theme = useSettingsStore(s => s.theme)
+  const setTheme = useSettingsStore(s => s.setTheme)
+  const setPaletteOverride = useSettingsStore(s => s.setPaletteOverride)
+  const { weather, time, palette, autoWeather, autoTime } = useActivePalette()
 
   const [busy, setBusy] = useState<AsyncActionKey | null>(null)
   const [done, setDone] = useState<AsyncActionKey | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const onCopyPalettes = async () => {
+    const code = formatPalettesAsTs(theme.overrides)
+    try {
+      await navigator.clipboard.writeText(code)
+    } catch {
+      // フォールバック: textarea 経由
+      const ta = document.createElement('textarea')
+      ta.value = code
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1500)
+  }
 
   const runAction = async (key: AsyncActionKey, fn: () => Promise<void>) => {
     if (busy) return
@@ -92,6 +142,61 @@ export function SettingsPanel() {
           min={50} max={1000} step={10} unit="m"
           onChange={v => setUi({ mapPaddingMeters: v })}
         />
+      </Section>
+
+      <Section title="背景テーマ">
+        <SegmentRow<Weather | 'auto'>
+          label="天気"
+          hint={theme.weatherMode === 'auto' ? `自動: ${autoWeather ? WEATHER_LABEL[autoWeather] : '取得中…'}` : undefined}
+          value={theme.weatherMode}
+          options={[
+            { value: 'auto', label: '自動' },
+            ...WEATHERS.map(w => ({ value: w, label: WEATHER_LABEL[w] })),
+          ]}
+          onChange={v => setTheme({ weatherMode: v })}
+        />
+        <SegmentRow<TimeOfDay | 'auto'>
+          label="時間帯"
+          hint={theme.timeMode === 'auto' ? `自動: ${TIME_LABEL[autoTime]}` : undefined}
+          value={theme.timeMode}
+          options={[
+            { value: 'auto', label: '自動' },
+            ...TIMES.map(t => ({ value: t, label: TIME_LABEL[t] })),
+          ]}
+          onChange={v => setTheme({ timeMode: v })}
+        />
+
+        <div className="settings-palette-head">
+          <span className="settings-slider-label">現在のパレット</span>
+          <span className="settings-slider-value">
+            {WEATHER_LABEL[weather]} × {TIME_LABEL[time]}
+          </span>
+        </div>
+        <ColorRow
+          label="背景色"
+          value={palette.bg}
+          onChange={c => setPaletteOverride(paletteKey(weather, time), { bg: c })}
+        />
+        <ColorRow
+          label="アクセント色"
+          value={palette.accent}
+          onChange={c => setPaletteOverride(paletteKey(weather, time), { accent: c })}
+        />
+        <div className="settings-row-actions">
+          <button
+            className="settings-btn-secondary"
+            onClick={() => setPaletteOverride(paletteKey(weather, time), null)}
+            disabled={!theme.overrides[paletteKey(weather, time)]}
+          >
+            <Icon icon="lucide:rotate-ccw" />
+            <span>このパレットをリセット</span>
+          </button>
+          <button className="settings-btn-secondary" onClick={onCopyPalettes}>
+            <Icon icon={copied ? 'lucide:check' : 'lucide:clipboard-copy'} />
+            <span>{copied ? 'コピーしました' : 'TS としてコピー'}</span>
+          </button>
+        </div>
+        <PalettePreview overrides={theme.overrides} />
       </Section>
 
       <Section title="軌跡サイズ">
@@ -210,6 +315,86 @@ function SliderRow({ label, hint, value, min, max, step, unit, onChange }: Slide
         value={value}
         onChange={e => onChange(Number(e.currentTarget.value))}
       />
+    </div>
+  )
+}
+
+interface SegmentRowProps<T extends string> {
+  label: string
+  hint?: string
+  value: T
+  options: ReadonlyArray<{ value: T; label: string }>
+  onChange: (v: T) => void
+}
+
+function SegmentRow<T extends string>({ label, hint, value, options, onChange }: SegmentRowProps<T>) {
+  return (
+    <div className="settings-slider-row">
+      <div className="settings-slider-head">
+        <span className="settings-slider-label">{label}</span>
+        {hint && <span className="settings-slider-value">{hint}</span>}
+      </div>
+      <div className="settings-segment">
+        {options.map(o => (
+          <button
+            key={o.value}
+            className={`settings-segment-btn${value === o.value ? ' is-active' : ''}`}
+            onClick={() => onChange(o.value)}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+interface ColorRowProps {
+  label: string
+  value: string
+  onChange: (v: string) => void
+}
+
+function ColorRow({ label, value, onChange }: ColorRowProps) {
+  return (
+    <div className="settings-color-row">
+      <span className="settings-slider-label">{label}</span>
+      <div className="settings-color-control">
+        <input
+          type="color"
+          value={value}
+          onChange={e => onChange(e.currentTarget.value)}
+          aria-label={label}
+        />
+        <span className="settings-color-hex">{value.toUpperCase()}</span>
+      </div>
+    </div>
+  )
+}
+
+function PalettePreview({ overrides }: { overrides: Record<string, Partial<Palette> | undefined> }) {
+  return (
+    <div className="settings-palette-grid">
+      {WEATHERS.map(w => (
+        <div key={w} className="settings-palette-row">
+          <span className="settings-palette-row-label">{WEATHER_LABEL[w]}</span>
+          {TIMES.map(t => {
+            const def = getDefaultPalette(w, t)
+            const ov = overrides[paletteKey(w, t)] ?? {}
+            const p: Palette = { ...def, ...ov }
+            return (
+              <div
+                key={t}
+                className="settings-palette-swatch"
+                title={`${WEATHER_LABEL[w]} × ${TIME_LABEL[t]}\nbg ${p.bg} / accent ${p.accent}`}
+                style={{ background: p.bg }}
+              >
+                <span className="settings-palette-accent" style={{ background: p.accent }} />
+              </div>
+            )
+          })}
+        </div>
+      ))}
     </div>
   )
 }

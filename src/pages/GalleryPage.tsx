@@ -20,6 +20,7 @@ import { getTubeMesh } from '../utils/tubeMesh'
 import { effectiveRadius, bucketRadius } from '../utils/effectiveRadius'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { useGalleryAnimation } from '../hooks/useGalleryAnimation'
+import { useActivePalette } from '../hooks/useActivePalette'
 import { useCurrentPosition } from '../hooks/useCurrentPosition'
 import { useHomePhrase } from '../hooks/useHomePhrase'
 import { useMetaballSheet } from '../hooks/useMetaballSheet'
@@ -44,10 +45,20 @@ function GalleryLayers({
   const zoom = useMapZoom()
   const navigate = useNavigate()
   const radii = useSettingsStore(s => s.radii)
+  const { palette } = useActivePalette()
 
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5))
-  const tubeColor: [number, number, number, number] = [160, 160, 160, Math.round(255 * t)]
-  const dotColor: [number, number, number, number] = [28, 151, 94, Math.round(255 * t)]
+  const accentRgb = useMemo<[number, number, number]>(() => {
+    const m = palette.accent.replace('#', '')
+    return [
+      parseInt(m.slice(0, 2), 16) || 28,
+      parseInt(m.slice(2, 4), 16) || 151,
+      parseInt(m.slice(4, 6), 16) || 94,
+    ]
+  }, [palette.accent])
+  const tubeColor: [number, number, number, number] = [...accentRgb, Math.round(128 * t)]
+  const dotColor: [number, number, number, number] = [...accentRgb, Math.round(255 * t)]
+  const currentDotColor: [number, number, number, number] = [...accentRgb, 255]
   const mat = { ambient: 1, diffuse: 0, shininess: 0, specularColor: [0, 0, 0] as [number, number, number] }
 
   const sphereRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
@@ -87,7 +98,7 @@ function GalleryLayers({
           mesh: sphere,
           getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
           getScale: [sphereRadius * CURRENT_DOT_SCALE, sphereRadius * CURRENT_DOT_SCALE, sphereRadius * CURRENT_DOT_SCALE],
-          getColor: [28, 151, 94, 255],
+          getColor: currentDotColor,
           material: mat,
         })
       : null
@@ -104,7 +115,7 @@ function GalleryLayers({
       }),
       ...(currentPosLayer ? [currentPosLayer] : []),
     ]
-  }, [runs, dots, currentPosition, t, sphereRadius, tubeRadius])
+  }, [runs, dots, currentPosition, t, sphereRadius, tubeRadius, accentRgb])
 
   return <DeckOverlay layers={layers} />
 }
@@ -298,17 +309,6 @@ export function GalleryPage() {
           </BaseMap>
         )}
       </div>
-
-      {homeGroup && !armed && (
-        <button
-          className={`locate-btn${isHome ? ' is-active' : ''}`}
-          onClick={() => setCurrentGroupId('home')}
-          aria-label="現在位置に戻る"
-          title="現在位置に戻る"
-        >
-          <Icon icon="lucide:locate-fixed" />
-        </button>
-      )}
 
       {armed && <div className="armed-backdrop" onClick={() => setArmed(false)} />}
       {armed && bubblePhrase && (

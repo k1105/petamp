@@ -150,18 +150,6 @@ function compile(gl: WebGLRenderingContext, type: number, src: string) {
   return shader
 }
 
-function parseAccent(): [number, number, number] {
-  const raw = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
-  if (raw.startsWith('#') && raw.length === 7) {
-    return [
-      parseInt(raw.slice(1, 3), 16) / 255,
-      parseInt(raw.slice(3, 5), 16) / 255,
-      parseInt(raw.slice(5, 7), 16) / 255,
-    ]
-  }
-  return [28 / 255, 151 / 255, 94 / 255]
-}
-
 export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakVelocity = 6 }: Options) {
   useEffect(() => {
     const canvas = canvasRef.current
@@ -169,7 +157,10 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakVe
     const sheet = sheetRef.current
     if (!canvas || !fab || !sheet) return
 
-    const gl = canvas.getContext('webgl', { premultipliedAlpha: false, antialias: true, alpha: true })
+    // ブラウザ側でキャンバスを premultiplied として合成させる。
+    // blendFuncSeparate と組み合わせて FB を (C·α, α) に揃えると、画面上は
+    // C·α + B·(1-α) で straight-alpha 相当の正しいエッジになる。
+    const gl = canvas.getContext('webgl', { premultipliedAlpha: true, antialias: true, alpha: true })
     if (!gl) return
 
     const vs = compile(gl, gl.VERTEX_SHADER, VERT_SRC)
@@ -199,7 +190,6 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakVe
     gl.bindBuffer(gl.ARRAY_BUFFER, buf)
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW)
 
-    const color = parseAccent()
     const radius = 24
     const k = 24
 
@@ -208,11 +198,33 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakVe
     gl.enableVertexAttribArray(aPos)
     gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0)
     gl.enable(gl.BLEND)
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    // RGB は straight-alpha 合成、Alpha は累積で α² にならないよう分離。
+    // (context は premultipliedAlpha:false なのでブラウザ側で unpremul される)
+    gl.blendFuncSeparate(
+      gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA,
+      gl.ONE,       gl.ONE_MINUS_SRC_ALPHA,
+    )
     gl.clearColor(0, 0, 0, 0)
-    gl.uniform3f(uColor, color[0], color[1], color[2])
     gl.uniform4f(uRadii, radius, 0, radius, 0)
     gl.uniform1f(uK, k)
+
+    // --accent をフレーム間でキャッシュ。テーマ変化があれば uniform を更新。
+    let lastAccentRaw = ''
+    let cachedColor: [number, number, number] = [28 / 255, 151 / 255, 94 / 255]
+    const refreshAccent = () => {
+      const raw = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
+      if (raw === lastAccentRaw) return
+      lastAccentRaw = raw
+      if (raw.startsWith('#') && raw.length === 7) {
+        cachedColor = [
+          parseInt(raw.slice(1, 3), 16) / 255,
+          parseInt(raw.slice(3, 5), 16) / 255,
+          parseInt(raw.slice(5, 7), 16) / 255,
+        ]
+      }
+      gl.uniform3f(uColor, cachedColor[0], cachedColor[1], cachedColor[2])
+    }
+    refreshAccent()
 
     const blobBuf = new Float32Array(N * 2)
 
@@ -228,6 +240,7 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakVe
     let rafId: number | null = null
 
     const draw = () => {
+      refreshAccent()
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
       const w = window.innerWidth
       const h = window.innerHeight

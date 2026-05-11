@@ -1,5 +1,13 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { PaletteKey, Palette, Weather, TimeOfDay } from '../utils/themePalettes'
+
+export interface ThemeSettings {
+  weatherMode: 'auto' | Weather
+  timeMode: 'auto' | TimeOfDay
+  /** key = `${weather}-${time}`、未指定セルはデフォルトパレット。 */
+  overrides: Partial<Record<PaletteKey, Partial<Palette>>>
+}
 
 export interface Radii {
   // zoomThreshold での実半径 (m)。アンカー1点。
@@ -42,16 +50,26 @@ export const DEFAULT_UI_SETTINGS: UiSettings = {
   mapPaddingMeters: 100,
 }
 
+export const DEFAULT_THEME_SETTINGS: ThemeSettings = {
+  weatherMode: 'auto',
+  timeMode: 'auto',
+  overrides: {},
+}
+
 interface SettingsState {
   radii: Radii
   filterSettings: FilterSettings
   ui: UiSettings
+  theme: ThemeSettings
   setRadii: (partial: Partial<Radii>) => void
   resetRadii: () => void
   setFilterSettings: (partial: Partial<FilterSettings>) => void
   resetFilterSettings: () => void
   setUi: (partial: Partial<UiSettings>) => void
   resetUi: () => void
+  setTheme: (partial: Partial<ThemeSettings>) => void
+  setPaletteOverride: (key: PaletteKey, patch: Partial<Palette> | null) => void
+  resetTheme: () => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -60,6 +78,7 @@ export const useSettingsStore = create<SettingsState>()(
       radii: DEFAULT_RADII,
       filterSettings: DEFAULT_FILTER_SETTINGS,
       ui: DEFAULT_UI_SETTINGS,
+      theme: DEFAULT_THEME_SETTINGS,
       setRadii: (partial) => set((s) => ({ radii: { ...s.radii, ...partial } })),
       resetRadii: () => set({ radii: DEFAULT_RADII }),
       setFilterSettings: (partial) =>
@@ -67,6 +86,18 @@ export const useSettingsStore = create<SettingsState>()(
       resetFilterSettings: () => set({ filterSettings: DEFAULT_FILTER_SETTINGS }),
       setUi: (partial) => set((s) => ({ ui: { ...s.ui, ...partial } })),
       resetUi: () => set({ ui: DEFAULT_UI_SETTINGS }),
+      setTheme: (partial) => set((s) => ({ theme: { ...s.theme, ...partial } })),
+      setPaletteOverride: (key, patch) =>
+        set((s) => {
+          const next = { ...s.theme.overrides }
+          if (patch === null) {
+            delete next[key]
+          } else {
+            next[key] = { ...(next[key] ?? {}), ...patch }
+          }
+          return { theme: { ...s.theme, overrides: next } }
+        }),
+      resetTheme: () => set({ theme: DEFAULT_THEME_SETTINGS }),
     }),
     {
       name: 'petamp.settings',
@@ -92,6 +123,7 @@ export const useSettingsStore = create<SettingsState>()(
           radii: { ...current.radii, ...(p.radii ?? {}) },
           filterSettings: { ...current.filterSettings, ...(p.filterSettings ?? {}) },
           ui: { ...current.ui, ...(p.ui ?? {}) },
+          theme: { ...current.theme, ...(p.theme ?? {}) },
         }
       },
     },

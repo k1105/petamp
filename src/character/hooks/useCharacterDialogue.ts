@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { CharacterId } from '../domain/character'
 import type {
   DialogueTurn,
@@ -49,15 +49,15 @@ export function useCharacterDialogue(
   const [error, setError] = useState<Error | null>(null)
   const [lastPromptLogId, setLastPromptLogId] = useState<PromptLogId | null>(null)
 
-  // characterId/threadId が変わるたびに最新を反映するための世代カウンタ。
-  const genRef = useRef(0)
-
+  // 各 effect は cancelled フラグだけで stale resolve を防ぐ。
+  // (以前は単一の genRef を 2 つの effect で共有していたため、片方の effect が
+  //  ref を進めた瞬間にもう片方の async resolve が genRef !== gen で skip され、
+  //  setMessages が呼ばれなくなる不具合があった。)
   useEffect(() => {
-    const gen = ++genRef.current
     let cancelled = false
     void (async () => {
       const turns = threadId ? await memory.listTurns(threadId) : []
-      if (cancelled || genRef.current !== gen) return
+      if (cancelled) return
       setMessages(turns)
       setLastPromptLogId(null)
       setError(null)
@@ -68,11 +68,10 @@ export function useCharacterDialogue(
   }, [memory, threadId])
 
   useEffect(() => {
-    const gen = ++genRef.current
     let cancelled = false
     void (async () => {
       const r = await memory.getRelational(characterId)
-      if (cancelled || genRef.current !== gen) return
+      if (cancelled) return
       setRelationship(r ?? null)
     })()
     return () => {

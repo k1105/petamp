@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import { EyesIcon } from '../components/gallery/EyesIcon'
@@ -12,6 +12,12 @@ import { buildRunSummary } from '../utils/runSummary'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { effectiveRadius, bucketRadius } from '../utils/effectiveRadius'
 import { getTubeMesh } from '../utils/tubeMesh'
+import {
+  CLOSING_NOTE,
+  OPENING_TRIGGER_FRESH,
+  OPENING_TRIGGER_RESUME,
+  isHiddenTriggerContent,
+} from '../utils/runChatPrompts'
 import {
   getDialogueService,
   getMemoryStore,
@@ -29,15 +35,10 @@ import type {
 } from '../character'
 import type { Run } from '../types'
 
-const HIDDEN_PREFIX = '[internal]'
-const OPENING_TRIGGER_FRESH = `${HIDDEN_PREFIX} ユーザがこのRunの詳細画面にひらいた。runSummaryから気になる点をひとつだけ取り上げ、ユーザに短く問いかけて会話を始めよ。`
-const OPENING_TRIGGER_RESUME = `${HIDDEN_PREFIX} ユーザがこのRunの詳細画面にひらいた。これは初対面ではない。前にこの "まさにこのRun" について話したことがあるはず([このRunについて、前に話したこと]節を参照)。前回触れた話題やユーザの反応を踏まえ、続きから自然に再開する短い一言を返せ。新しい観察として始めない。「まえ別のところで」のような他Runとの混同表現は厳禁。`
-const CLOSING_NOTE =
-  'これがこのセッションのペタンプ最後の発話。ユーザの直前の発言に短く触れたあと、今日話せたことについての一言の感想で会話を締めくくれ。問いかけで終わらせず、感謝や満足のことばで結ぶこと。'
 const MAX_PETAMP_TURNS = 5
 
 function isHidden(turn: DialogueTurn): boolean {
-  return turn.role === 'user' && turn.content.startsWith(HIDDEN_PREFIX)
+  return turn.role === 'user' && isHiddenTriggerContent(turn.content)
 }
 
 interface VisiblePair {
@@ -67,6 +68,29 @@ function deriveVisiblePair(messages: DialogueTurn[]): VisiblePair {
 export function RunChatPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  // 結果画面からの引き継ぎ thread id。sessionStorage を一次経路、location.state を予備。
+  // useState 初期化子で 1 回だけ取って固定する (location.state は strict mode 遷移などで失われる場合があるため)。
+  const [handoffThreadId] = useState<ThreadId | undefined>(() => {
+    if (!id) return undefined
+    let v: string | null = null
+    try {
+      v = sessionStorage.getItem(`runChatHandoff:${id}`)
+    } catch {
+      // sessionStorage 不可なら state を見る
+    }
+    const fromState = (location.state as { handoffThreadId?: ThreadId } | null)?.handoffThreadId
+    return (v as ThreadId | null) ?? fromState ?? undefined
+  })
+  // 一度取り出したら消す (戻ってきたとき再利用されないように)
+  useEffect(() => {
+    if (!id) return
+    try {
+      sessionStorage.removeItem(`runChatHandoff:${id}`)
+    } catch {
+      // ignore
+    }
+  }, [id])
   const { runs, loadRuns } = useRunStore()
   const [run, setRun] = useState<Run | null>(null)
   const [runsLoaded, setRunsLoaded] = useState(false)
@@ -149,27 +173,32 @@ export function RunChatPage() {
     characterId: petampCharacter.id,
     service: service!,
     memory,
+    threadId: handoffThreadId,
     defaultRunSummary: runSummary,
     defaultRefs: refs,
   })
+
 
   const openedRef = useRef(false)
   useEffect(() => {
     if (!service || !run || openedRef.current) return
     openedRef.current = true
-    void Promise.all([
-      memory.getRelational(petampCharacter.id),
-      memory.queryEpisodic({
+    void memory.getRelational(petampCharacter.id).then(snapshot => {
+      relationalSnapshotRef.current = snapshot ?? null
+    })
+    // 結果画面から引き継いだスレッドなら opener はすでに発話済み。
+    if (handoffThreadId) return
+    void memory
+      .queryEpisodic({
         characterId: petampCharacter.id,
         relatedTo: [{ kind: 'run', id: run.id }],
-      }),
-    ]).then(([snapshot, episodic]) => {
-      relationalSnapshotRef.current = snapshot ?? null
-      const opener = episodic.length > 0 ? OPENING_TRIGGER_RESUME : OPENING_TRIGGER_FRESH
-      void dialogue.send(opener)
-    })
+      })
+      .then(episodic => {
+        const opener = episodic.length > 0 ? OPENING_TRIGGER_RESUME : OPENING_TRIGGER_FRESH
+        void dialogue.send(opener)
+      })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [service, run, memory])
+  }, [service, run, memory, handoffThreadId])
 
   const threadIdRef = useRef<ThreadId | null>(null)
   useEffect(() => {

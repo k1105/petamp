@@ -18,6 +18,7 @@
   height: 100dvh;
   overflow: hidden;
   background: var(--bg);
+  transition: background 600ms ease;
 }
 
 .map-container {
@@ -281,6 +282,122 @@
   height: 4px;
 }
 
+/* ---- Settings: segmented control ---- */
+.settings-segment {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.settings-segment-btn {
+  flex: 1;
+  padding: 7px 6px;
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.settings-segment-btn:hover:not(.is-active) {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.settings-segment-btn.is-active {
+  background: var(--accent);
+  color: #000;
+  font-weight: 700;
+}
+
+/* ---- Settings: color picker row ---- */
+.settings-color-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-color-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-color-control input[type="color"] {
+  width: 38px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.settings-color-control input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+.settings-color-control input[type="color"]::-webkit-color-swatch { border: none; border-radius: 4px; }
+
+.settings-color-hex {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  min-width: 64px;
+  text-align: right;
+}
+
+/* ---- Settings: palette preview grid ---- */
+.settings-palette-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 6px;
+}
+
+.settings-palette-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.settings-palette-row {
+  display: grid;
+  grid-template-columns: 56px repeat(3, 1fr);
+  gap: 6px;
+  align-items: center;
+}
+
+.settings-palette-row-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.settings-palette-swatch {
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  position: relative;
+}
+
+.settings-palette-accent {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
 .settings-row-actions {
   display: flex;
   flex-wrap: wrap;
@@ -482,7 +599,7 @@
 
 .bottom-sheet.armed .fab.fab-sheet {
   transform: translateY(-30dvh) scale(1.8);
-  box-shadow: 0 16px 48px rgba(28, 151, 94, 0.55);
+  box-shadow: 0 16px 48px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .bottom-sheet.armed .fab.fab-sheet .fab-icon {
@@ -554,7 +671,7 @@
   align-items: center;
   justify-content: center;
   gap: 2px;
-  box-shadow: 0 4px 20px rgba(28, 151, 94, 0.4);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--accent) 40%, transparent);
   flex-shrink: 0;
 }
 
@@ -579,7 +696,7 @@
   font-weight: 700;
   letter-spacing: 0.12em;
   cursor: pointer;
-  box-shadow: 0 4px 20px rgba(28, 151, 94, 0.4);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--accent) 40%, transparent);
   flex-shrink: 0;
 }
 
@@ -2190,13 +2307,13 @@
 .chat-close-btn:hover { background: rgba(255, 255, 255, 0.22); }
 .chat-close-btn:active { transform: scale(0.94); }
 
-/* Petamp area: 目玉の直下。バブル+rate を縦に並べる wrapper。 */
+/* Petamp area: 目玉の右隣に横並びで配置。バブル+rate を縦に並べる wrapper。 */
 .chat-petamp-area {
   position: fixed;
-  top: calc(15dvh + 64px);
-  left: 16px;
+  top: 15dvh;
+  left: calc(16px + 56px + 12px);
   z-index: 25;
-  max-width: min(72%, 320px);
+  max-width: min(72vw, 300px);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -2204,6 +2321,8 @@
   animation: chat-bubble-pop 320ms cubic-bezier(0.34, 1.4, 0.64, 1) 600ms both;
 }
 
+/* バブル本体と尾を 1 つの形として扱うため、影は filter: drop-shadow で当てる
+   (box-shadow だと尾の三角に影が伸びず、色のつながりが切れて見える)。 */
 .chat-petamp-bubble {
   position: relative;
   background: #fff;
@@ -2212,21 +2331,23 @@
   border-radius: 14px;
   font-size: 14px;
   line-height: 1.55;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.18));
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* 尾は CSS border triangle。corner-radius (14px) より下に置いて、
+   角の丸みと干渉しないようにする。色はバブルと同じ #fff で完全一致。 */
 .chat-petamp-bubble::before {
   content: '';
   position: absolute;
-  top: 8px;
-  left: -6px;
-  width: 12px;
-  height: 12px;
-  background: #fff;
-  transform: rotate(45deg);
-  border-bottom-left-radius: 2px;
-  z-index: -1;
+  top: 21px;
+  left: -7px;
+  width: 0;
+  height: 0;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-right: 8px solid #fff;
 }
 
 /* Rate: バブルの外側、左寄せ。circular icon button x2。 */
@@ -2538,4 +2659,58 @@
 .run-result-link:disabled {
   opacity: 0.5;
   cursor: progress;
+}
+
+/* ペタンプ第一声の吹き出し。位置は JS から bounding rect ベースで決める。 */
+.run-result-bubble {
+  position: fixed;
+  max-width: min(78vw, 320px);
+  background: rgba(255, 255, 255, 0.96);
+  color: #0a0a0a;
+  padding: 14px 18px;
+  border-radius: 18px;
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 500;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  z-index: 30;
+  cursor: pointer;
+  animation: rr-bubble-pop 320ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+.run-result-bubble::after {
+  content: '';
+  position: absolute;
+  right: 18px;
+  bottom: -10px;
+  width: 18px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  transform: rotate(45deg);
+  border-radius: 0 0 4px 0;
+  box-shadow: 6px 6px 12px rgba(0, 0, 0, 0.08);
+}
+
+@keyframes rr-bubble-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.run-result-thinking {
+  position: absolute;
+  bottom: calc(80px + var(--safe-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+  z-index: 20;
+  pointer-events: none;
 }

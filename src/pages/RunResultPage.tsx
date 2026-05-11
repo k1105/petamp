@@ -7,7 +7,18 @@ import { useElevationStats } from '../hooks/useElevationStats'
 import { fetchAreaName } from '../hooks/useReverseGeocode'
 import { totalDistance } from '../utils/geoUtils'
 import { formatDistance, formatElevation, formatDate } from '../utils/formatters'
+import { buildRunSummary } from '../utils/runSummary'
 import { loadRun } from '../db/runRepository'
+import { useSettingsStore } from '../store/useSettingsStore'
+import {
+  getDialogueService,
+  getMemoryStore,
+  hasApiKey,
+  petampCharacter,
+  useCharacterDialogue,
+} from '../character'
+import type { RelationalState, ThreadId } from '../character'
+import { OPENING_TRIGGER_FRESH, OPENING_TRIGGER_RESUME } from '../utils/runChatPrompts'
 import type { Run, TrackPoint } from '../types'
 
 // 9:16 縦長キャンバス
@@ -20,6 +31,13 @@ const LOOP_SPEED = 60
 const STROKE_WIDTH = 10
 const DOT_RADIUS = 22
 const ACCENT = '#1c975e'
+
+// 右下に置く目玉アイコンの配置 (viewBox 単位)。EyesIcon (VIEW=64) を 4倍に拡大。
+const EYES_SCALE = 4
+const EYES_X = 800
+const EYES_Y = 1680
+// タップ判定領域 (目玉の周囲も含めて指で押しやすく)
+const EYES_HIT = { x: 760, y: 1660, w: 280, h: 240 }
 
 interface BBox { lngMin: number; lngMax: number; latMin: number; latMax: number }
 interface Target { x: number; y: number; w: number; h: number }
@@ -69,6 +87,7 @@ export function RunResultPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [run, setRun] = useState<Run | null>(null)
+  const ui = useSettingsStore(s => s.ui)
   const { runs, loadRuns, updateRun } = useRunStore()
   const [runsLoaded, setRunsLoaded] = useState(false)
   const [loopSec, setLoopSec] = useState(0)
@@ -104,6 +123,114 @@ export function RunResultPage() {
 
   const acceptedRunPoints = useMemo(() => acceptedPoints(run?.trackPoints ?? []), [run])
   const { gain } = useElevationStats(acceptedRunPoints)
+
+  // ---- ペタンプ第一声の生成 ----
+  const apiOk = hasApiKey()
+  const service = useMemo(() => (apiOk ? getDialogueService() : null), [apiOk])
+  const memory = useMemo(() => getMemoryStore(), [])
+  const runSummary = useMemo(() => (run ? buildRunSummary(run) : undefined), [run])
+  const refs = useMemo(
+    () => (run ? [{ kind: 'run' as const, id: run.id }] : undefined),
+    [run],
+  )
+  const dialogue = useCharacterDialogue({
+    characterId: petampCharacter.id,
+    service: service!,
+    memory,
+    defaultRunSummary: runSummary,
+    defaultRefs: refs,
+  })
+
+  const openedRef = useRef(false)
+  const relationalSnapshotRef = useRef<RelationalState | null>(null)
+  const threadIdRef = useRef<ThreadId | null>(null)
+  const handoffRef = useRef(false)
+
+  useEffect(() => {
+    threadIdRef.current = dialogue.threadId
+  }, [dialogue.threadId])
+
+  // 初回マウントで opener を 1 度だけ送る (関係値スナップショットも先に取って discard 用に保管)
+  useEffect(() => {
+    if (!service || !run || openedRef.current) return
+    openedRef.current = true
+    void memory.getRelational(petampCharacter.id).then(s => {
+      relationalSnapshotRef.current = s ?? null
+    })
+    void memory
+      .queryEpisodic({
+        characterId: petampCharacter.id,
+        relatedTo: [{ kind: 'run', id: run.id }],
+      })
+      .then(episodic => {
+        const opener = episodic.length > 0 ? OPENING_TRIGGER_RESUME : OPENING_TRIGGER_FRESH
+        void dialogue.send(opener)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [service, run, memory])
+
+  // アンマウント時、対話画面に引き継いでいないスレッドは破棄する
+  useEffect(() => {
+    return () => {
+      if (handoffRef.current) return
+      const tid = threadIdRef.current
+      if (service && tid) {
+        void service.discardThread(tid, relationalSnapshotRef.current)
+      }
+    }
+  }, [service])
+
+  const firstPetampTurn = useMemo(
+    () => dialogue.messages.find(t => t.role === 'character') ?? null,
+    [dialogue.messages],
+  )
+
+  const eyesGroupRef = useRef<SVGGElement>(null)
+  const bubbleRef = useRef<HTMLDivElement>(null)
+
+  // 吹き出し位置を目玉の bounding rect から動的に決める (svg は letterbox される可能性があるため)
+  useEffect(() => {
+    if (!firstPetampTurn) return
+    const place = () => {
+      const eyes = eyesGroupRef.current
+      const bubble = bubbleRef.current
+      if (!eyes || !bubble) return
+      const r = eyes.getBoundingClientRect()
+      const cx = r.left + r.width / 2
+      const w = bubble.offsetWidth
+      const h = bubble.offsetHeight
+      // 吹き出しは目玉の真上、目玉の中心を右下に向くように左寄せ
+      const left = Math.max(16, Math.min(window.innerWidth - w - 16, cx - w + 32))
+      const top = Math.max(16, r.top - 16 - h)
+      bubble.style.left = `${left}px`
+      bubble.style.top = `${top}px`
+    }
+    place()
+    const ro = new ResizeObserver(place)
+    if (eyesGroupRef.current) ro.observe(eyesGroupRef.current)
+    if (bubbleRef.current) ro.observe(bubbleRef.current)
+    window.addEventListener('resize', place)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', place)
+    }
+  }, [firstPetampTurn])
+
+  const handleEyesClick = () => {
+    if (!run) return
+    handoffRef.current = true
+    // 引き継ぐ thread id は firstPetampTurn から取る (バブルが見えている=この値は確実に存在する)。
+    // state はリロードや strict mode の挙動で失われ得るため sessionStorage を一次経路にする。
+    const tid = firstPetampTurn?.threadId ?? dialogue.threadId ?? null
+    if (tid) {
+      try {
+        sessionStorage.setItem(`runChatHandoff:${run.id}`, tid)
+      } catch {
+        // sessionStorage 不可でも遷移自体は止めない
+      }
+    }
+    navigate(`/run/${run.id}/chat`)
+  }
 
   // 過去のラン (areaName未保存) を初回表示時にバックフィル
   useEffect(() => {
@@ -304,6 +431,51 @@ export function RunResultPage() {
           <text x={80} y={444} fontSize={22} opacity={0.7} letterSpacing={1.4} fontWeight={600}>獲得標高</text>
           <text x={240} y={448} fontSize={52} fontWeight={700}>↑{formatElevation(gain)}</text>
         </g>
+
+        {/* 右下のペタンプ。タップで /run/:id/chat へ。書き出し画像にも同じ位置で含まれる。 */}
+        <g
+          ref={eyesGroupRef}
+          onClick={handleEyesClick}
+          style={{ cursor: 'pointer' }}
+          role="button"
+          aria-label="このランについてペタンプと話す"
+        >
+          <rect
+            x={EYES_HIT.x}
+            y={EYES_HIT.y}
+            width={EYES_HIT.w}
+            height={EYES_HIT.h}
+            fill="transparent"
+          />
+          <g transform={`translate(${EYES_X} ${EYES_Y}) scale(${EYES_SCALE})`}>
+            <ellipse
+              cx={22}
+              cy={32 + ui.eyeYOffset}
+              rx={8 * ui.eyeSizeScale}
+              ry={11 * ui.eyeSizeScale}
+              fill="#ffffff"
+            />
+            <ellipse
+              cx={42}
+              cy={32 + ui.eyeYOffset}
+              rx={8 * ui.eyeSizeScale}
+              ry={11 * ui.eyeSizeScale}
+              fill="#ffffff"
+            />
+            <circle
+              cx={22}
+              cy={32 + ui.eyeYOffset}
+              r={6 * ui.pupilSizeScale}
+              fill="#0a0a0a"
+            />
+            <circle
+              cx={42}
+              cy={32 + ui.eyeYOffset}
+              r={6 * ui.pupilSizeScale}
+              fill="#0a0a0a"
+            />
+          </g>
+        </g>
       </svg>
 
       <div className="run-result-actions">
@@ -323,6 +495,22 @@ export function RunResultPage() {
           FINISH
         </button>
       </div>
+
+      {firstPetampTurn && (
+        <div
+          ref={bubbleRef}
+          className="run-result-bubble"
+          key={firstPetampTurn.id}
+          onClick={handleEyesClick}
+          role="button"
+        >
+          {firstPetampTurn.content}
+        </div>
+      )}
+
+      {!firstPetampTurn && dialogue.isThinking && (
+        <div className="run-result-thinking">ペタンプが考え中…</div>
+      )}
     </div>
   )
 }

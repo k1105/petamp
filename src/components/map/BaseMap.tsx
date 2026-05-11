@@ -3,6 +3,7 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { Icon } from '@iconify/react'
 import { useOrbitMode } from '../../hooks/useOrbitMode'
+import { useActivePalette } from '../../hooks/useActivePalette'
 import { DebugPanel } from './DebugPanel'
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
@@ -62,6 +63,7 @@ export function BaseMap({
   const [map, setMap] = useState<mapboxgl.Map | null>(null)
   const [orbitMode, setOrbitMode] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const { palette } = useActivePalette()
 
   useOrbitMode(map, lockTarget || orbitMode)
 
@@ -93,13 +95,6 @@ export function BaseMap({
           m.setLayoutProperty(layer.id, 'visibility', 'none')
         }
       }
-      m.setFog({
-        range: [0.1, 2],
-        color: '#0a0a0a',
-        'high-color': '#0a0a0a',
-        'space-color': '#0a0a0a',
-        'horizon-blend': 0.3,
-      })
       setMap(m)
       setLoaded(true)
     })
@@ -117,6 +112,18 @@ export function BaseMap({
     canvas.style.opacity = mapVisible ? '1' : '0'
     canvas.style.transition = 'opacity 0.4s'
   }, [map, mapVisible])
+
+  // テーマ変更を mapbox の fog / space に反映する (すべて単色)。
+  useEffect(() => {
+    if (!map) return
+    map.setFog({
+      range: [0.1, 2],
+      color: palette.bg,
+      'high-color': palette.bg,
+      'space-color': palette.bg,
+      'horizon-blend': 0.3,
+    })
+  }, [map, palette.bg])
 
   return (
     <MapContext.Provider value={{ map }}>
