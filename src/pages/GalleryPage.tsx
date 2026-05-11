@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import { SphereGeometry } from '@luma.gl/engine'
 import { Icon } from '@iconify/react'
-import { BaseMap, useMapZoom } from '../components/map/BaseMap'
+import { BaseMap, useMap, useMapZoom } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AreaLabel } from '../components/map/AreaLabel'
 import { MapBoundsConstraint } from '../components/map/MapBoundsConstraint'
@@ -33,6 +33,19 @@ const sphere = new SphereGeometry({ radius: 1, nlat: 20, nlong: 20 })
 const MIN_ZOOM = 12.5
 // 現在位置(=自己位置)dotは過去ランの軌跡dotより少し大きく強調する。
 const CURRENT_DOT_SCALE = 1.2
+
+// FAB タップで現在位置に home スケールでフォーカスする (homeGroup が無い
+// = GPS が realGroup 内のケース用)。signal を increment するたびに flyTo。
+function FocusGPS({ signal, center, zoom }: { signal: number; center: [number, number] | null; zoom: number }) {
+  const { map } = useMap()
+  const lastRef = useRef(0)
+  useEffect(() => {
+    if (!map || !center || signal === 0 || signal === lastRef.current) return
+    lastRef.current = signal
+    map.flyTo({ center, zoom, duration: 700 })
+  }, [signal, map, center, zoom])
+  return null
+}
 
 function GalleryLayers({
   runs,
@@ -141,6 +154,7 @@ export function GalleryPage() {
   const setUi = useSettingsStore(s => s.setUi)
   const [listOpen, setListOpen] = useState(false)
   const [armed, setArmed] = useState(false)
+  const [focusGPSSignal, setFocusGPSSignal] = useState(0)
   const [sheetView, setSheetView] = useState<'list' | 'settings'>('list')
   const [bubblePhrase, setBubblePhrase] = useState<string | null>(null)
   const [showFirstRunIntro, setShowFirstRunIntro] = useState(false)
@@ -302,10 +316,16 @@ export function GalleryPage() {
       // Navigation to /record is performed by the overlay when the iris phase begins.
       return
     }
-    // 別groupにいる場合は home へジャンプしつつ、同じタップで arm まで進める
+    // 別groupにいる場合は GPS 焦点へジャンプしつつ、同じタップで arm まで進める
     // (旧仕様は2タップ必要だったが、1タップで record 確認モーダルへ)。
-    if (homeGroup && currentGroupId !== 'home') {
-      setCurrentGroupId('home')
+    // homeGroup があるケース: home へ切替えるだけで home スケールになる。
+    // containingRealGroup ケース: group identity は維持しつつ camera を home
+    // スケールに flyTo (FocusGPS が signal 変化で flyTo を発火する)。
+    if (homeGroup) {
+      if (currentGroupId !== 'home') setCurrentGroupId('home')
+    } else if (containingRealGroup) {
+      if (currentGroupId !== containingRealGroup.id) setCurrentGroupId(containingRealGroup.id)
+      setFocusGPSSignal(s => s + 1)
     }
     setArmed(true)
     setListOpen(false)
@@ -326,6 +346,11 @@ export function GalleryPage() {
               bbox={currentGroup?.bbox ?? null}
               paddingMeters={ui.mapPaddingMeters}
               fixedMinZoom={isHome ? HOME_FIXED_ZOOM : undefined}
+            />
+            <FocusGPS
+              signal={focusGPSSignal}
+              center={initialCenter ?? null}
+              zoom={HOME_FIXED_ZOOM}
             />
             <GroupNavigation
               currentGroup={currentGroup}
