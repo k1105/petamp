@@ -55,10 +55,15 @@ export function OnboardingPage() {
   const isLast = stepIdx === onboardingScript.length - 1
   const text = useMemo(() => renderOnboardingText(step.text, name), [step.text, name])
 
-  // input step に来たら autofocus
+  // input step に来たら少し遅延して autofocus。吹き出しを読む間 (= 入場
+  // アニメーション中) にキーボードが立ち上がらないように待つ。完全に外すと
+  // 確定ボタン周りで iOS が tap を取りこぼすケースがあったため、autofocus
+  // の経路自体は残す。
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
-    if (step.kind === 'input') inputRef.current?.focus()
+    if (step.kind !== 'input') return
+    const t = setTimeout(() => inputRef.current?.focus(), 800)
+    return () => clearTimeout(t)
   }, [step.kind, stepIdx])
 
   const advance = () => {
