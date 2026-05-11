@@ -7,7 +7,6 @@ import { BaseMap, useMap, useMapZoom } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AreaLabel } from '../components/map/AreaLabel'
 import { MapBoundsConstraint } from '../components/map/MapBoundsConstraint'
-import { GroupNavigation } from '../components/map/GroupNavigation'
 import { GroupEdgeIndicator } from '../components/map/GroupEdgeIndicator'
 import { expandBboxByMeters } from '../utils/runBbox'
 import { groupRunsByBboxOverlap, makeHomeGroup, findGroupContaining } from '../utils/runGroups'
@@ -352,16 +351,9 @@ export function GalleryPage() {
               center={initialCenter ?? null}
               zoom={HOME_FIXED_ZOOM}
             />
-            <GroupNavigation
-              currentGroup={currentGroup}
-              groups={allGroups}
-              paddingMeters={ui.mapPaddingMeters}
-              onGroupChange={setCurrentGroupId}
-            />
             <GroupEdgeIndicator
               currentGroup={currentGroup}
               groups={allGroups}
-              paddingMeters={ui.mapPaddingMeters}
               onTap={setCurrentGroupId}
             />
           </BaseMap>
