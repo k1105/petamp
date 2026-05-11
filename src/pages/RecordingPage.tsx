@@ -321,7 +321,7 @@ export function RecordingPage() {
     () => [
       accuracyGate(25),
       warmupGate(3000),
-      minDistanceGate(2),
+      minDistanceGate(5),
       maxSpeedGate(filterSettings.maxSpeed),
     ],
     [filterSettings.maxSpeed],

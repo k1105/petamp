@@ -38,7 +38,7 @@ export function defaultFilters(): PointFilter[] {
   return [
     accuracyGate(25),
     warmupGate(3000),
-    minDistanceGate(2),
+    minDistanceGate(5),
     maxSpeedGate(15),
   ]
 }
