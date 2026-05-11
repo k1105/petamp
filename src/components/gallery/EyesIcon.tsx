@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useSettingsStore } from '../../store/useSettingsStore'
 
 const VIEW = 64
@@ -41,6 +41,7 @@ export function EyesIcon() {
   const ui = useSettingsStore(s => s.ui)
   const svgRef = useRef<SVGSVGElement>(null)
   const [target, setTarget] = useState<{ x: number; y: number } | null>(null)
+  const [blink, setBlink] = useState(false)
 
   useEffect(() => {
     const onPointer = (e: PointerEvent) => {
@@ -51,6 +52,43 @@ export function EyesIcon() {
     return () => {
       window.removeEventListener('pointerdown', onPointer)
       window.removeEventListener('pointermove', onPointer)
+    }
+  }, [])
+
+  // 3〜7秒ごとにまばたき。たまに二連まばたきも入れる。
+  useEffect(() => {
+    let stopped = false
+    const timers: number[] = []
+
+    const blinkOnce = (after: () => void) => {
+      setBlink(true)
+      timers.push(window.setTimeout(() => {
+        if (stopped) return
+        setBlink(false)
+        timers.push(window.setTimeout(() => {
+          if (stopped) return
+          after()
+        }, 90))
+      }, 120))
+    }
+
+    const scheduleNext = () => {
+      const delay = 3000 + Math.random() * 4000
+      timers.push(window.setTimeout(() => {
+        if (stopped) return
+        const doubleBlink = Math.random() < 0.2
+        blinkOnce(() => {
+          if (stopped) return
+          if (doubleBlink) blinkOnce(scheduleNext)
+          else scheduleNext()
+        })
+      }, delay))
+    }
+
+    scheduleNext()
+    return () => {
+      stopped = true
+      timers.forEach(t => window.clearTimeout(t))
     }
   }, [])
 
@@ -75,6 +113,19 @@ export function EyesIcon() {
     transition: 'transform 0.18s ease-out',
   })
 
+  // 上まぶたが降りるように、clipPathの矩形を上から下へ閉じていく。
+  // 目自体は変形させず、見える範囲だけが変わる。
+  const uid = useId()
+  const clipIdL = `eyelid-l-${uid}`
+  const clipIdR = `eyelid-r-${uid}`
+  const lidTopOpen = eyeY - scleraRy
+  const lidHeightOpen = scleraRy * 2
+  const lidTopClosed = eyeY + scleraRy
+  const lidHeightClosed = 0
+  const lidRectStyle: React.CSSProperties = {
+    transition: 'y 0.09s ease-in-out, height 0.09s ease-in-out',
+  }
+
   return (
     <svg
       ref={svgRef}
@@ -83,22 +134,46 @@ export function EyesIcon() {
       height="100%"
       aria-hidden="true"
     >
-      <ellipse cx={EYE_LEFT_X} cy={eyeY} rx={scleraRx} ry={scleraRy} fill="#ffffff" />
-      <ellipse cx={EYE_RIGHT_X} cy={eyeY} rx={scleraRx} ry={scleraRy} fill="#ffffff" />
-      <circle
-        cx={EYE_LEFT_X}
-        cy={eyeY}
-        r={pupilR}
-        fill="#0a0a0a"
-        style={pupilStyle(offsets[0])}
-      />
-      <circle
-        cx={EYE_RIGHT_X}
-        cy={eyeY}
-        r={pupilR}
-        fill="#0a0a0a"
-        style={pupilStyle(offsets[1])}
-      />
+      <defs>
+        <clipPath id={clipIdL} clipPathUnits="userSpaceOnUse">
+          <rect
+            x={EYE_LEFT_X - scleraRx}
+            y={blink ? lidTopClosed : lidTopOpen}
+            width={scleraRx * 2}
+            height={blink ? lidHeightClosed : lidHeightOpen}
+            style={lidRectStyle}
+          />
+        </clipPath>
+        <clipPath id={clipIdR} clipPathUnits="userSpaceOnUse">
+          <rect
+            x={EYE_RIGHT_X - scleraRx}
+            y={blink ? lidTopClosed : lidTopOpen}
+            width={scleraRx * 2}
+            height={blink ? lidHeightClosed : lidHeightOpen}
+            style={lidRectStyle}
+          />
+        </clipPath>
+      </defs>
+      <g clipPath={`url(#${clipIdL})`}>
+        <ellipse cx={EYE_LEFT_X} cy={eyeY} rx={scleraRx} ry={scleraRy} fill="#ffffff" />
+        <circle
+          cx={EYE_LEFT_X}
+          cy={eyeY}
+          r={pupilR}
+          fill="#0a0a0a"
+          style={pupilStyle(offsets[0])}
+        />
+      </g>
+      <g clipPath={`url(#${clipIdR})`}>
+        <ellipse cx={EYE_RIGHT_X} cy={eyeY} rx={scleraRx} ry={scleraRy} fill="#ffffff" />
+        <circle
+          cx={EYE_RIGHT_X}
+          cy={eyeY}
+          r={pupilR}
+          fill="#0a0a0a"
+          style={pupilStyle(offsets[1])}
+        />
+      </g>
     </svg>
   )
 }

@@ -151,6 +151,22 @@
   transform: scale(0.96);
 }
 
+/* オンボーディングのCTAは吹き出しではなくテーマカラーのテキストで出す。 */
+.speech-bubble.speech-bubble-onboarding {
+  background: transparent;
+  color: var(--accent);
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+}
+
+.speech-bubble.speech-bubble-onboarding::after {
+  display: none;
+}
+
 @keyframes speech-bubble-pop {
   from {
     opacity: 0;
@@ -602,6 +618,12 @@
   box-shadow: 0 16px 48px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
+.fab.fab-sheet .fab-icon {
+  /* 親の0.45sスケール遷移に合わせて子も同じイージングで反スケールする。
+     transitionが無いと親だけ補間されて見かけサイズが一瞬ジャンプする。 */
+  transition: transform 0.45s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 .bottom-sheet.armed .fab.fab-sheet .fab-icon {
   /* keep icon size visually similar after parent scale */
   transform: scale(calc(1 / 1.8));
@@ -772,20 +794,25 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
   font-size: 18px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10;
-  backdrop-filter: blur(10px);
   transition:
+    background 0.15s,
     color 0.15s,
-    border-color 0.15s;
+    border-color 0.15s,
+    transform 0.15s;
 }
+
+.orbit-toggle:hover { background: rgba(255, 255, 255, 0.22); }
+.orbit-toggle:active { transform: scale(0.94); }
 
 .orbit-toggle.orbit-toggle-active {
   color: var(--accent);
@@ -1193,6 +1220,26 @@
 .back-btn:active { transform: scale(0.94); }
 
 /* ---- Stats ---- */
+.view-mode-toggle {
+  align-self: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.view-mode-toggle:active {
+  transform: scale(0.94);
+}
+
 .live-stats,
 .detail-stats {
   display: flex;
@@ -2558,6 +2605,23 @@
   border: none;
   color: #fff;
   font-weight: 600;
+}
+
+.chat-modal.recording-warning {
+  background: #c44;
+  color: #fff;
+}
+
+.chat-modal.recording-warning .chat-modal-btn-confirm {
+  background: #fff;
+  color: #c44;
+}
+
+.recording-warning-title {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
 }
 
 /* ==== Run chat page: ending overlay (緑全面 + 顔中央 + サマリ + おわるボタン) ==== */

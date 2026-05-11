@@ -230,9 +230,10 @@ export function GalleryPage() {
     else setBubblePhrase(null)
   }, [armed, homePhrase])
 
-  // 未記録ユーザー向けの CTA 吹き出し。armed 時は通常の発話 bubble に置き換わる。
-  const onboardingPhrase = !armed && runs.length === 0 ? 'ここを押して〜！' : null
+  // 未記録ユーザー向けの CTA テキスト。armed 時は通常の発話 bubble に置き換わる。
+  const onboardingPhrase = !armed && runs.length === 0 ? 'TAP HERE!' : null
   const activeBubbleText = armed ? bubblePhrase : onboardingPhrase
+  const isOnboardingBubble = !armed && activeBubbleText !== null
 
   // Position the speech bubble + start label relative to the FAB's actual
   // bounding rect each frame. armed 時は start-label も追従。
@@ -332,7 +333,7 @@ export function GalleryPage() {
         <button
           ref={speechBubbleRef}
           key={activeBubbleText}
-          className="speech-bubble"
+          className={`speech-bubble${isOnboardingBubble ? ' speech-bubble-onboarding' : ''}`}
           onClick={(e) => e.stopPropagation()}
           aria-label={`発話: ${activeBubbleText}`}
         >

@@ -47,6 +47,9 @@ interface BaseMapProps {
   initialBoundsMaxZoom?: number
   lockTarget?: boolean   // orbit-only, no pan toggle shown
   mapVisible?: boolean   // hide/show mapbox canvas
+  /** When false, all user interactions (pan/zoom/rotate) are disabled and
+      the orbit toggle is hidden. Camera is controlled programmatically only. */
+  interactive?: boolean
 }
 
 export function BaseMap({
@@ -58,6 +61,7 @@ export function BaseMap({
   initialBoundsMaxZoom,
   lockTarget = false,
   mapVisible = true,
+  interactive = true,
 }: BaseMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<mapboxgl.Map | null>(null)
@@ -65,7 +69,28 @@ export function BaseMap({
   const [loaded, setLoaded] = useState(false)
   const { palette } = useActivePalette()
 
-  useOrbitMode(map, lockTarget || orbitMode)
+  useOrbitMode(map, interactive && (lockTarget || orbitMode))
+
+  useEffect(() => {
+    if (!map) return
+    if (interactive) return
+    map.dragPan.disable()
+    map.scrollZoom.disable()
+    map.doubleClickZoom.disable()
+    map.touchZoomRotate.disable()
+    map.dragRotate.disable()
+    map.keyboard.disable()
+    map.boxZoom.disable()
+    return () => {
+      map.dragPan.enable()
+      map.scrollZoom.enable()
+      map.doubleClickZoom.enable()
+      map.touchZoomRotate.enable()
+      map.dragRotate.enable()
+      map.keyboard.enable()
+      map.boxZoom.enable()
+    }
+  }, [map, interactive])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -132,7 +157,7 @@ export function BaseMap({
         className="map-canvas"
         style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.4s' }}
       />
-      {!lockTarget && (
+      {!lockTarget && interactive && (
         <button
           className={`orbit-toggle ${orbitMode ? 'orbit-toggle-active' : ''}`}
           onClick={() => setOrbitMode(v => !v)}

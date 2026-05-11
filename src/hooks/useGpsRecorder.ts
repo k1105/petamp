@@ -34,7 +34,7 @@ export function useGpsRecorder(filters: PointFilter[] = defaultFilters()) {
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        const { latitude, longitude, altitude, altitudeAccuracy, accuracy } = pos.coords
+        const { latitude, longitude, altitude, altitudeAccuracy, accuracy, heading } = pos.coords
         const point: TrackPoint = {
           lat: latitude,
           lng: longitude,
@@ -42,6 +42,7 @@ export function useGpsRecorder(filters: PointFilter[] = defaultFilters()) {
           altitudeAccuracy: altitudeAccuracy,
           timestamp: pos.timestamp,
           accuracy,
+          heading: heading != null && !Number.isNaN(heading) ? heading : null,
         }
         setState(s => {
           const accepted = s.trackPoints.filter(p => !p.rejected)

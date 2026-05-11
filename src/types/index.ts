@@ -5,6 +5,7 @@ export interface TrackPoint {
   timestamp: number
   accuracy?: number
   altitudeAccuracy?: number | null
+  heading?: number | null
   rejected?: boolean
 }
 

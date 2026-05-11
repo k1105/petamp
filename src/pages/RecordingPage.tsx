@@ -13,6 +13,7 @@ import {useActivePalette} from "../hooks/useActivePalette";
 import {hexToRgb} from "../utils/themePalettes";
 import {useRunStore} from "../store/useRunStore";
 import {useSettingsStore, type Radii} from "../store/useSettingsStore";
+import {useTransitionStore} from "../store/useTransitionStore";
 import {buildTubeSegments, buildTubeJoints} from "../utils/tubeData";
 import {effectiveRadius} from "../utils/effectiveRadius";
 import {acceptedPoints, accuracyGate, warmupGate, minDistanceGate, maxSpeedGate} from "../utils/recordingFilters";
@@ -26,40 +27,163 @@ const MIN_ZOOM = 12.5;
 // 現在位置(=自己位置)dotは過去ランの軌跡dotより少し大きく強調する。
 const CURRENT_DOT_SCALE = 1.2;
 
-const FIT_INTERVAL = 20;
+// 序盤はbboxが大きく変化するので密に、安定する後半は粗く再フィットする。
+const FIT_INTERVAL_EARLY = 3;
+const FIT_INTERVAL_LATE = 20;
+const EARLY_PHASE_THRESHOLD = 100;
 const INITIAL_ZOOM = 17;
 const FIT_MAX_ZOOM = 18;
+const FIT_DURATION_MS = 500;
+const FOLLOW_DURATION_MS = 400;
 
-function BoundsFitter({trackPoints}: {trackPoints: TrackPoint[]}) {
+type ViewMode = "follow" | "overview";
+
+interface RunningBbox {
+  minLng: number;
+  minLat: number;
+  maxLng: number;
+  maxLat: number;
+}
+
+function BoundsFitter({
+  trackPoints,
+  enabled,
+}: {
+  trackPoints: TrackPoint[];
+  enabled: boolean;
+}) {
   const {map} = useMap();
   const lastFitLengthRef = useRef(0);
+  const bboxRef = useRef<RunningBbox | null>(null);
+  const scannedUpToRef = useRef(0);
+
+  // モード切替で無効化されたらリセットして、再有効化時に最初のフィットを再実行できるようにする。
+  useEffect(() => {
+    if (enabled) return;
+    lastFitLengthRef.current = 0;
+    bboxRef.current = null;
+    scannedUpToRef.current = 0;
+  }, [enabled]);
 
   useEffect(() => {
-    if (!map) return;
+    if (!enabled || !map) return;
     const len = trackPoints.length;
     if (len === 0) return;
 
-    const isFirst = lastFitLengthRef.current === 0;
-    const isPeriodic = len - lastFitLengthRef.current >= FIT_INTERVAL;
-    if (!isFirst && !isPeriodic) return;
+    // 新規点だけ走査してbboxをO(1)で更新する。refは差し替えのみ（mutationしない）。
+    let bbox: RunningBbox | null = bboxRef.current ? {...bboxRef.current} : null;
+    let bboxExpanded = false;
+    for (let i = scannedUpToRef.current; i < len; i++) {
+      const p = trackPoints[i];
+      if (!bbox) {
+        bbox = {minLng: p.lng, minLat: p.lat, maxLng: p.lng, maxLat: p.lat};
+        bboxExpanded = true;
+        continue;
+      }
+      if (p.lng < bbox.minLng) { bbox = {...bbox, minLng: p.lng}; bboxExpanded = true; }
+      if (p.lat < bbox.minLat) { bbox = {...bbox, minLat: p.lat}; bboxExpanded = true; }
+      if (p.lng > bbox.maxLng) { bbox = {...bbox, maxLng: p.lng}; bboxExpanded = true; }
+      if (p.lat > bbox.maxLat) { bbox = {...bbox, maxLat: p.lat}; bboxExpanded = true; }
+    }
+    bboxRef.current = bbox;
+    scannedUpToRef.current = len;
 
-    if (len === 1) {
+    const interval = len < EARLY_PHASE_THRESHOLD ? FIT_INTERVAL_EARLY : FIT_INTERVAL_LATE;
+    const isFirst = lastFitLengthRef.current === 0;
+    const isPeriodic = len - lastFitLengthRef.current >= interval;
+    if (!isFirst && !isPeriodic) return;
+    // 周期は来たがbboxが拡大していない場合、フィットしても見た目は同じなのでスキップ。
+    if (!isFirst && !bboxExpanded) {
+      lastFitLengthRef.current = len;
+      return;
+    }
+
+    if (len === 1 || !bbox) {
       map.easeTo({
         center: [trackPoints[0].lng, trackPoints[0].lat],
         zoom: INITIAL_ZOOM,
-        duration: 500,
+        duration: FIT_DURATION_MS,
       });
     } else {
-      const lngs = trackPoints.map((p) => p.lng);
-      const lats = trackPoints.map((p) => p.lat);
       const bounds: [[number, number], [number, number]] = [
-        [Math.min(...lngs), Math.min(...lats)],
-        [Math.max(...lngs), Math.max(...lats)],
+        [bbox.minLng, bbox.minLat],
+        [bbox.maxLng, bbox.maxLat],
       ];
-      map.fitBounds(bounds, {padding: 60, duration: 500, maxZoom: FIT_MAX_ZOOM});
+      map.fitBounds(bounds, {
+        padding: 60,
+        duration: FIT_DURATION_MS,
+        maxZoom: FIT_MAX_ZOOM,
+      });
     }
     lastFitLengthRef.current = len;
-  }, [map, trackPoints]);
+  }, [map, trackPoints, enabled]);
+
+  return null;
+}
+
+function FollowUpdater({
+  trackPoints,
+  enabled,
+}: {
+  trackPoints: TrackPoint[];
+  enabled: boolean;
+}) {
+  const {map} = useMap();
+  const wasEnabledRef = useRef(false);
+
+  useEffect(() => {
+    if (!map) return;
+    if (!enabled) {
+      wasEnabledRef.current = false;
+      return;
+    }
+    const last = trackPoints.at(-1);
+    if (!last) {
+      wasEnabledRef.current = true;
+      return;
+    }
+    const justEnabled = !wasEnabledRef.current;
+    wasEnabledRef.current = true;
+
+    const opts: {
+      center: [number, number];
+      pitch: number;
+      duration: number;
+      zoom?: number;
+      bearing?: number;
+    } = {
+      center: [last.lng, last.lat],
+      pitch: 45,
+      duration: justEnabled ? FIT_DURATION_MS : FOLLOW_DURATION_MS,
+    };
+    if (justEnabled) {
+      opts.zoom = INITIAL_ZOOM;
+    }
+    // GPS headingは停止時nullやNaNになるので、その場合は前回のbearingを維持。
+    if (last.heading != null && !Number.isNaN(last.heading) && last.heading >= 0) {
+      opts.bearing = last.heading;
+    }
+    map.easeTo(opts);
+  }, [map, trackPoints, enabled]);
+
+  return null;
+}
+
+function OverviewPitchReset({enabled}: {enabled: boolean}) {
+  const {map} = useMap();
+  const appliedRef = useRef(false);
+
+  useEffect(() => {
+    if (!map) return;
+    if (!enabled) {
+      appliedRef.current = false;
+      return;
+    }
+    if (appliedRef.current) return;
+    appliedRef.current = true;
+    // overview突入時にだけpitch/bearingをリセット。以降のfitBoundsはこの角度を維持する。
+    map.easeTo({pitch: 0, bearing: 0, duration: FIT_DURATION_MS});
+  }, [map, enabled]);
 
   return null;
 }
@@ -206,6 +330,18 @@ export function RecordingPage() {
   const {addRun} = useRunStore();
   const [recordingDebugOpen, setRecordingDebugOpen] = useState(false);
   const [showRawTube, setShowRawTube] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("follow");
+  const [warningOpen, setWarningOpen] = useState(false);
+  const warningShownRef = useRef(false);
+  const transitionPhase = useTransitionStore(s => s.phase);
+
+  // 入場時の円アニメーション（iris系phase）が終わって idle に戻ったタイミングで警告を出す。
+  useEffect(() => {
+    if (warningShownRef.current) return;
+    if (transitionPhase !== "idle") return;
+    warningShownRef.current = true;
+    setWarningOpen(true);
+  }, [transitionPhase]);
   const initialCenter = useCurrentPosition();
   const acceptedTrackPoints = useMemo(() => acceptedPoints(trackPoints), [trackPoints]);
 
@@ -248,8 +384,20 @@ export function RecordingPage() {
     <div className="page">
       <div className="map-container">
         {initialCenter !== undefined && (
-          <BaseMap initialCenter={initialCenter ?? undefined} initialZoom={INITIAL_ZOOM}>
-            <BoundsFitter trackPoints={acceptedTrackPoints} />
+          <BaseMap
+            initialCenter={initialCenter ?? undefined}
+            initialZoom={INITIAL_ZOOM}
+            interactive={false}
+          >
+            <BoundsFitter
+              trackPoints={acceptedTrackPoints}
+              enabled={viewMode === "overview"}
+            />
+            <FollowUpdater
+              trackPoints={acceptedTrackPoints}
+              enabled={viewMode === "follow"}
+            />
+            <OverviewPitchReset enabled={viewMode === "overview"} />
             <RecordingLayers
               trackPoints={trackPoints}
               acceptedTrackPoints={acceptedTrackPoints}
@@ -281,6 +429,14 @@ export function RecordingPage() {
 
       <div className="bottom-bar">
         {error && <div className="error-banner">{error}</div>}
+        <button
+          className="view-mode-toggle"
+          onClick={() => setViewMode(m => (m === "follow" ? "overview" : "follow"))}
+          title={viewMode === "follow" ? "全体表示" : "現在位置"}
+          aria-label={viewMode === "follow" ? "全体表示に切り替え" : "現在位置に切り替え"}
+        >
+          <Icon icon={viewMode === "follow" ? "lucide:maximize" : "lucide:locate-fixed"} />
+        </button>
         <LiveStats trackPoints={acceptedTrackPoints} />
         <div className="bottom-bar-actions">
           <button
@@ -295,6 +451,25 @@ export function RecordingPage() {
           </button>
         </div>
       </div>
+
+      {warningOpen && (
+        <div className="chat-modal-backdrop" role="dialog" aria-modal="true">
+          <div className="chat-modal recording-warning">
+            <p className="recording-warning-title">注意！</p>
+            <p className="chat-modal-text">
+              ブラウザ版では、記録中に画面をオフにしたりアプリを切り替えると、レコーディングが停止してしまいます。
+            </p>
+            <div className="chat-modal-actions">
+              <button
+                className="chat-modal-btn chat-modal-btn-confirm"
+                onClick={() => setWarningOpen(false)}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {recordingDebugOpen && (
         <RecordingDebugPanel
