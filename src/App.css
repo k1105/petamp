@@ -909,6 +909,21 @@
   animation: onboarding-eyes-in 360ms cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
+.onboarding-eyes-tappable {
+  cursor: pointer;
+}
+
+/* 最終ステップで eyes がタップされた後、画面要素を fade-out させる。
+   eyes 自身は disc が広がる起点になるため fade させない (transition-overlay
+   の expanding 段階で自然に覆われる)。 */
+.onboarding-starting .onboarding-bubble,
+.onboarding-starting .onboarding-hint,
+.onboarding-starting .onboarding-input-area {
+  opacity: 0;
+  transition: opacity 280ms ease-out;
+  pointer-events: none;
+}
+
 @keyframes onboarding-eyes-in {
   from {
     opacity: 0;
@@ -2611,12 +2626,21 @@
   font-weight: 600;
 }
 
+/* 非破壊的な ack ボタン (初回 intro など)。白背景の modal 上で accent + 白文字。 */
+.chat-modal-btn-primary {
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* 注意モーダルだけは赤背景。視認性のため title 白 + ボタンは白地に赤文字。 */
 .chat-modal.recording-warning {
   background: #c44;
   color: #fff;
 }
 
-.chat-modal.recording-warning .chat-modal-btn-confirm {
+.chat-modal.recording-warning .chat-modal-btn-primary {
   background: #fff;
   color: #c44;
 }

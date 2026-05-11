@@ -332,16 +332,22 @@ export function RecordingPage() {
   const [showRawTube, setShowRawTube] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("follow");
   const [warningOpen, setWarningOpen] = useState(false);
+  const [introOpen, setIntroOpen] = useState(false);
   const warningShownRef = useRef(false);
   const transitionPhase = useTransitionStore(s => s.phase);
+  // マウント時点で flag を snapshot。reset() 後では失われるため。
+  const [fromOnboarding] = useState(() => useTransitionStore.getState().fromOnboarding);
 
-  // 入場時の円アニメーション（iris系phase）が終わって idle に戻ったタイミングで警告を出す。
+  // 入場時の円アニメーション（iris系phase）が終わって idle に戻ったタイミングで
+  // popup を出す。onboarding 経由のときは初回チュートリアルを、それ以外は
+  // 既存の「注意！」を表示する (2連打を避けるため排他)。
   useEffect(() => {
     if (warningShownRef.current) return;
     if (transitionPhase !== "idle") return;
     warningShownRef.current = true;
-    setWarningOpen(true);
-  }, [transitionPhase]);
+    if (fromOnboarding) setIntroOpen(true);
+    else setWarningOpen(true);
+  }, [transitionPhase, fromOnboarding]);
   const initialCenter = useCurrentPosition();
   const acceptedTrackPoints = useMemo(() => acceptedPoints(trackPoints), [trackPoints]);
 
@@ -461,8 +467,39 @@ export function RecordingPage() {
             </p>
             <div className="chat-modal-actions">
               <button
-                className="chat-modal-btn chat-modal-btn-confirm"
+                className="chat-modal-btn chat-modal-btn-primary"
                 onClick={() => setWarningOpen(false)}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {introOpen && (
+        <div className="chat-modal-backdrop" role="dialog" aria-modal="true">
+          <div className="chat-modal recording-intro">
+            <p className="chat-modal-text">
+              このアプリは、速く走るためのものではありません。
+            </p>
+            <p className="chat-modal-text">
+              歩いても、走っても、休んでも大丈夫です。あなたのペースで進んでください。
+            </p>
+            <p className="chat-modal-text">
+              動いたぶんだけ、ペタンプのセカイが広がっていきます。
+            </p>
+            <p className="chat-modal-text">
+              終わるときは、下の "FINISH" を押してください。
+            </p>
+            <div className="chat-modal-actions">
+              <button
+                className="chat-modal-btn chat-modal-btn-primary"
+                onClick={() => {
+                  setIntroOpen(false);
+                  // intro を閉じた直後に通常の注意モーダルへ繋ぐ。
+                  setWarningOpen(true);
+                }}
               >
                 OK
               </button>

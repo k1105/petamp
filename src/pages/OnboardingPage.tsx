@@ -9,6 +9,9 @@ import {
   type InputStep,
   type OnboardingStep,
 } from '../character'
+import { useCurrentPosition } from '../hooks/useCurrentPosition'
+import { useReverseGeocode } from '../hooks/useReverseGeocode'
+import { useTransitionStore } from '../store/useTransitionStore'
 
 /**
  * text 内の `\n` を <br />、`|` 区切りの各 phrase を inline-block span として
@@ -50,6 +53,15 @@ export function OnboardingPage() {
   const [name, setName] = useState<string | null>(null)
   const [draftName, setDraftName] = useState('')
   const [busy, setBusy] = useState(false)
+  // 最終ステップで eyes をタップした時の遷移状態。fade-out クラスを当てる
+  // ためのフラグ。
+  const [starting, setStarting] = useState(false)
+
+  // 走り出し演出 (expanding → iris → ...) で使う area name。
+  // onboarding マウント時から GPS と reverse-geocode を kick しておくと、
+  // 最終ステップに到達するころには間に合うことが多い。
+  const currentPos = useCurrentPosition()
+  const areaName = useReverseGeocode(currentPos?.[0] ?? null, currentPos?.[1] ?? null)
 
   const step: OnboardingStep = onboardingScript[stepIdx]
   const isLast = stepIdx === onboardingScript.length - 1
@@ -60,6 +72,7 @@ export function OnboardingPage() {
   // 確定ボタン周りで iOS が tap を取りこぼすケースがあったため、autofocus
   // の経路自体は残す。
   const inputRef = useRef<HTMLInputElement>(null)
+  const eyesRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (step.kind !== 'input') return
     const t = setTimeout(() => inputRef.current?.focus(), 800)
@@ -72,6 +85,23 @@ export function OnboardingPage() {
       return
     }
     setStepIdx(i => i + 1)
+  }
+
+  // 最終ステップ: eyes タップで通常のラン開始 transition に合流する。
+  // 1) 画面要素を fade-out (starting フラグで CSS を切替え)
+  // 2) startRecord(eyesの中心, areaName) で expanding → iris → ... を起動
+  // 3) TransitionOverlay 側が iris 段階で /record に navigate する
+  const startRecordFromEyes = () => {
+    if (starting) return
+    setStarting(true)
+    const el = eyesRef.current
+    const origin = el
+      ? (() => {
+          const r = el.getBoundingClientRect()
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+        })()
+      : { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+    useTransitionStore.getState().startRecord(origin, areaName, { fromOnboarding: true })
   }
 
   const onConfirmInput = async (s: InputStep) => {
@@ -97,9 +127,23 @@ export function OnboardingPage() {
     advance()
   }
 
+  const isFinish = step.kind === 'finish'
+
   return (
-    <div className="onboarding-page" onClick={onPageTap}>
-      <div className="onboarding-eyes">
+    <div
+      className={`onboarding-page${starting ? ' onboarding-starting' : ''}`}
+      onClick={onPageTap}
+    >
+      <div
+        ref={eyesRef}
+        className={`onboarding-eyes${isFinish ? ' onboarding-eyes-tappable' : ''}`}
+        onClick={isFinish ? (e) => {
+          e.stopPropagation()
+          startRecordFromEyes()
+        } : undefined}
+        role={isFinish ? 'button' : undefined}
+        aria-label={isFinish ? '最初のランをはじめる' : undefined}
+      >
         <EyesIcon />
       </div>
 
@@ -141,14 +185,7 @@ export function OnboardingPage() {
           </button>
         </form>
       )}
-
-      {step.kind === 'finish' && (
-        <div className="onboarding-input-area" onClick={e => e.stopPropagation()}>
-          <button className="onboarding-btn" onClick={advance}>
-            {step.confirmLabel}
-          </button>
-        </div>
-      )}
+      {/* finish ステップは eyes タップが唯一の進行手段。確定ボタンは出さない。 */}
     </div>
   )
 }
