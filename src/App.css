@@ -2486,3 +2486,56 @@
   color: rgba(255, 255, 255, 0.7);
   cursor: not-allowed;
 }
+
+/* ---- Run result page (post-finish, 9:16 PNG export) ---- */
+/* 背景は SVG が緑で塗りつぶす。レターボックス領域も同色になるよう page にも背景を当てる。 */
+.run-result-page {
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.run-result-svg {
+  display: block;
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100dvh;
+  aspect-ratio: 9 / 16;
+}
+
+.run-result-actions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(28px + var(--safe-bottom));
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  pointer-events: none;
+}
+
+.run-result-link {
+  pointer-events: auto;
+  background: transparent;
+  border: none;
+  padding: 8px 4px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.run-result-link:active {
+  opacity: 0.6;
+}
+
+.run-result-link:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}

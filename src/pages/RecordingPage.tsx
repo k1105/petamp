@@ -7,7 +7,6 @@ import {BaseMap, useMap, useMapZoom} from "../components/map/BaseMap";
 import {DeckOverlay} from "../components/map/DeckOverlay";
 import {AreaLabel} from "../components/map/AreaLabel";
 import {LiveStats} from "../components/recording/LiveStats";
-import {PathDebugPanel} from "../components/recording/PathDebugPanel";
 import {useGpsRecorder} from "../hooks/useGpsRecorder";
 import {useCurrentPosition} from "../hooks/useCurrentPosition";
 import {useRunStore} from "../store/useRunStore";
@@ -197,7 +196,6 @@ export function RecordingPage() {
   );
   const {isRecording, trackPoints, error, consecutiveRejections, start, stop} = useGpsRecorder(filters);
   const {addRun} = useRunStore();
-  const [debugPoints, setDebugPoints] = useState<TrackPoint[] | null>(null);
   const [recordingDebugOpen, setRecordingDebugOpen] = useState(false);
   const initialCenter = useCurrentPosition();
   const acceptedTrackPoints = useMemo(() => acceptedPoints(trackPoints), [trackPoints]);
@@ -210,17 +208,12 @@ export function RecordingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     let points = trackPoints;
     if (isRecording) {
       points = stop();
     }
-    setDebugPoints(points);
-  };
-
-  const handleProceed = async () => {
-    const points = debugPoints;
-    if (!points || points.length === 0) {
+    if (points.length === 0) {
       navigate("/");
       return;
     }
@@ -239,11 +232,7 @@ export function RecordingPage() {
       areaName,
     };
     await addRun(run);
-    navigate(`/run/${run.id}`);
-  };
-
-  const handleCancelDebug = () => {
-    setDebugPoints(null);
+    navigate(`/run/${run.id}/result`);
   };
 
   return (
@@ -296,14 +285,6 @@ export function RecordingPage() {
           </button>
         </div>
       </div>
-
-      {debugPoints !== null && (
-        <PathDebugPanel
-          trackPoints={debugPoints}
-          onProceed={handleProceed}
-          onCancel={handleCancelDebug}
-        />
-      )}
 
       {recordingDebugOpen && (
         <RecordingDebugPanel
