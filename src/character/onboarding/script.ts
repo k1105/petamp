@@ -48,7 +48,12 @@ export const onboardingScript: OnboardingStep[] = [
   {
     id: 'self-intro',
     kind: 'tap',
-    text: 'きみが歩いたり、走ったりした軌跡から、いろんなことを学ぶよ。',
+    text: 'ぼくは、きみの足あとの中に住んでいるよ。',
+  },
+  {
+    id: 'world-scope',
+    kind: 'tap',
+    text: 'きみが走った道のかたち。それがぼくのセカイ、ぜんぶ。',
   },
   {
     id: 'ask-name',
@@ -62,22 +67,22 @@ export const onboardingScript: OnboardingStep[] = [
   {
     id: 'thank-name',
     kind: 'tap',
-    text: 'ありがとう、{name}。',
+    text: '{name}、いい名前だね。',
   },
   {
     id: 'no-knowledge',
     kind: 'tap',
-    text: 'ぼくは {name} の見ているセカイのことを、なにも知らないんだ。',
+    text: '{name}が走ると、ぼくのセカイが少し広がる。',
   },
   {
     id: 'curiosity',
     kind: 'tap',
-    text: '{name} のランから、いろんなことを知りたいな。',
+    text: 'いっしょにいろんなセカイをみてみたいな。',
   },
   {
     id: 'invite-run',
     kind: 'finish',
-    text: 'まずは最初のランをやってみて。ぼくの顔をタップすると、最初のランができるよ。',
+    text: '{name}、ぼくの顔をタップして、\n最初のランをやってみて！',
     confirmLabel: 'はじめる',
   },
 ]
