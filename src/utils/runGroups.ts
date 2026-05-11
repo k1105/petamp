@@ -135,6 +135,27 @@ export function pickInitialGroup(
   return groups[0]
 }
 
+/** Return the group whose padded bbox contains the given point, else null. */
+export function findGroupContaining(
+  groups: RunGroup[],
+  point: [number, number],
+  paddingMeters: number,
+): RunGroup | null {
+  const [lng, lat] = point
+  for (const g of groups) {
+    const padded = expandBboxByMeters(g.bbox, paddingMeters)
+    if (
+      lng >= padded[0][0] &&
+      lng <= padded[1][0] &&
+      lat >= padded[0][1] &&
+      lat <= padded[1][1]
+    ) {
+      return g
+    }
+  }
+  return null
+}
+
 const METERS_PER_LAT_DEG = 110540
 
 /**

@@ -10,7 +10,7 @@ import { MapBoundsConstraint } from '../components/map/MapBoundsConstraint'
 import { GroupNavigation } from '../components/map/GroupNavigation'
 import { GroupEdgeIndicator } from '../components/map/GroupEdgeIndicator'
 import { expandBboxByMeters } from '../utils/runBbox'
-import { groupRunsByBboxOverlap, makeHomeGroup } from '../utils/runGroups'
+import { groupRunsByBboxOverlap, makeHomeGroup, findGroupContaining } from '../utils/runGroups'
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { SettingsPanel } from '../components/gallery/SettingsPanel'
@@ -183,11 +183,18 @@ export function GalleryPage() {
     [runs, ui.mapPaddingMeters],
   )
 
+  // 現在位置が既存グループ (padded bbox) に含まれていればそのグループに合流。
+  // 含まれていない場合のみ home pseudo-group を生成する。
+  const containingRealGroup = useMemo(
+    () => (initialCenter ? findGroupContaining(realGroups, initialCenter, ui.mapPaddingMeters) : null),
+    [initialCenter, realGroups, ui.mapPaddingMeters],
+  )
+
   // Phase 4: synthesise a "home" pseudo-group at GPS so the initial mount
   // sits at a small fixed cage instead of snapping into a recorded group.
   const homeGroup = useMemo(
-    () => (initialCenter ? makeHomeGroup(initialCenter, HOME_HALF_SIZE_METERS) : null),
-    [initialCenter],
+    () => (initialCenter && !containingRealGroup ? makeHomeGroup(initialCenter, HOME_HALF_SIZE_METERS) : null),
+    [initialCenter, containingRealGroup],
   )
 
   // Combined list passed to GroupNavigation — pan-to-edge can move between
@@ -205,8 +212,12 @@ export function GalleryPage() {
     if (!runsLoaded) return
     if (initialCenter === undefined) return
     if (currentGroupId && allGroups.some(g => g.id === currentGroupId)) return
-    setCurrentGroupId(homeGroup ? 'home' : (realGroups[0]?.id ?? null))
-  }, [runsLoaded, allGroups, currentGroupId, homeGroup, realGroups, initialCenter])
+    if (homeGroup) {
+      setCurrentGroupId('home')
+    } else {
+      setCurrentGroupId(containingRealGroup?.id ?? realGroups[0]?.id ?? null)
+    }
+  }, [runsLoaded, allGroups, currentGroupId, homeGroup, containingRealGroup, realGroups, initialCenter])
 
   const currentGroup = useMemo(
     () => allGroups.find(g => g.id === currentGroupId) ?? null,
@@ -218,10 +229,14 @@ export function GalleryPage() {
   // BaseMap initial position. Home: GPS center + fixed zoom (no `bounds`
   // option since we want the explicit fixed scale, not bbox-fit). Real
   // group: padded bbox passed via `bounds` for tight fit.
+  // 例外: 現在位置が realGroup に含まれている初期状態では home スケールで
+  // 立ち上げる (bounds を渡さない)。MapBoundsConstraint が group bbox を
+  // maxBounds として後から適用する。
   const initialBounds = useMemo(() => {
     if (!runsLoaded || !currentGroup || isHome) return undefined
+    if (containingRealGroup && currentGroup.id === containingRealGroup.id) return undefined
     return expandBboxByMeters(currentGroup.bbox, ui.mapPaddingMeters) as [[number, number], [number, number]]
-  }, [runsLoaded, currentGroup, isHome, ui.mapPaddingMeters])
+  }, [runsLoaded, currentGroup, isHome, ui.mapPaddingMeters, containingRealGroup])
 
   const homePhrase = useHomePhrase(initialCenter ?? undefined, runs, runsLoaded)
 

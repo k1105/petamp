@@ -11,6 +11,7 @@ interface GpsRecorderState {
 }
 
 const RECOVERY_AFTER_REJECTIONS = 3
+const HARD_ACCURACY_MAX_METERS = 25
 
 export function useGpsRecorder(filters: PointFilter[] = defaultFilters()) {
   const [state, setState] = useState<GpsRecorderState>({
@@ -53,9 +54,11 @@ export function useGpsRecorder(filters: PointFilter[] = defaultFilters()) {
           const passes = applyFilters(point, ctx, filtersRef.current)
 
           // 連続棄却から回復: filterで弾かれてもN回連続したら強制採用してbaselineをリセット
+          // ただし accuracy が閾値を超える点は強制採用しない
+          const accuracyOk = point.accuracy != null && point.accuracy <= HARD_ACCURACY_MAX_METERS
           let ok = passes
           let nextConsecutive = passes ? 0 : s.consecutiveRejections + 1
-          if (!passes && s.consecutiveRejections + 1 >= RECOVERY_AFTER_REJECTIONS) {
+          if (!passes && accuracyOk && s.consecutiveRejections + 1 >= RECOVERY_AFTER_REJECTIONS) {
             ok = true
             nextConsecutive = 0
           }

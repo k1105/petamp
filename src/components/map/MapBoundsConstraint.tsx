@@ -54,13 +54,22 @@ export function MapBoundsConstraint({
     const newBounds = padded as unknown as LngLatBoundsLike
 
     if (!fittedRef.current) {
-      // First apply: BaseMap was created with `bounds: padded` (or with
-      // initialZoom when home), camera is already at the fit position. Lock
-      // the constraint without animating.
+      // First apply: BaseMap was created with `bounds: padded` (fit zoom),
+      // with initialZoom when home, or with initialZoom when GPS is inside a
+      // real group (home スケールで立ち上げるケース). Lock the constraint
+      // without animating. minZoom は bbox の fit zoom を採用するので、
+      // home スケールで立ち上がった場合も group 全体まで zoom out できる。
       map.setMaxBounds(newBounds)
-      map.setMinZoom(
-        fixedMinZoom != null ? fixedMinZoom : Math.max(0, map.getZoom()),
-      )
+      if (fixedMinZoom != null) {
+        map.setMinZoom(fixedMinZoom)
+      } else {
+        const cam = map.cameraForBounds(newBounds, { padding: 0 })
+        const fitZoom =
+          cam?.zoom != null && Number.isFinite(cam.zoom)
+            ? Math.max(0, cam.zoom)
+            : Math.max(0, map.getZoom())
+        map.setMinZoom(fitZoom)
+      }
       fittedRef.current = true
       lastPaddedRef.current = padded
       return
