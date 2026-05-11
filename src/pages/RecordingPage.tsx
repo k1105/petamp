@@ -9,6 +9,8 @@ import {AreaLabel} from "../components/map/AreaLabel";
 import {LiveStats} from "../components/recording/LiveStats";
 import {useGpsRecorder} from "../hooks/useGpsRecorder";
 import {useCurrentPosition} from "../hooks/useCurrentPosition";
+import {useActivePalette} from "../hooks/useActivePalette";
+import {hexToRgb} from "../utils/themePalettes";
 import {useRunStore} from "../store/useRunStore";
 import {useSettingsStore, type Radii} from "../store/useSettingsStore";
 import {buildTubeSegments, buildTubeJoints} from "../utils/tubeData";
@@ -67,14 +69,21 @@ function RecordingLayers({
   acceptedTrackPoints,
   fallbackPosition,
   radii,
+  showRawTube,
 }: {
   trackPoints: TrackPoint[];
   acceptedTrackPoints: TrackPoint[];
   fallbackPosition: [number, number] | null;
   radii: Radii;
+  showRawTube: boolean;
 }) {
   const zoom = useMapZoom();
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5));
+  const {palette} = useActivePalette();
+  const accentRgb = useMemo<[number, number, number]>(
+    () => hexToRgb(palette.accent),
+    [palette.accent],
+  );
 
   const tubeRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius);
   const rawTubeRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.rawTubeRadius);
@@ -103,10 +112,8 @@ function RecordingLayers({
   }, [acceptedTrackPoints, fallbackPosition]);
 
   const tubeColor: [number, number, number, number] = [
-    160,
-    160,
-    160,
-    Math.round(255 * t),
+    ...accentRgb,
+    Math.round(128 * t),
   ];
   const rawTubeColor: [number, number, number, number] = [
     230,
@@ -115,9 +122,7 @@ function RecordingLayers({
     Math.round(255 * t),
   ];
   const dotColor: [number, number, number, number] = [
-    28,
-    151,
-    94,
+    ...accentRgb,
     Math.round(255 * t),
   ];
   const mat = {
@@ -129,18 +134,21 @@ function RecordingLayers({
 
   const layers = useMemo(() => {
     if (t === 0) return [];
+    const rawTubeLayer = showRawTube
+      ? new SimpleMeshLayer({
+          id: "raw-tube",
+          data: rawTubeData,
+          mesh: cylinder,
+          getPosition: (d) => d.position,
+          getScale: (d) => [rawTubeRadius, d.length, rawTubeRadius],
+          getOrientation: (d) => d.orientation,
+          getColor: rawTubeColor,
+          material: mat,
+          updateTriggers: {getScale: rawTubeRadius},
+        })
+      : null;
     return [
-      new SimpleMeshLayer({
-        id: "raw-tube",
-        data: rawTubeData,
-        mesh: cylinder,
-        getPosition: (d) => d.position,
-        getScale: (d) => [rawTubeRadius, d.length, rawTubeRadius],
-        getOrientation: (d) => d.orientation,
-        getColor: rawTubeColor,
-        material: mat,
-        updateTriggers: {getScale: rawTubeRadius},
-      }),
+      ...(rawTubeLayer ? [rawTubeLayer] : []),
       new SimpleMeshLayer({
         id: "live-tube",
         data: tubeData,
@@ -172,7 +180,7 @@ function RecordingLayers({
         material: mat,
       }),
     ];
-  }, [tubeData, jointData, rawTubeData, dotData, t, tubeRadius, rawTubeRadius, dotRadius, jointRadius]);
+  }, [tubeData, jointData, rawTubeData, dotData, t, tubeRadius, rawTubeRadius, dotRadius, jointRadius, accentRgb, showRawTube]);
 
   return <DeckOverlay layers={layers} />;
 }
@@ -197,6 +205,7 @@ export function RecordingPage() {
   const {isRecording, trackPoints, error, consecutiveRejections, start, stop} = useGpsRecorder(filters);
   const {addRun} = useRunStore();
   const [recordingDebugOpen, setRecordingDebugOpen] = useState(false);
+  const [showRawTube, setShowRawTube] = useState(false);
   const initialCenter = useCurrentPosition();
   const acceptedTrackPoints = useMemo(() => acceptedPoints(trackPoints), [trackPoints]);
 
@@ -246,6 +255,7 @@ export function RecordingPage() {
               acceptedTrackPoints={acceptedTrackPoints}
               fallbackPosition={initialCenter ?? null}
               radii={radii}
+              showRawTube={showRawTube}
             />
             <AreaLabel />
           </BaseMap>
@@ -296,6 +306,8 @@ export function RecordingPage() {
           filterSettings={filterSettings}
           onChangeFilterSettings={setFilterSettings}
           onResetFilterSettings={resetFilterSettings}
+          showRawTube={showRawTube}
+          onToggleRawTube={setShowRawTube}
           onClose={() => setRecordingDebugOpen(false)}
         />
       )}

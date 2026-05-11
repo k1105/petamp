@@ -20,6 +20,7 @@ import { getTubeMesh } from '../utils/tubeMesh'
 import { effectiveRadius, bucketRadius } from '../utils/effectiveRadius'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { useGalleryAnimation } from '../hooks/useGalleryAnimation'
+import { hexToRgb } from '../utils/themePalettes'
 import { useActivePalette } from '../hooks/useActivePalette'
 import { useCurrentPosition } from '../hooks/useCurrentPosition'
 import { useHomePhrase } from '../hooks/useHomePhrase'
@@ -48,14 +49,10 @@ function GalleryLayers({
   const { palette } = useActivePalette()
 
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5))
-  const accentRgb = useMemo<[number, number, number]>(() => {
-    const m = palette.accent.replace('#', '')
-    return [
-      parseInt(m.slice(0, 2), 16) || 28,
-      parseInt(m.slice(2, 4), 16) || 151,
-      parseInt(m.slice(4, 6), 16) || 94,
-    ]
-  }, [palette.accent])
+  const accentRgb = useMemo<[number, number, number]>(
+    () => hexToRgb(palette.accent),
+    [palette.accent],
+  )
   const tubeColor: [number, number, number, number] = [...accentRgb, Math.round(128 * t)]
   const dotColor: [number, number, number, number] = [...accentRgb, Math.round(255 * t)]
   const currentDotColor: [number, number, number, number] = [...accentRgb, 255]
@@ -141,10 +138,12 @@ function pickFallback(): string {
 export function GalleryPage() {
   const { runs, loadRuns, removeRun } = useRunStore()
   const ui = useSettingsStore(s => s.ui)
+  const setUi = useSettingsStore(s => s.setUi)
   const [listOpen, setListOpen] = useState(false)
   const [armed, setArmed] = useState(false)
   const [sheetView, setSheetView] = useState<'list' | 'settings'>('list')
   const [bubblePhrase, setBubblePhrase] = useState<string | null>(null)
+  const [showFirstRunIntro, setShowFirstRunIntro] = useState(false)
   // ホーム画面 (Gallery) は通常 1/10 のスローモー: 60 → 6
   const dots = useGalleryAnimation(runs, 6)
   const initialCenter = useCurrentPosition()
@@ -164,6 +163,19 @@ export function GalleryPage() {
   useEffect(() => {
     loadRuns(isDebug).finally(() => setRunsLoaded(true))
   }, [isDebug])
+
+  // 初回ラン完了後にトップへ戻ってきたタイミングで一度だけ案内を出す。
+  useEffect(() => {
+    if (!runsLoaded) return
+    if (ui.hasSeenFirstRunIntro) return
+    if (runs.length !== 1) return
+    setShowFirstRunIntro(true)
+  }, [runsLoaded, runs.length, ui.hasSeenFirstRunIntro])
+
+  const dismissFirstRunIntro = () => {
+    setShowFirstRunIntro(false)
+    setUi({ hasSeenFirstRunIntro: true })
+  }
 
   // Phase 2: cluster runs into actual groups.
   const realGroups = useMemo(
@@ -218,11 +230,14 @@ export function GalleryPage() {
     else setBubblePhrase(null)
   }, [armed, homePhrase])
 
+  // 未記録ユーザー向けの CTA 吹き出し。armed 時は通常の発話 bubble に置き換わる。
+  const onboardingPhrase = !armed && runs.length === 0 ? 'ここを押して〜！' : null
+  const activeBubbleText = armed ? bubblePhrase : onboardingPhrase
+
   // Position the speech bubble + start label relative to the FAB's actual
-  // bounding rect each frame (only while armed). This avoids dvh-based layout
-  // jitter on initial load and follows the FAB during its armed transform.
+  // bounding rect each frame. armed 時は start-label も追従。
   useEffect(() => {
-    if (!armed) return
+    if (!activeBubbleText) return
     let raf = 0
     const tick = () => {
       const fab = fabRef.current
@@ -234,17 +249,19 @@ export function GalleryPage() {
           bubble.style.left = `${cx - bubble.offsetWidth / 2}px`
           bubble.style.top = `${r.top - 16 - bubble.offsetHeight}px`
         }
-        const label = startLabelRef.current
-        if (label) {
-          label.style.left = `${cx - label.offsetWidth / 2}px`
-          label.style.top = `${r.bottom + 18}px`
+        if (armed) {
+          const label = startLabelRef.current
+          if (label) {
+            label.style.left = `${cx - label.offsetWidth / 2}px`
+            label.style.top = `${r.bottom + 18}px`
+          }
         }
       }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [armed, bubblePhrase])
+  }, [armed, activeBubbleText])
 
   const handleRunSelect = (runId: string) => {
     const fab = fabRef.current
@@ -311,15 +328,15 @@ export function GalleryPage() {
       </div>
 
       {armed && <div className="armed-backdrop" onClick={() => setArmed(false)} />}
-      {armed && bubblePhrase && (
+      {activeBubbleText && (
         <button
           ref={speechBubbleRef}
-          key={bubblePhrase}
+          key={activeBubbleText}
           className="speech-bubble"
           onClick={(e) => e.stopPropagation()}
-          aria-label={`発話: ${bubblePhrase}`}
+          aria-label={`発話: ${activeBubbleText}`}
         >
-          {bubblePhrase}
+          {activeBubbleText}
         </button>
       )}
       {armed && <div ref={startLabelRef} className="start-label">TAP TO START</div>}
@@ -331,23 +348,25 @@ export function GalleryPage() {
 
       <div ref={sheetRef} className={`bottom-sheet ${listOpen ? 'open' : ''} ${armed ? 'armed' : ''}`}>
         <div className="bottom-sheet-shape">
-          <button
-            className={`list-toggle-btn${listOpen && sheetView === 'list' ? ' is-active' : ''}`}
-            onClick={() => {
-              if (listOpen && sheetView === 'list') {
-                setListOpen(false)
-              } else {
-                setSheetView('list')
-                setListOpen(true)
-              }
-            }}
-            aria-label={listOpen && sheetView === 'list' ? 'ラン一覧を閉じる' : 'ラン一覧を開く'}
-          >
-            <Icon icon="lucide:layout-list" />
-          </button>
+          {runs.length > 0 && (
+            <button
+              className={`list-toggle-btn${listOpen && sheetView === 'list' ? ' is-active' : ''}`}
+              onClick={() => {
+                if (listOpen && sheetView === 'list') {
+                  setListOpen(false)
+                } else {
+                  setSheetView('list')
+                  setListOpen(true)
+                }
+              }}
+              aria-label={listOpen && sheetView === 'list' ? 'ラン一覧を閉じる' : 'ラン一覧を開く'}
+            >
+              <Icon icon="lucide:layout-list" />
+            </button>
+          )}
           <button
             ref={fabRef}
-            className={`fab fab-sheet${listOpen && !armed ? ` fab-pos-${sheetView}` : ''}`}
+            className={`fab fab-sheet${listOpen && !armed ? ` fab-pos-${sheetView}` : ''}${!armed ? ' fab-idle' : ''}`}
             onClick={handleFabClick}
             aria-label={armed ? 'TAP TO START' : '記録開始'}
           >
@@ -382,6 +401,20 @@ export function GalleryPage() {
           </div>
         )}
       </div>
+
+      {showFirstRunIntro && (
+        <div className="first-run-intro" role="dialog" aria-label="最初のランの案内">
+          <div className="first-run-intro-inner">
+            <h2 className="first-run-intro-title">最初のラン、お疲れさまでした！</h2>
+            <p className="first-run-intro-body">
+              ペタンプは、あなたの住む世界のことを何も知らない存在です。ランニングの記録をつけたら、そのランニングがどんな体験だったかをペタンプに教えてあげることで、ペタンプはどんどん成長していきます。もしかすると、あなたも知らなかった自分の好みや、このセカイのことに気づかせてくれるようになるかもしれません。
+            </p>
+            <button className="first-run-intro-ok" onClick={dismissFirstRunIntro}>
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

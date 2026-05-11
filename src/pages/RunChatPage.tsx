@@ -12,6 +12,8 @@ import { buildRunSummary } from '../utils/runSummary'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { effectiveRadius, bucketRadius } from '../utils/effectiveRadius'
 import { getTubeMesh } from '../utils/tubeMesh'
+import { hexToRgb } from '../utils/themePalettes'
+import { useActivePalette } from '../hooks/useActivePalette'
 import {
   CLOSING_NOTE,
   OPENING_TRIGGER_FRESH,
@@ -453,6 +455,11 @@ function ChatLayers({ run, segments, highlightSegmentIndex }: ChatLayersProps) {
   const { map } = useMap()
   const radii = useSettingsStore(s => s.radii)
   const pts = useMemo(() => acceptedPoints(run.trackPoints), [run])
+  const { palette } = useActivePalette()
+  const accentRgb = useMemo<[number, number, number]>(
+    () => hexToRgb(palette.accent),
+    [palette.accent],
+  )
 
   const tubeRadius = bucketRadius(
     effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius),
@@ -511,7 +518,7 @@ function ChatLayers({ run, segments, highlightSegmentIndex }: ChatLayersProps) {
           },
           getPosition: (d: { position: [number, number] }) =>
             [d.position[0], d.position[1], 0] as [number, number, number],
-          getColor: [28, 151, 94, dimAlpha],
+          getColor: [...accentRgb, dimAlpha],
           material: FLAT_MAT,
         }),
       )
@@ -536,7 +543,7 @@ function ChatLayers({ run, segments, highlightSegmentIndex }: ChatLayersProps) {
       )
     }
     return result
-  }, [wholeMesh, highlightMesh, highlightSegmentIndex])
+  }, [wholeMesh, highlightMesh, highlightSegmentIndex, accentRgb])
 
   return <DeckOverlay layers={layers} />
 }

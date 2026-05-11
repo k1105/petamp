@@ -607,6 +607,19 @@
   transform: scale(calc(1 / 1.8));
 }
 
+/* オンボーディング中 (記録ゼロ) の微かな上下アニメ。
+   ease-in-out を 2 段にして sin に近いカーブを近似。armed や fab-pos-* と
+   競合させないため、内側の .fab-icon にだけ適用する。 */
+.fab.fab-sheet.fab-idle .fab-icon {
+  animation: petamp-idle-bob 2.6s ease-in-out infinite;
+}
+
+@keyframes petamp-idle-bob {
+  0%   { transform: translateY(0); }
+  50%  { transform: translateY(-6px); }
+  100% { transform: translateY(0); }
+}
+
 /* ---- List toggle (left of FAB on gallery) ---- */
 .list-toggle-btn {
   position: absolute;
@@ -1597,6 +1610,23 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.debug-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.debug-toggle-row input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
 }
 
 .debug-slider-row {
@@ -2611,7 +2641,7 @@
 /* ---- Run result page (post-finish, 9:16 PNG export) ---- */
 /* 背景は SVG が緑で塗りつぶす。レターボックス領域も同色になるよう page にも背景を当てる。 */
 .run-result-page {
-  background: var(--accent);
+  background: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2713,4 +2743,76 @@
   opacity: 0.85;
   z-index: 20;
   pointer-events: none;
+}
+
+/* ---- First-run intro popup ---- */
+.first-run-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: first-run-intro-fade 0.35s ease-out;
+}
+
+.first-run-intro-inner {
+  width: 100%;
+  max-width: 420px;
+  background: var(--accent);
+  border-radius: 16px;
+  padding: 28px 24px 20px;
+  color: #fff;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  animation: first-run-intro-pop 0.4s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.first-run-intro-title {
+  margin: 0 0 16px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+}
+
+.first-run-intro-body {
+  margin: 0 0 24px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.first-run-intro-ok {
+  display: block;
+  margin: 0 auto;
+  padding: 12px 48px;
+  background: #fff;
+  color: var(--accent);
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+
+.first-run-intro-ok:active {
+  transform: scale(0.97);
+  opacity: 0.9;
+}
+
+@keyframes first-run-intro-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes first-run-intro-pop {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
 }

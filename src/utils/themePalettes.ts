@@ -63,6 +63,17 @@ export function getTimeOfDay(date: Date = new Date()): TimeOfDay {
   return 'night'
 }
 
+/** '#RRGGBB' → [R, G, B]。フォールバックはアクセント緑。 */
+export function hexToRgb(hex: string): [number, number, number] {
+  const m = hex.replace('#', '')
+  if (m.length !== 6) return [28, 151, 94]
+  const r = parseInt(m.slice(0, 2), 16)
+  const g = parseInt(m.slice(2, 4), 16)
+  const b = parseInt(m.slice(4, 6), 16)
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return [28, 151, 94]
+  return [r, g, b]
+}
+
 /** Open-Meteo / WMO weather_code を 3 種に集約。 */
 export function weatherFromCode(code: number): Weather {
   if (code <= 1) return 'sunny'           // 0: 快晴, 1: ほぼ快晴

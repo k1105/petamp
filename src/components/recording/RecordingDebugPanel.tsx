@@ -11,6 +11,8 @@ interface Props {
   filterSettings: FilterSettings
   onChangeFilterSettings: (partial: Partial<FilterSettings>) => void
   onResetFilterSettings: () => void
+  showRawTube: boolean
+  onToggleRawTube: (v: boolean) => void
   onClose: () => void
 }
 
@@ -23,6 +25,8 @@ export function RecordingDebugPanel({
   filterSettings,
   onChangeFilterSettings,
   onResetFilterSettings,
+  showRawTube,
+  onToggleRawTube,
   onClose,
 }: Props) {
   const accepted = trackPoints.filter(p => !p.rejected).length
@@ -76,6 +80,16 @@ export function RecordingDebugPanel({
           />
         </div>
 
+        <div className="debug-section-label">表示</div>
+        <label className="debug-toggle-row">
+          <input
+            type="checkbox"
+            checked={showRawTube}
+            onChange={e => onToggleRawTube(e.currentTarget.checked)}
+          />
+          <span>赤チューブ (生 GPS) を表示</span>
+        </label>
+
         <div className="debug-section-label">表示半径 (m@閾値zoom)</div>
         <div className="debug-sliders">
           <SliderRow
@@ -88,7 +102,7 @@ export function RecordingDebugPanel({
             onChange={v => setRadius('zoomThreshold', v)}
           />
           <SliderRow
-            label="白チューブ半径"
+            label="チューブ半径"
             value={radii.tubeRadius}
             min={0.1}
             max={10}

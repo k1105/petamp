@@ -10,6 +10,7 @@ import { formatDistance, formatElevation, formatDate } from '../utils/formatters
 import { buildRunSummary } from '../utils/runSummary'
 import { loadRun } from '../db/runRepository'
 import { useSettingsStore } from '../store/useSettingsStore'
+import { useActivePalette } from '../hooks/useActivePalette'
 import {
   getDialogueService,
   getMemoryStore,
@@ -30,7 +31,6 @@ const PATH_MARGIN_BOTTOM = 320
 const LOOP_SPEED = 60
 const STROKE_WIDTH = 10
 const DOT_RADIUS = 22
-const ACCENT = '#1c975e'
 
 // 右下に置く目玉アイコンの配置 (viewBox 単位)。EyesIcon (VIEW=64) を 4倍に拡大。
 const EYES_SCALE = 4
@@ -88,6 +88,7 @@ export function RunResultPage() {
   const navigate = useNavigate()
   const [run, setRun] = useState<Run | null>(null)
   const ui = useSettingsStore(s => s.ui)
+  const { palette } = useActivePalette()
   const { runs, loadRuns, updateRun } = useRunStore()
   const [runsLoaded, setRunsLoaded] = useState(false)
   const [loopSec, setLoopSec] = useState(0)
@@ -376,18 +377,7 @@ export function RunResultPage() {
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         preserveAspectRatio="xMidYMid meet"
       >
-        <defs>
-          <linearGradient id="rr-fade-top" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={ACCENT} stopOpacity={1} />
-            <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
-          </linearGradient>
-          <linearGradient id="rr-fade-bottom" x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0%" stopColor={ACCENT} stopOpacity={1} />
-            <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
-          </linearGradient>
-        </defs>
-
-        <rect x={0} y={0} width={VB_W} height={VB_H} fill={ACCENT} />
+        <rect x={0} y={0} width={VB_W} height={VB_H} fill={palette.bg} />
 
         {polylinePoints && (
           <polyline
@@ -402,10 +392,6 @@ export function RunResultPage() {
         {dotPos && (
           <circle cx={dotPos[0]} cy={dotPos[1]} r={DOT_RADIUS} fill="#ffffff" />
         )}
-
-        {/* 上下に緑→透明のグラデーションを重ねて軌跡の端を馴染ませる */}
-        <rect x={0} y={0} width={VB_W} height={VB_H * 0.16} fill="url(#rr-fade-top)" />
-        <rect x={0} y={VB_H * 0.84} width={VB_W} height={VB_H * 0.16} fill="url(#rr-fade-bottom)" />
 
         {/* メタ情報（書き出し画像にも含まれる） */}
         <g

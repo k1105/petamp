@@ -11,6 +11,8 @@ import { AnimationControl } from '../components/detail/AnimationControl'
 import { PathDebugPanel } from '../components/recording/PathDebugPanel'
 import { useAnimation } from '../hooks/useAnimation'
 import { useElevationStats } from '../hooks/useElevationStats'
+import { useActivePalette } from '../hooks/useActivePalette'
+import { hexToRgb } from '../utils/themePalettes'
 import { useRunStore } from '../store/useRunStore'
 import { positionAtTime } from '../hooks/useGalleryAnimation'
 import { getTubeMesh } from '../utils/tubeMesh'
@@ -36,6 +38,11 @@ function DetailLayers({
   const zoom = useMapZoom()
   const { map } = useMap()
   const radii = useSettingsStore(s => s.radii)
+  const { palette } = useActivePalette()
+  const accentRgb = useMemo<[number, number, number]>(
+    () => hexToRgb(palette.accent),
+    [palette.accent],
+  )
 
   // 経路全体が画面中央に収まるようにフィット（bbox中心 = 画面中心）
   // run が切り替わったら再フィット
@@ -66,12 +73,12 @@ function DetailLayers({
   const dotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
   const tubeMesh = useMemo(() => getTubeMesh(run.id, pts, tubeRadius), [run.id, pts, tubeRadius])
 
-  // マップ非表示時は白+黒、表示時はグレー+グリーン
+  // マップ非表示時は白+黒、表示時はグレー+アクセント
   const tubeColor: [number, number, number, number] = mapVisible
     ? [160, 160, 160, Math.round(255 * t)]
     : [255, 255, 255, 255]
   const dotColor: [number, number, number, number] = mapVisible
-    ? [28, 151, 94, Math.round(255 * t)]
+    ? [...accentRgb, Math.round(255 * t)]
     : [255, 255, 255, 255]
   const mat = { ambient: 1, diffuse: 0, shininess: 0, specularColor: [0, 0, 0] as [number, number, number] }
 
@@ -104,7 +111,7 @@ function DetailLayers({
     if (!mapVisible) return tubeLayer ? [tubeLayer, dotLayer] : [dotLayer]
     if (t === 0) return []
     return tubeLayer ? [tubeLayer, dotLayer] : [dotLayer]
-  }, [tubeMesh, dotData, t, mapVisible, dotRadius])
+  }, [tubeMesh, dotData, t, mapVisible, dotRadius, accentRgb])
 
   return <DeckOverlay layers={layers} />
 }
