@@ -21,6 +21,10 @@ export interface Radii {
 
 export interface FilterSettings {
   maxSpeed: number
+  /** Kalman プロセスノイズ (加速度σ, m/s²)。 */
+  kalmanSigmaA: number
+  /** Kalman ゲート閾値 (Mahalanobis², 自由度2)。 */
+  kalmanGateChi2: number
 }
 
 export interface UiSettings {
@@ -41,6 +45,8 @@ export const DEFAULT_RADII: Radii = {
 
 export const DEFAULT_FILTER_SETTINGS: FilterSettings = {
   maxSpeed: 15,
+  kalmanSigmaA: 2,
+  kalmanGateChi2: 9.21,
 }
 
 export const DEFAULT_UI_SETTINGS: UiSettings = {

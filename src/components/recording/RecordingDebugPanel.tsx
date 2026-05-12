@@ -5,6 +5,7 @@ import type { Radii, FilterSettings } from '../../store/useSettingsStore'
 interface Props {
   trackPoints: TrackPoint[]
   consecutiveRejections: number
+  lastMahalanobis2: number | null
   radii: Radii
   onChangeRadii: (partial: Partial<Radii>) => void
   onResetRadii: () => void
@@ -19,6 +20,7 @@ interface Props {
 export function RecordingDebugPanel({
   trackPoints,
   consecutiveRejections,
+  lastMahalanobis2,
   radii,
   onChangeRadii,
   onResetRadii,
@@ -64,12 +66,16 @@ export function RecordingDebugPanel({
             <dt>連続棄却</dt>
             <dd>{consecutiveRejections}</dd>
           </div>
+          <div>
+            <dt>直近 Kalman d²</dt>
+            <dd>{lastMahalanobis2 != null ? lastMahalanobis2.toFixed(2) : '—'}</dd>
+          </div>
         </dl>
 
         <div className="debug-section-label">フィルタ閾値</div>
         <div className="debug-sliders">
           <SliderRow
-            label="最大速度"
+            label="最大速度 (hard ceiling)"
             value={filterSettings.maxSpeed}
             min={3}
             max={100}
@@ -77,6 +83,26 @@ export function RecordingDebugPanel({
             unit="m/s"
             secondary={`≈ ${(filterSettings.maxSpeed * 3.6).toFixed(0)} km/h`}
             onChange={v => setFilter('maxSpeed', v)}
+          />
+          <SliderRow
+            label="Kalman σa (プロセスノイズ)"
+            value={filterSettings.kalmanSigmaA}
+            min={0.1}
+            max={10}
+            step={0.1}
+            unit="m/s²"
+            secondary="低=モデル信用 / 高=観測追従"
+            onChange={v => setFilter('kalmanSigmaA', v)}
+          />
+          <SliderRow
+            label="Kalman ゲート χ²"
+            value={filterSettings.kalmanGateChi2}
+            min={2}
+            max={20}
+            step={0.5}
+            unit=""
+            secondary="5.99=95% 9.21=99% 11.83=99.7%"
+            onChange={v => setFilter('kalmanGateChi2', v)}
           />
         </div>
 

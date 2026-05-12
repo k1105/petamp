@@ -319,14 +319,23 @@ export function RecordingPage() {
   const resetFilterSettings = useSettingsStore(s => s.resetFilterSettings);
   const filters = useMemo(
     () => [
-      accuracyGate(25),
+      accuracyGate(20),
       warmupGate(3000),
       minDistanceGate(5),
       maxSpeedGate(filterSettings.maxSpeed),
     ],
     [filterSettings.maxSpeed],
   );
-  const {isRecording, trackPoints, error, consecutiveRejections, start, stop} = useGpsRecorder(filters);
+  const kalmanConfig = useMemo(
+    () => ({
+      sigmaA: filterSettings.kalmanSigmaA,
+      gateChi2: filterSettings.kalmanGateChi2,
+      fallbackVarianceM2: 400,
+      initialVelVariance: 100,
+    }),
+    [filterSettings.kalmanSigmaA, filterSettings.kalmanGateChi2],
+  );
+  const {isRecording, trackPoints, error, consecutiveRejections, lastMahalanobis2, start, stop} = useGpsRecorder(filters, kalmanConfig);
   const {addRun} = useRunStore();
   const [recordingDebugOpen, setRecordingDebugOpen] = useState(false);
   const [showRawTube, setShowRawTube] = useState(false);
@@ -512,6 +521,7 @@ export function RecordingPage() {
         <RecordingDebugPanel
           trackPoints={trackPoints}
           consecutiveRejections={consecutiveRejections}
+          lastMahalanobis2={lastMahalanobis2}
           radii={radii}
           onChangeRadii={setRadii}
           onResetRadii={resetRadii}
