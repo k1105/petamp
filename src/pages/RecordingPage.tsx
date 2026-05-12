@@ -362,7 +362,7 @@ export function RecordingPage() {
   const handleFinish = async () => {
     let points = trackPoints;
     if (isRecording) {
-      points = stop();
+      points = await stop();
     }
     if (points.length === 0) {
       navigate("/");
