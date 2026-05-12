@@ -31,7 +31,7 @@ export const TIME_LABEL: Record<TimeOfDay, string> = {
  */
 export const DEFAULT_PALETTES: Record<Weather, Record<TimeOfDay, Palette>> = {
   sunny: {
-    morning: { bg: '#6BCCBE', accent: '#4AC992' },
+    morning: { bg: '#78CCE8', accent: '#4AC992' },
     day:     { bg: '#189AB4', accent: '#4AC992' },
     night:   { bg: '#1C1C1C', accent: '#1C975E' },
   },
