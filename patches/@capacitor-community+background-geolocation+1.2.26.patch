@@ -1,0 +1,121 @@
+diff --git a/node_modules/@capacitor-community/background-geolocation/ios/Plugin/Swift/Plugin.swift b/node_modules/@capacitor-community/background-geolocation/ios/Plugin/Swift/Plugin.swift
+index d4a5965..cdb9e69 100644
+--- a/node_modules/@capacitor-community/background-geolocation/ios/Plugin/Swift/Plugin.swift
++++ b/node_modules/@capacitor-community/background-geolocation/ios/Plugin/Swift/Plugin.swift
+@@ -2,6 +2,7 @@ import Capacitor
+ import Foundation
+ import UIKit
+ import CoreLocation
++import AVFoundation
+ 
+ // Avoids a bewildering type warning.
+ let null = Optional<Double>.none as Any
+@@ -70,6 +71,11 @@ public class BackgroundGeolocation: CAPPlugin,
+                                     CAPBridgedPlugin,
+                                     CLLocationManagerDelegate {
+     private var watchers = [Watcher]()
++    // 画面ロック中も iOS に CPU 時間を確保させるための無音オーディオエンジン。
++    // バックグラウンド watcher が1つでも生きている間だけ再生する。
++    private var silenceEngine: AVAudioEngine?
++    private var silencePlayer: AVAudioPlayerNode?
++    private var backgroundWatcherCount = 0
+     public let identifier = "BackgroundGeolocation"
+     public let jsName = "BackgroundGeolocation"
+     public let pluginMethods: [CAPPluginMethod] = [
+@@ -82,6 +88,42 @@ public class BackgroundGeolocation: CAPPlugin,
+         UIDevice.current.isBatteryMonitoringEnabled = true
+     }
+ 
++    private func startSilentAudio() {
++        if silenceEngine != nil { return }
++        do {
++            let session = AVAudioSession.sharedInstance()
++            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
++            try session.setActive(true)
++        } catch {
++            return
++        }
++        let engine = AVAudioEngine()
++        let player = AVAudioPlayerNode()
++        engine.attach(player)
++        guard let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1) else { return }
++        engine.connect(player, to: engine.mainMixerNode, format: format)
++        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4410) else { return }
++        buffer.frameLength = 4410 // 0.1秒の無音バッファ (ゼロ初期化済み)
++        engine.prepare()
++        do {
++            try engine.start()
++        } catch {
++            return
++        }
++        player.scheduleBuffer(buffer, at: nil, options: [.loops], completionHandler: nil)
++        player.play()
++        silenceEngine = engine
++        silencePlayer = player
++    }
++
++    private func stopSilentAudio() {
++        silencePlayer?.stop()
++        silenceEngine?.stop()
++        silencePlayer = nil
++        silenceEngine = nil
++        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
++    }
++
+     @objc func addWatcher(_ call: CAPPluginCall) {
+         call.keepAlive = true
+ 
+@@ -94,15 +136,13 @@ public class BackgroundGeolocation: CAPPlugin,
+             )
+             let manager = watcher.locationManager
+             manager.delegate = self
+-            let externalPower = [
+-                .full,
+-                .charging
+-            ].contains(UIDevice.current.batteryState)
+-            manager.desiredAccuracy = (
+-                externalPower
+-                ? kCLLocationAccuracyBestForNavigation
+-                : kCLLocationAccuracyBest
+-            )
++            // ランニング/ウォーキング用途。Strava 等の手法に合わせ、
++            // バッテリー駆動でも常時 BestForNavigation を使用する (iOS の
++            // 画面ロック時 throttle を回避するため)。
++            manager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
++            // フィットネスアプリ宣言。iOS の電源管理ヒューリスティクスを抑え、
++            // バックグラウンドでの更新頻度を維持させる。
++            manager.activityType = .fitness
+             var distanceFilter = call.getDouble("distanceFilter")
+             // It appears that setting manager.distanceFilter to 0 can prevent
+             // subsequent location updates. See issue #88.
+@@ -114,6 +154,12 @@ public class BackgroundGeolocation: CAPPlugin,
+             manager.showsBackgroundLocationIndicator = background
+             manager.pausesLocationUpdatesAutomatically = false
+             self.watchers.append(watcher)
++            if background {
++                self.backgroundWatcherCount += 1
++                if self.backgroundWatcherCount == 1 {
++                    self.startSilentAudio()
++                }
++            }
+             if call.getBool("requestPermissions") != false {
+                 let status = CLLocationManager.authorizationStatus()
+                 if [
+@@ -145,8 +191,16 @@ public class BackgroundGeolocation: CAPPlugin,
+                 if let index = self.watchers.firstIndex(
+                     where: { $0.callbackId == callbackId }
+                 ) {
+-                    self.watchers[index].locationManager.stopUpdatingLocation()
++                    let removed = self.watchers[index]
++                    let wasBackground = removed.locationManager.allowsBackgroundLocationUpdates
++                    removed.locationManager.stopUpdatingLocation()
+                     self.watchers.remove(at: index)
++                    if wasBackground {
++                        self.backgroundWatcherCount = max(0, self.backgroundWatcherCount - 1)
++                        if self.backgroundWatcherCount == 0 {
++                            self.stopSilentAudio()
++                        }
++                    }
+                 }
+                 if let savedCall = self.bridge?.savedCall(withID: callbackId) {
+                     self.bridge?.releaseCall(savedCall)

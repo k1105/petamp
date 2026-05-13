@@ -13,9 +13,13 @@ interface Props {
 
 export function PathDebugPanel({ trackPoints, areaName, onProceed, onCancel, proceedLabel = '結果画面へ' }: Props) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'ok' | 'fail'>('idle')
+  const [downloadStatus, setDownloadStatus] = useState<'idle' | 'ok' | 'fail'>('idle')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // textarea 表示用 (人間が中身を spot-check する用途)。
   const json = useMemo(() => JSON.stringify(trackPoints, null, 2), [trackPoints])
+  // ダウンロード用は indent 無しで容量を抑える (visualizer 側は標準 JSON.parse で読める)。
+  const compactJson = useMemo(() => JSON.stringify(trackPoints), [trackPoints])
 
   const summary = useMemo(() => {
     if (trackPoints.length === 0) return null
@@ -66,6 +70,49 @@ export function PathDebugPanel({ trackPoints, areaName, onProceed, onCancel, pro
     setTimeout(() => setCopyStatus('idle'), 2000)
   }
 
+  const handleDownload = async () => {
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const filename = `petamp-trackpoints-${ts}.json`
+    const blob = new Blob([compactJson], { type: 'application/json' })
+
+    // iOS WKWebView では Web Share API で共有シート (AirDrop など) を出せる。
+    // ファイル共有可否は canShare で事前判定する。
+    if (typeof navigator.canShare === 'function' && typeof navigator.share === 'function') {
+      try {
+        const file = new File([blob], filename, { type: 'application/json' })
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: filename })
+          setDownloadStatus('ok')
+          setTimeout(() => setDownloadStatus('idle'), 2000)
+          return
+        }
+      } catch (e) {
+        // ユーザーが共有シートを閉じた場合は失敗扱いにしない。
+        if ((e as Error)?.name === 'AbortError') {
+          setDownloadStatus('idle')
+          return
+        }
+        // その他のエラーは下のフォールバックに落とす。
+      }
+    }
+
+    // Web 標準フォールバック: ダウンロード属性付きアンカーをクリックする。
+    try {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setDownloadStatus('ok')
+    } catch {
+      setDownloadStatus('fail')
+    }
+    setTimeout(() => setDownloadStatus('idle'), 2000)
+  }
+
   return (
     <div className="debug-overlay" role="dialog" aria-label="パスデータ デバッグ">
       <div className="debug-panel">
@@ -100,6 +147,10 @@ export function PathDebugPanel({ trackPoints, areaName, onProceed, onCancel, pro
         />
 
         <div className="debug-actions">
+          <button className="btn-ghost" onClick={handleDownload} disabled={trackPoints.length === 0}>
+            <Icon icon={downloadStatus === 'ok' ? 'lucide:check' : downloadStatus === 'fail' ? 'lucide:x' : 'lucide:download'} />
+            <span>{downloadStatus === 'ok' ? '完了' : downloadStatus === 'fail' ? '失敗' : 'JSONを保存/共有'}</span>
+          </button>
           <button className="btn-ghost" onClick={handleCopy}>
             <Icon icon={copyStatus === 'ok' ? 'lucide:check' : copyStatus === 'fail' ? 'lucide:x' : 'lucide:copy'} />
             <span>{copyStatus === 'ok' ? 'コピーしました' : copyStatus === 'fail' ? 'コピー失敗' : 'JSONをコピー'}</span>
