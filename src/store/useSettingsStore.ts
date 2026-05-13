@@ -34,6 +34,7 @@ export interface UiSettings {
   pupilSizeScale: number    // 瞳サイズ倍率
   mapPaddingMeters: number  // 軌跡bbox周囲のパディング (m) - gallery map制約
   hasSeenFirstRunIntro: boolean  // 「最初のラン」紹介ポップを表示済みか
+  altitudeScale: number     // run detail (単色表現時) の高度可視化倍率。0 で平面。
 }
 
 export const DEFAULT_RADII: Radii = {
@@ -56,6 +57,7 @@ export const DEFAULT_UI_SETTINGS: UiSettings = {
   pupilSizeScale: 1.10,
   mapPaddingMeters: 100,
   hasSeenFirstRunIntro: false,
+  altitudeScale: 3,
 }
 
 export const DEFAULT_THEME_SETTINGS: ThemeSettings = {

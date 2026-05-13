@@ -17,10 +17,39 @@ export interface TubeMesh {
 
 const METERS_PER_LAT_DEG = 110540
 
+/** barometric を優先、無ければ GPS altitude。両方 null なら null。 */
+export function rawAltitude(p: TrackPoint): number | null {
+  if (p.barometricAltitude != null) return p.barometricAltitude
+  if (p.altitude != null) return p.altitude
+  return null
+}
+
+/**
+ * 各点の相対高度 (m, 最初に有効な値を 0 基準) を返す。null は直前値を継続、
+ * 先頭で値が無い間は 0。スムージングや欠損補間はしない (visualizer 側で後追い)。
+ */
+export function relativeAltitudes(points: TrackPoint[]): Float32Array {
+  const N = points.length
+  const out = new Float32Array(N)
+  let baseline: number | null = null
+  let last = 0
+  for (let i = 0; i < N; i++) {
+    const v = rawAltitude(points[i])
+    if (v != null) {
+      if (baseline == null) baseline = v
+      last = v - baseline
+    }
+    out[i] = last
+  }
+  return out
+}
+
 export function buildTubePath(
   points: TrackPoint[],
   radius: number,
   segments: number = 12,
+  /** 各点の z オフセット (m)。長さは points と一致。未指定なら平面 (z=0)。 */
+  zOffsets?: Float32Array | null,
 ): TubeMesh | null {
   const N = points.length
   if (N < 2) return null
@@ -74,6 +103,7 @@ export function buildTubePath(
     const nx = -ty
     const ny = tx
 
+    const zBase = zOffsets ? zOffsets[i] : 0
     const ringStart = i * segments
     for (let j = 0; j < segments; j++) {
       const angle = (j / segments) * Math.PI * 2
@@ -85,7 +115,7 @@ export function buildTubePath(
       const idx = (ringStart + j) * 3
       positions[idx] = lx[i] + ox * radius
       positions[idx + 1] = ly[i] + oy * radius
-      positions[idx + 2] = oz * radius
+      positions[idx + 2] = zBase + oz * radius
       normals[idx] = ox
       normals[idx + 1] = oy
       normals[idx + 2] = oz
@@ -97,10 +127,10 @@ export function buildTubePath(
   const endCap = totalRingVerts + 1
   positions[startCap * 3 + 0] = lx[0]
   positions[startCap * 3 + 1] = ly[0]
-  positions[startCap * 3 + 2] = 0
+  positions[startCap * 3 + 2] = zOffsets ? zOffsets[0] : 0
   positions[endCap * 3 + 0] = lx[N - 1]
   positions[endCap * 3 + 1] = ly[N - 1]
-  positions[endCap * 3 + 2] = 0
+  positions[endCap * 3 + 2] = zOffsets ? zOffsets[N - 1] : 0
 
   // Cap normals point along the local tangent so flat caps shade reasonably
   // even though the current material uses ambient=1.
@@ -166,20 +196,28 @@ export function buildTubePath(
 const cache = new Map<string, TubeMesh>()
 
 /**
- * Returns the same TubeMesh object for the same (runId, radius, segments) so
- * deck.gl can keep the GPU buffer cached. trackPoints is assumed immutable
- * once a run is recorded; pass an immutable run.id as the cache key root.
+ * Returns the same TubeMesh object for the same (runId, radius, segments,
+ * altitudeScale) so deck.gl can keep the GPU buffer cached. trackPoints is
+ * assumed immutable once a run is recorded; pass an immutable run.id as the
+ * cache key root. altitudeScale === 0 で平面 mesh (z=0)。
  */
 export function getTubeMesh(
   runId: string,
   points: TrackPoint[],
   radius: number,
   segments: number = 12,
+  altitudeScale: number = 0,
 ): TubeMesh | null {
-  const key = `${runId}:${radius}:${segments}:${points.length}`
+  const key = `${runId}:${radius}:${segments}:${points.length}:${altitudeScale}`
   let mesh = cache.get(key)
   if (!mesh) {
-    const built = buildTubePath(points, radius, segments)
+    let zOffsets: Float32Array | null = null
+    if (altitudeScale > 0) {
+      const rel = relativeAltitudes(points)
+      zOffsets = new Float32Array(rel.length)
+      for (let i = 0; i < rel.length; i++) zOffsets[i] = rel[i] * altitudeScale
+    }
+    const built = buildTubePath(points, radius, segments, zOffsets)
     if (!built) return null
     mesh = built
     cache.set(key, mesh)

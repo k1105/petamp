@@ -47,6 +47,8 @@
 	<string>ペタンプがあなたのランニング軌跡を記録するために、画面ロック中も位置情報を使用します</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>ペタンプがあなたのランニング軌跡を記録します</string>
+	<key>NSMotionUsageDescription</key>
+	<string>ペタンプが気圧センサで正確な標高を記録します</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

@@ -789,7 +789,7 @@
 /* ---- Orbit toggle ---- */
 .orbit-toggle {
   position: absolute;
-  top: 16px;
+  top: calc(16px + env(safe-area-inset-top, 0px));
   right: 16px;
   width: 40px;
   height: 40px;
@@ -857,7 +857,7 @@
 /* ---- Map toggle (detail page) ---- */
 .map-toggle-btn {
   position: absolute;
-  top: 16px;
+  top: calc(16px + env(safe-area-inset-top, 0px));
   right: 16px;
   width: 40px;
   height: 40px;
@@ -1217,7 +1217,7 @@
 /* ---- Back button ---- */
 .back-btn {
   position: absolute;
-  top: 16px;
+  top: calc(16px + env(safe-area-inset-top, 0px));
   left: 16px;
   width: 40px;
   height: 40px;
@@ -1385,7 +1385,7 @@
 
 .debug-btn {
   position: absolute;
-  top: 64px;
+  top: calc(64px + env(safe-area-inset-top, 0px));
   right: 16px;
   width: 40px;
   height: 40px;
@@ -1409,7 +1409,7 @@
 
 .locate-btn {
   position: absolute;
-  top: 16px;
+  top: calc(16px + env(safe-area-inset-top, 0px));
   /* orbit-toggle (right:16) の隣に並べる: 16 + 40 + 8 = 64 */
   right: 64px;
   width: 40px;
@@ -1572,7 +1572,7 @@
 .area-label {
   position: absolute;
   /* 上部ボタン (top:16px, height:40px) の縦中心に揃える */
-  top: 36px;
+  top: calc(36px + env(safe-area-inset-top, 0px));
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 5;

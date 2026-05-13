@@ -14,7 +14,7 @@ import { useElevationStats } from '../hooks/useElevationStats'
 import { useActivePalette } from '../hooks/useActivePalette'
 import { hexToRgb } from '../utils/themePalettes'
 import { useRunStore } from '../store/useRunStore'
-import { positionAtTime } from '../hooks/useGalleryAnimation'
+import { positionAtTime, relAltitudeAtTime } from '../hooks/useGalleryAnimation'
 import { getTubeMesh } from '../utils/tubeMesh'
 import { effectiveRadius, bucketRadius } from '../utils/effectiveRadius'
 import { acceptedPoints } from '../utils/recordingFilters'
@@ -38,6 +38,7 @@ function DetailLayers({
   const zoom = useMapZoom()
   const { map } = useMap()
   const radii = useSettingsStore(s => s.radii)
+  const altitudeScaleSetting = useSettingsStore(s => s.ui.altitudeScale)
   const { palette } = useActivePalette()
   const accentRgb = useMemo<[number, number, number]>(
     () => hexToRgb(palette.accent),
@@ -59,10 +60,15 @@ function DetailLayers({
     map.fitBounds(bounds, { padding: 60, duration: 300, maxZoom: FIT_MAX_ZOOM })
   }, [map, run])
 
+  // 単色表現 (mapVisible=false) の時だけ高度を z 軸に反映。マップ表示時は平面。
+  const altitudeScale = mapVisible ? 0 : altitudeScaleSetting
+
   const dotData = useMemo(() => {
     const pos = positionAtTime(run, currentTime)
-    return pos ? [{ position: pos }] : []
-  }, [run, currentTime])
+    if (!pos) return []
+    const z = altitudeScale > 0 ? relAltitudeAtTime(run, currentTime) * altitudeScale : 0
+    return [{ position: [pos[0], pos[1], z] as [number, number, number] }]
+  }, [run, currentTime, altitudeScale])
 
 
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5))
@@ -71,7 +77,10 @@ function DetailLayers({
     effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius),
   )
   const dotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
-  const tubeMesh = useMemo(() => getTubeMesh(run.id, pts, tubeRadius), [run.id, pts, tubeRadius])
+  const tubeMesh = useMemo(
+    () => getTubeMesh(run.id, pts, tubeRadius, 12, altitudeScale),
+    [run.id, pts, tubeRadius, altitudeScale],
+  )
 
   // マップ非表示時は白+黒、表示時はグレー+アクセント
   const tubeColor: [number, number, number, number] = mapVisible
@@ -103,7 +112,7 @@ function DetailLayers({
       id: 'run-dot',
       data: dotData,
       mesh: sphere,
-      getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
+      getPosition: (d: { position: [number, number, number] }) => d.position,
       getScale: [dotRadius, dotRadius, dotRadius],
       getColor: dotColor,
       material: mat,
@@ -285,7 +294,7 @@ export function RunDetailPage() {
         title={mapVisible ? 'マップ非表示' : 'マップ表示'}
         aria-label={mapVisible ? 'マップ非表示' : 'マップ表示'}
       >
-        <Icon icon={mapVisible ? 'lucide:map-off' : 'lucide:map'} />
+        <Icon icon={mapVisible ? 'lucide:map-pin-off' : 'lucide:map'} />
       </button>
       <button
         className="debug-btn"

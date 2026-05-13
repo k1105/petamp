@@ -61,6 +61,10 @@ export function useGpsRecorder(
             timestamp: reading.timestamp,
             accuracy: reading.accuracy ?? undefined,
             heading: reading.heading,
+            barometricAltitude: reading.barometricAltitude,
+            barometricKind: reading.barometricKind,
+            barometricAccuracy: reading.barometricAccuracy,
+            barometricPrecision: reading.barometricPrecision,
           }
           setState(s => {
             const accepted = s.trackPoints.filter(p => !p.rejected)

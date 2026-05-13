@@ -1,16 +1,59 @@
 diff --git a/node_modules/@capacitor-community/background-geolocation/ios/Plugin/Swift/Plugin.swift b/node_modules/@capacitor-community/background-geolocation/ios/Plugin/Swift/Plugin.swift
-index d4a5965..cdb9e69 100644
+index d4a5965..7bdbfc0 100644
 --- a/node_modules/@capacitor-community/background-geolocation/ios/Plugin/Swift/Plugin.swift
 +++ b/node_modules/@capacitor-community/background-geolocation/ios/Plugin/Swift/Plugin.swift
-@@ -2,6 +2,7 @@ import Capacitor
+@@ -2,11 +2,22 @@ import Capacitor
  import Foundation
  import UIKit
  import CoreLocation
 +import AVFoundation
++import CoreMotion
  
  // Avoids a bewildering type warning.
  let null = Optional<Double>.none as Any
-@@ -70,6 +71,11 @@ public class BackgroundGeolocation: CAPPlugin,
+ 
+-func formatLocation(_ location: CLLocation) -> PluginCallResultData {
++// CMAltimeter から取った直近の気圧高度サンプル。
++// kind = "absolute" (iOS 15+, 海抜) または "relative" (記録開始からの相対値)。
++struct BarometricReading {
++    let altitude: Double
++    let kind: String
++    let accuracy: Double?
++    let precision: Double?
++}
++
++func formatLocation(_ location: CLLocation, barometric: BarometricReading?) -> PluginCallResultData {
+     var simulated = false;
+     if #available(iOS 15, *) {
+         // Prior to iOS 15, it was not possible to detect simulated locations.
+@@ -16,7 +27,7 @@ func formatLocation(_ location: CLLocation) -> PluginCallResultData {
+             simulated = location.sourceInformation!.isSimulatedBySoftware;
+         }
+     }
+-    return [
++    var result: PluginCallResultData = [
+         "latitude": location.coordinate.latitude,
+         "longitude": location.coordinate.longitude,
+         "accuracy": location.horizontalAccuracy,
+@@ -31,6 +42,17 @@ func formatLocation(_ location: CLLocation) -> PluginCallResultData {
+             )
+         ),
+     ]
++    if let bar = barometric {
++        result["barometricAltitude"] = bar.altitude
++        result["barometricKind"] = bar.kind
++        if let acc = bar.accuracy {
++            result["barometricAccuracy"] = acc
++        }
++        if let prec = bar.precision {
++            result["barometricPrecision"] = prec
++        }
++    }
++    return result
+ }
+ 
+ class Watcher {
+@@ -70,6 +92,14 @@ public class BackgroundGeolocation: CAPPlugin,
                                      CAPBridgedPlugin,
                                      CLLocationManagerDelegate {
      private var watchers = [Watcher]()
@@ -19,10 +62,13 @@ index d4a5965..cdb9e69 100644
 +    private var silenceEngine: AVAudioEngine?
 +    private var silencePlayer: AVAudioPlayerNode?
 +    private var backgroundWatcherCount = 0
++    // 気圧高度。watcher が1つでも生きている間だけ更新を回す。
++    private var altimeter: CMAltimeter?
++    private var latestBarometric: BarometricReading?
      public let identifier = "BackgroundGeolocation"
      public let jsName = "BackgroundGeolocation"
      public let pluginMethods: [CAPPluginMethod] = [
-@@ -82,6 +88,42 @@ public class BackgroundGeolocation: CAPPlugin,
+@@ -82,6 +112,80 @@ public class BackgroundGeolocation: CAPPlugin,
          UIDevice.current.isBatteryMonitoringEnabled = true
      }
  
@@ -62,10 +108,48 @@ index d4a5965..cdb9e69 100644
 +        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
 +    }
 +
++    // iOS 15+ なら絶対高度 (海抜)、それ以前なら相対高度を回す。
++    // 端末に気圧計が無い場合 (古い iPad など) は何もしない。
++    private func startAltimeter() {
++        if altimeter != nil { return }
++        let am = CMAltimeter()
++        if #available(iOS 15.0, *), CMAltimeter.isAbsoluteAltitudeAvailable() {
++            am.startAbsoluteAltitudeUpdates(to: .main) { [weak self] data, _ in
++                guard let data = data else { return }
++                self?.latestBarometric = BarometricReading(
++                    altitude: data.altitude,
++                    kind: "absolute",
++                    accuracy: data.accuracy,
++                    precision: data.precision
++                )
++            }
++        } else if CMAltimeter.isRelativeAltitudeAvailable() {
++            am.startRelativeAltitudeUpdates(to: .main) { [weak self] data, _ in
++                guard let data = data else { return }
++                self?.latestBarometric = BarometricReading(
++                    altitude: data.relativeAltitude.doubleValue,
++                    kind: "relative",
++                    accuracy: nil,
++                    precision: nil
++                )
++            }
++        }
++        altimeter = am
++    }
++
++    private func stopAltimeter() {
++        altimeter?.stopRelativeAltitudeUpdates()
++        if #available(iOS 15.0, *) {
++            altimeter?.stopAbsoluteAltitudeUpdates()
++        }
++        altimeter = nil
++        latestBarometric = nil
++    }
++
      @objc func addWatcher(_ call: CAPPluginCall) {
          call.keepAlive = true
  
-@@ -94,15 +136,13 @@ public class BackgroundGeolocation: CAPPlugin,
+@@ -94,15 +198,13 @@ public class BackgroundGeolocation: CAPPlugin,
              )
              let manager = watcher.locationManager
              manager.delegate = self
@@ -88,10 +172,13 @@ index d4a5965..cdb9e69 100644
              var distanceFilter = call.getDouble("distanceFilter")
              // It appears that setting manager.distanceFilter to 0 can prevent
              // subsequent location updates. See issue #88.
-@@ -114,6 +154,12 @@ public class BackgroundGeolocation: CAPPlugin,
+@@ -114,6 +216,15 @@ public class BackgroundGeolocation: CAPPlugin,
              manager.showsBackgroundLocationIndicator = background
              manager.pausesLocationUpdatesAutomatically = false
              self.watchers.append(watcher)
++            if self.watchers.count == 1 {
++                self.startAltimeter()
++            }
 +            if background {
 +                self.backgroundWatcherCount += 1
 +                if self.backgroundWatcherCount == 1 {
@@ -101,7 +188,7 @@ index d4a5965..cdb9e69 100644
              if call.getBool("requestPermissions") != false {
                  let status = CLLocationManager.authorizationStatus()
                  if [
-@@ -145,8 +191,16 @@ public class BackgroundGeolocation: CAPPlugin,
+@@ -145,8 +256,19 @@ public class BackgroundGeolocation: CAPPlugin,
                  if let index = self.watchers.firstIndex(
                      where: { $0.callbackId == callbackId }
                  ) {
@@ -116,6 +203,18 @@ index d4a5965..cdb9e69 100644
 +                            self.stopSilentAudio()
 +                        }
 +                    }
++                    if self.watchers.isEmpty {
++                        self.stopAltimeter()
++                    }
                  }
                  if let savedCall = self.bridge?.savedCall(withID: callbackId) {
                      self.bridge?.releaseCall(savedCall)
+@@ -216,7 +338,7 @@ public class BackgroundGeolocation: CAPPlugin,
+             ) {
+                 if watcher.isLocationValid(location) {
+                     if let call = self.bridge?.savedCall(withID: watcher.callbackId) {
+-                        return call.resolve(formatLocation(location))
++                        return call.resolve(formatLocation(location, barometric: self.latestBarometric))
+                     }
+                 }
+             }

@@ -219,6 +219,13 @@ export function SettingsPanel() {
           min={0.2} max={20} step={0.1} unit="m"
           onChange={v => setRadii({ dotRadius: v })}
         />
+        <SliderRow
+          label="高度倍率 (単色表現)"
+          hint="0 で平面"
+          value={ui.altitudeScale}
+          min={0} max={30} step={0.5} unit="x"
+          onChange={v => setUi({ altitudeScale: v })}
+        />
         <div className="settings-row-actions">
           <button className="settings-btn-secondary" onClick={resetRadii}>
             <Icon icon="lucide:rotate-ccw" />
