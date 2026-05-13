@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "postinstall": "patch-package"
+    "postinstall": "node -e \"process.exit(process.env.VERCEL ? 0 : 1)\" || patch-package"
   },
   "dependencies": {
     "@capacitor-community/background-geolocation": "^1.2.26",
