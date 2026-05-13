@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Icon } from '@iconify/react'
-import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
+import { PathLayer } from '@deck.gl/layers'
 import { EyesIcon } from '../components/gallery/EyesIcon'
 import { BaseMap, useMap, useMapZoom } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
@@ -10,8 +10,8 @@ import { useSettingsStore } from '../store/useSettingsStore'
 import { loadRun } from '../db/runRepository'
 import { buildRunSummary } from '../utils/runSummary'
 import { acceptedPoints } from '../utils/recordingFilters'
-import { effectiveRadius, bucketRadius } from '../utils/effectiveRadius'
-import { getTubeMesh } from '../utils/tubeMesh'
+import { effectiveRadius } from '../utils/effectiveRadius'
+import { buildPathPositions } from '../utils/tubeMesh'
 import { hexToRgb } from '../utils/themePalettes'
 import { useActivePalette } from '../hooks/useActivePalette'
 import {
@@ -437,13 +437,6 @@ export function RunChatPage() {
 
 /* ------------- Map layers + camera control ------------- */
 
-const FLAT_MAT = {
-  ambient: 1,
-  diffuse: 0,
-  shininess: 0,
-  specularColor: [0, 0, 0] as [number, number, number],
-}
-
 interface ChatLayersProps {
   run: Run
   segments: RunSegment[]
@@ -461,15 +454,10 @@ function ChatLayers({ run, segments, highlightSegmentIndex }: ChatLayersProps) {
     [palette.accent],
   )
 
-  const tubeRadius = bucketRadius(
-    effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius),
-  )
-  const highlightRadius = bucketRadius(tubeRadius * 1.6)
+  const tubeWidth = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius) * 2
+  const highlightWidth = tubeWidth * 1.6
 
-  const wholeMesh = useMemo(
-    () => getTubeMesh(`chat-${run.id}`, pts, tubeRadius),
-    [run.id, pts, tubeRadius],
-  )
+  const wholePath = useMemo(() => buildPathPositions(pts), [pts])
 
   const highlightSlice = useMemo(() => {
     if (highlightSegmentIndex === null) return null
@@ -478,14 +466,10 @@ function ChatLayers({ run, segments, highlightSegmentIndex }: ChatLayersProps) {
     return pts.slice(seg.startPointIdx, seg.endPointIdx + 1)
   }, [highlightSegmentIndex, segments, pts])
 
-  const highlightMesh = useMemo(() => {
-    if (!highlightSlice || highlightSlice.length < 2) return null
-    return getTubeMesh(
-      `chat-${run.id}-hl-${highlightSegmentIndex}`,
-      highlightSlice,
-      highlightRadius,
-    )
-  }, [highlightSlice, highlightSegmentIndex, highlightRadius, run.id])
+  const highlightPath = useMemo(
+    () => (highlightSlice && highlightSlice.length >= 2 ? buildPathPositions(highlightSlice) : null),
+    [highlightSlice],
+  )
 
   // カメラ: 全体ハイライトなら全bbox、segmentなら segment slice の bbox にfit
   useEffect(() => {
@@ -503,47 +487,41 @@ function ChatLayers({ run, segments, highlightSegmentIndex }: ChatLayersProps) {
 
   const layers = useMemo(() => {
     const result = []
-    if (wholeMesh) {
+    if (wholePath.length >= 2) {
       const dimAlpha = highlightSegmentIndex !== null ? 110 : 220
+      const wholeColor: [number, number, number, number] = [...accentRgb, dimAlpha]
       result.push(
-        new SimpleMeshLayer({
+        new PathLayer({
           id: 'chat-whole-tube',
-          data: [{ position: wholeMesh.anchor }],
-          mesh: {
-            attributes: {
-              POSITION: { value: wholeMesh.positions, size: 3 },
-              NORMAL: { value: wholeMesh.normals, size: 3 },
-            },
-            indices: { value: wholeMesh.indices, size: 1 },
-          },
-          getPosition: (d: { position: [number, number] }) =>
-            [d.position[0], d.position[1], 0] as [number, number, number],
-          getColor: [...accentRgb, dimAlpha],
-          material: FLAT_MAT,
+          data: [wholePath],
+          getPath: d => d,
+          getColor: wholeColor,
+          getWidth: tubeWidth,
+          widthUnits: 'meters',
+          capRounded: true,
+          jointRounded: true,
+          billboard: true,
+          updateTriggers: { getColor: wholeColor },
         }),
       )
     }
-    if (highlightMesh) {
+    if (highlightPath) {
       result.push(
-        new SimpleMeshLayer({
+        new PathLayer({
           id: 'chat-highlight-tube',
-          data: [{ position: highlightMesh.anchor }],
-          mesh: {
-            attributes: {
-              POSITION: { value: highlightMesh.positions, size: 3 },
-              NORMAL: { value: highlightMesh.normals, size: 3 },
-            },
-            indices: { value: highlightMesh.indices, size: 1 },
-          },
-          getPosition: (d: { position: [number, number] }) =>
-            [d.position[0], d.position[1], 0] as [number, number, number],
+          data: [highlightPath],
+          getPath: d => d,
           getColor: [180, 255, 200, 255],
-          material: FLAT_MAT,
+          getWidth: highlightWidth,
+          widthUnits: 'meters',
+          capRounded: true,
+          jointRounded: true,
+          billboard: true,
         }),
       )
     }
     return result
-  }, [wholeMesh, highlightMesh, highlightSegmentIndex, accentRgb])
+  }, [wholePath, highlightPath, highlightSegmentIndex, accentRgb, tubeWidth, highlightWidth])
 
   return <DeckOverlay layers={layers} />
 }

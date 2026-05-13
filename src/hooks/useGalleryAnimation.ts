@@ -32,19 +32,19 @@ export function positionAtTime(run: Run, loopSec: number): [number, number] | nu
 }
 
 /**
- * loopSec の時点での相対高度 (m, 先頭の有効値を 0 基準) を返す。null は前値継続、
+ * loopSec の時点での相対高度 (m, 全点中の最低値を 0 基準) を返す。null は前値継続、
  * 先頭で値が無い間は 0。tube 側の relativeAltitudes と同じ規約。
  */
 export function relAltitudeAtTime(run: Run, loopSec: number): number {
   const pts = acceptedPoints(run.trackPoints)
   if (pts.length === 0) return 0
 
-  let baseline: number | null = null
+  let baseline = Infinity
   for (const p of pts) {
     const v = rawAltitude(p)
-    if (v != null) { baseline = v; break }
+    if (v != null && v < baseline) baseline = v
   }
-  if (baseline == null) return 0
+  if (!Number.isFinite(baseline)) return 0
 
   const absTs = run.startedAt + loopSec * 1000
   if (absTs <= pts[0].timestamp) {

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
-import { SphereGeometry } from '@luma.gl/engine'
+import { PathLayer, ScatterplotLayer } from '@deck.gl/layers'
 import { Icon } from '@iconify/react'
 import { BaseMap, useMap, useMapZoom } from '../components/map/BaseMap'
 import { DeckOverlay } from '../components/map/DeckOverlay'
@@ -15,8 +14,8 @@ import { useSettingsStore } from '../store/useSettingsStore'
 import { SettingsPanel } from '../components/gallery/SettingsPanel'
 import { RunTile } from '../components/gallery/RunTile'
 import { EyesIcon } from '../components/gallery/EyesIcon'
-import { getTubeMesh } from '../utils/tubeMesh'
-import { effectiveRadius, bucketRadius } from '../utils/effectiveRadius'
+import { buildPathPositions } from '../utils/tubeMesh'
+import { effectiveRadius } from '../utils/effectiveRadius'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { useGalleryAnimation } from '../hooks/useGalleryAnimation'
 import { hexToRgb } from '../utils/themePalettes'
@@ -28,7 +27,6 @@ import { useTransitionStore } from '../store/useTransitionStore'
 import type { DotPosition } from '../hooks/useGalleryAnimation'
 import type { Run } from '../types'
 
-const sphere = new SphereGeometry({ radius: 1, nlat: 20, nlong: 20 })
 const MIN_ZOOM = 12.5
 // 現在位置(=自己位置)dotは過去ランの軌跡dotより少し大きく強調する。
 const CURRENT_DOT_SCALE = 1.2
@@ -68,63 +66,62 @@ function GalleryLayers({
   const tubeColor: [number, number, number, number] = [...accentRgb, Math.round(128 * t)]
   const dotColor: [number, number, number, number] = [...accentRgb, Math.round(255 * t)]
   const currentDotColor: [number, number, number, number] = [...accentRgb, 255]
-  const mat = { ambient: 1, diffuse: 0, shininess: 0, specularColor: [0, 0, 0] as [number, number, number] }
 
-  const sphereRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
-  const tubeRadius = bucketRadius(
-    effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius),
+  const dotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
+  const tubeWidth = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius) * 2
+
+  const runPaths = useMemo(
+    () =>
+      runs
+        .map(run => ({
+          id: run.id,
+          path: buildPathPositions(acceptedPoints(run.trackPoints)),
+        }))
+        .filter(r => r.path.length >= 2),
+    [runs],
   )
 
   const layers = useMemo(() => {
     if (t === 0) return []
-    const tubeLayers: SimpleMeshLayer[] = []
-    for (const run of runs) {
-      const pts = acceptedPoints(run.trackPoints)
-      const mesh = getTubeMesh(run.id, pts, tubeRadius)
-      if (!mesh) continue
-      tubeLayers.push(new SimpleMeshLayer({
-        id: `run-tube-${run.id}`,
-        data: [{ position: mesh.anchor }],
-        mesh: {
-          attributes: {
-            POSITION: { value: mesh.positions, size: 3 },
-            NORMAL: { value: mesh.normals, size: 3 },
-          },
-          indices: { value: mesh.indices, size: 1 },
-        },
-        getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
-        getColor: tubeColor,
-        material: mat,
-        pickable: true,
-        onClick: () => { navigate(`/run/${run.id}`) },
-      }))
-    }
+    const tubeLayer = new PathLayer<{ id: string; path: [number, number, number][] }>({
+      id: 'gallery-tubes',
+      data: runPaths,
+      getPath: d => d.path,
+      getColor: tubeColor,
+      getWidth: tubeWidth,
+      widthUnits: 'meters',
+      capRounded: true,
+      jointRounded: true,
+      billboard: true,
+      pickable: true,
+      onClick: info => {
+        if (info.object) navigate(`/run/${info.object.id}`)
+      },
+      updateTriggers: { getColor: tubeColor },
+    })
+    const dotsLayer = new ScatterplotLayer({
+      id: 'gallery-dots',
+      data: dots,
+      getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0],
+      getRadius: dotRadius,
+      radiusUnits: 'meters',
+      getFillColor: dotColor,
+      billboard: true,
+      updateTriggers: { getFillColor: dotColor },
+    })
     const currentPosLayer = currentPosition
-      ? new SimpleMeshLayer({
+      ? new ScatterplotLayer({
           id: 'gallery-current-pos',
-          // Same sphere asset as /record's live-dot so the visual is identical.
           data: [{ position: currentPosition }],
-          mesh: sphere,
-          getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
-          getScale: [sphereRadius * CURRENT_DOT_SCALE, sphereRadius * CURRENT_DOT_SCALE, sphereRadius * CURRENT_DOT_SCALE],
-          getColor: currentDotColor,
-          material: mat,
+          getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0],
+          getRadius: dotRadius * CURRENT_DOT_SCALE,
+          radiusUnits: 'meters',
+          getFillColor: currentDotColor,
+          billboard: true,
         })
       : null
-    return [
-      ...tubeLayers,
-      new SimpleMeshLayer({
-        id: 'gallery-dots',
-        data: dots,
-        mesh: sphere,
-        getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
-        getScale: [sphereRadius, sphereRadius, sphereRadius],
-        getColor: dotColor,
-        material: mat,
-      }),
-      ...(currentPosLayer ? [currentPosLayer] : []),
-    ]
-  }, [runs, dots, currentPosition, t, sphereRadius, tubeRadius, accentRgb])
+    return [tubeLayer, dotsLayer, ...(currentPosLayer ? [currentPosLayer] : [])]
+  }, [runPaths, dots, currentPosition, t, dotRadius, tubeWidth, tubeColor, dotColor, currentDotColor, navigate])
 
   return <DeckOverlay layers={layers} />
 }

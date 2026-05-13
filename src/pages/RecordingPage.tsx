@@ -1,7 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from "react";
 import {useNavigate} from "react-router-dom";
-import {SimpleMeshLayer} from "@deck.gl/mesh-layers";
-import {SphereGeometry, CylinderGeometry} from "@luma.gl/engine";
+import {PathLayer, ScatterplotLayer} from "@deck.gl/layers";
 import {Icon} from "@iconify/react";
 import {BaseMap, useMap, useMapZoom} from "../components/map/BaseMap";
 import {DeckOverlay} from "../components/map/DeckOverlay";
@@ -14,15 +13,12 @@ import {hexToRgb} from "../utils/themePalettes";
 import {useRunStore} from "../store/useRunStore";
 import {useSettingsStore, type Radii} from "../store/useSettingsStore";
 import {useTransitionStore} from "../store/useTransitionStore";
-import {buildTubeSegments, buildTubeJoints} from "../utils/tubeData";
 import {effectiveRadius} from "../utils/effectiveRadius";
 import {acceptedPoints, accuracyGate, warmupGate, minDistanceGate, maxSpeedGate} from "../utils/recordingFilters";
 import {fetchAreaName} from "../hooks/useReverseGeocode";
 import {RecordingDebugPanel} from "../components/recording/RecordingDebugPanel";
 import type {Run, TrackPoint} from "../types";
 
-const sphere = new SphereGeometry({radius: 1, nlat: 20, nlong: 20});
-const cylinder = new CylinderGeometry({radius: 1, height: 1, nradial: 12});
 const MIN_ZOOM = 12.5;
 // 現在位置(=自己位置)dotは過去ランの軌跡dotより少し大きく強調する。
 const CURRENT_DOT_SCALE = 1.2;
@@ -209,22 +205,17 @@ function RecordingLayers({
     [palette.accent],
   );
 
-  const tubeRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius);
-  const rawTubeRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.rawTubeRadius);
+  const tubeWidth = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius) * 2;
+  const rawTubeWidth = effectiveRadius(zoom, radii.zoomThreshold, radii.rawTubeRadius) * 2;
   const baseDotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius);
   const dotRadius = baseDotRadius * CURRENT_DOT_SCALE;
-  const jointRadius = tubeRadius * 1.02;
 
-  const tubeData = useMemo(
-    () => buildTubeSegments(acceptedTrackPoints),
+  const acceptedPath = useMemo(
+    () => acceptedTrackPoints.map(p => [p.lng, p.lat, 0] as [number, number, number]),
     [acceptedTrackPoints],
   );
-  const jointData = useMemo(
-    () => buildTubeJoints(acceptedTrackPoints),
-    [acceptedTrackPoints],
-  );
-  const rawTubeData = useMemo(
-    () => buildTubeSegments(trackPoints),
+  const rawPath = useMemo(
+    () => trackPoints.map(p => [p.lng, p.lat, 0] as [number, number, number]),
     [trackPoints],
   );
   const dotData = useMemo(() => {
@@ -249,62 +240,53 @@ function RecordingLayers({
     ...accentRgb,
     Math.round(255 * t),
   ];
-  const mat = {
-    ambient: 1,
-    diffuse: 0,
-    shininess: 0,
-    specularColor: [0, 0, 0] as [number, number, number],
-  };
 
   const layers = useMemo(() => {
     if (t === 0) return [];
-    const rawTubeLayer = showRawTube
-      ? new SimpleMeshLayer({
+    const rawTubeLayer = showRawTube && rawPath.length >= 2
+      ? new PathLayer({
           id: "raw-tube",
-          data: rawTubeData,
-          mesh: cylinder,
-          getPosition: (d) => d.position,
-          getScale: (d) => [rawTubeRadius, d.length, rawTubeRadius],
-          getOrientation: (d) => d.orientation,
+          data: [rawPath],
+          getPath: d => d,
           getColor: rawTubeColor,
-          material: mat,
-          updateTriggers: {getScale: rawTubeRadius},
+          getWidth: rawTubeWidth,
+          widthUnits: "meters",
+          capRounded: true,
+          jointRounded: true,
+          billboard: true,
+          updateTriggers: {getColor: rawTubeColor},
         })
       : null;
+    const liveTubeLayer = acceptedPath.length >= 2
+      ? new PathLayer({
+          id: "live-tube",
+          data: [acceptedPath],
+          getPath: d => d,
+          getColor: tubeColor,
+          getWidth: tubeWidth,
+          widthUnits: "meters",
+          capRounded: true,
+          jointRounded: true,
+          billboard: true,
+          updateTriggers: {getColor: tubeColor},
+        })
+      : null;
+    const dotLayer = new ScatterplotLayer({
+      id: "live-dot",
+      data: dotData,
+      getPosition: (d: {position: [number, number]}) => [d.position[0], d.position[1], 0],
+      getRadius: dotRadius,
+      radiusUnits: "meters",
+      getFillColor: dotColor,
+      billboard: true,
+      updateTriggers: {getFillColor: dotColor},
+    });
     return [
       ...(rawTubeLayer ? [rawTubeLayer] : []),
-      new SimpleMeshLayer({
-        id: "live-tube",
-        data: tubeData,
-        mesh: cylinder,
-        getPosition: (d) => d.position,
-        getScale: (d) => [tubeRadius, d.length, tubeRadius],
-        getOrientation: (d) => d.orientation,
-        getColor: tubeColor,
-        material: mat,
-        updateTriggers: {getScale: tubeRadius},
-      }),
-      new SimpleMeshLayer({
-        id: "live-joints",
-        data: jointData,
-        mesh: sphere,
-        getPosition: (d) => d.position,
-        getScale: [jointRadius, jointRadius, jointRadius],
-        getColor: tubeColor,
-        material: mat,
-      }),
-      new SimpleMeshLayer({
-        id: "live-dot",
-        data: dotData,
-        mesh: sphere,
-        getPosition: (d: {position: [number, number]}) =>
-          [d.position[0], d.position[1], 0] as [number, number, number],
-        getScale: [dotRadius, dotRadius, dotRadius],
-        getColor: dotColor,
-        material: mat,
-      }),
+      ...(liveTubeLayer ? [liveTubeLayer] : []),
+      dotLayer,
     ];
-  }, [tubeData, jointData, rawTubeData, dotData, t, tubeRadius, rawTubeRadius, dotRadius, jointRadius, accentRgb, showRawTube]);
+  }, [acceptedPath, rawPath, dotData, t, tubeWidth, rawTubeWidth, dotRadius, tubeColor, rawTubeColor, dotColor, showRawTube]);
 
   return <DeckOverlay layers={layers} />;
 }
@@ -319,7 +301,7 @@ export function RecordingPage() {
   const resetFilterSettings = useSettingsStore(s => s.resetFilterSettings);
   const filters = useMemo(
     () => [
-      accuracyGate(20),
+      accuracyGate(9),
       warmupGate(3000),
       minDistanceGate(5),
       maxSpeedGate(filterSettings.maxSpeed),

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
-import { SphereGeometry } from '@luma.gl/engine'
+import { PathLayer } from '@deck.gl/layers'
+import { ScatterplotLayer } from '@deck.gl/layers'
 import { Icon } from '@iconify/react'
 import { EyesIcon } from '../components/gallery/EyesIcon'
 import { BaseMap, useMap, useMapZoom } from '../components/map/BaseMap'
@@ -15,8 +15,8 @@ import { useActivePalette } from '../hooks/useActivePalette'
 import { hexToRgb } from '../utils/themePalettes'
 import { useRunStore } from '../store/useRunStore'
 import { positionAtTime, relAltitudeAtTime } from '../hooks/useGalleryAnimation'
-import { getTubeMesh } from '../utils/tubeMesh'
-import { effectiveRadius, bucketRadius } from '../utils/effectiveRadius'
+import { buildPathPositions } from '../utils/tubeMesh'
+import { effectiveRadius } from '../utils/effectiveRadius'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { fetchAreaName } from '../hooks/useReverseGeocode'
@@ -28,7 +28,6 @@ import { getMemoryStore, petampCharacter } from '../character'
 import type { EpisodicMemory } from '../character'
 import type { Run } from '../types'
 
-const sphere = new SphereGeometry({ radius: 1, nlat: 20, nlong: 20 })
 const MIN_ZOOM = 12.5
 const FIT_MAX_ZOOM = 17
 
@@ -73,13 +72,11 @@ function DetailLayers({
 
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5))
   const pts = useMemo(() => acceptedPoints(run.trackPoints), [run])
-  const tubeRadius = bucketRadius(
-    effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius),
-  )
+  const tubeWidth = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius) * 2
   const dotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
-  const tubeMesh = useMemo(
-    () => getTubeMesh(run.id, pts, tubeRadius, 12, altitudeScale),
-    [run.id, pts, tubeRadius, altitudeScale],
+  const pathPositions = useMemo(
+    () => buildPathPositions(pts, altitudeScale),
+    [pts, altitudeScale],
   )
 
   // マップ非表示時は白+黒、表示時はグレー+アクセント
@@ -89,40 +86,38 @@ function DetailLayers({
   const dotColor: [number, number, number, number] = mapVisible
     ? [...accentRgb, Math.round(255 * t)]
     : [255, 255, 255, 255]
-  const mat = { ambient: 1, diffuse: 0, shininess: 0, specularColor: [0, 0, 0] as [number, number, number] }
 
   const layers = useMemo(() => {
-    const tubeLayer = tubeMesh
-      ? new SimpleMeshLayer({
-          id: 'run-tube',
-          data: [{ position: tubeMesh.anchor }],
-          mesh: {
-            attributes: {
-              POSITION: { value: tubeMesh.positions, size: 3 },
-              NORMAL: { value: tubeMesh.normals, size: 3 },
-            },
-            indices: { value: tubeMesh.indices, size: 1 },
-          },
-          getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0] as [number, number, number],
-          getColor: tubeColor,
-          material: mat,
-        })
-      : null
-    const dotLayer = new SimpleMeshLayer({
+    if (mapVisible && t === 0) return []
+    if (pathPositions.length < 2) return []
+    const tubeLayer = new PathLayer({
+      id: 'run-tube',
+      data: [pathPositions],
+      getPath: d => d,
+      getColor: tubeColor,
+      getWidth: tubeWidth,
+      widthUnits: 'meters',
+      capRounded: true,
+      jointRounded: true,
+      billboard: true,
+      updateTriggers: { getColor: tubeColor },
+    })
+    const dotLayer = new ScatterplotLayer({
       id: 'run-dot',
       data: dotData,
-      mesh: sphere,
       getPosition: (d: { position: [number, number, number] }) => d.position,
-      getScale: [dotRadius, dotRadius, dotRadius],
-      getColor: dotColor,
-      material: mat,
+      getRadius: dotRadius,
+      radiusUnits: 'meters',
+      getFillColor: dotColor,
+      billboard: true,
+      updateTriggers: { getFillColor: dotColor },
     })
-    if (!mapVisible) return tubeLayer ? [tubeLayer, dotLayer] : [dotLayer]
-    if (t === 0) return []
-    return tubeLayer ? [tubeLayer, dotLayer] : [dotLayer]
-  }, [tubeMesh, dotData, t, mapVisible, dotRadius, accentRgb])
+    return [tubeLayer, dotLayer]
+  }, [pathPositions, dotData, t, mapVisible, tubeWidth, dotRadius, tubeColor, dotColor])
 
-  return <DeckOverlay layers={layers} />
+  // 単色表現時は .map-canvas の mask/inset で path が縁で fade してしまうため、
+  // deck.gl を sibling として全画面に出す。
+  return <DeckOverlay layers={layers} mode={mapVisible ? 'mapbox' : 'fullscreen'} />
 }
 
 export function RunDetailPage() {
