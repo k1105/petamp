@@ -62,16 +62,20 @@ function DetailLayers({
   // 単色表現 (mapVisible=false) の時だけ高度を z 軸に反映。マップ表示時は平面。
   const altitudeScale = mapVisible ? 0 : altitudeScaleSetting
 
+  // 動点と tube で高度フィルタの入力配列を共有させるため pts を先に確定させる。
+  // 同じ参照を relAltitudeAtTime と buildPathPositions の双方に渡し、WeakMap
+  // キャッシュがヒットして同一のフィルタ結果が使われるようにする。
+  const pts = useMemo(() => acceptedPoints(run.trackPoints), [run])
+
   const dotData = useMemo(() => {
     const pos = positionAtTime(run, currentTime)
     if (!pos) return []
-    const z = altitudeScale > 0 ? relAltitudeAtTime(run, currentTime) * altitudeScale : 0
+    const z = altitudeScale > 0 ? relAltitudeAtTime(run, currentTime, pts) * altitudeScale : 0
     return [{ position: [pos[0], pos[1], z] as [number, number, number] }]
-  }, [run, currentTime, altitudeScale])
+  }, [run, currentTime, altitudeScale, pts])
 
 
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5))
-  const pts = useMemo(() => acceptedPoints(run.trackPoints), [run])
   const tubeWidth = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius) * 2
   const dotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
   const pathPositions = useMemo(

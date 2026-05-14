@@ -1691,6 +1691,38 @@
   gap: 10px;
 }
 
+.debug-filter-details {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.debug-filter-details > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  user-select: none;
+  padding: 2px 0;
+}
+
+.debug-filter-details > summary:hover {
+  color: var(--text);
+}
+
+.debug-filter-details[open] > summary {
+  margin-bottom: 10px;
+  color: var(--text);
+}
+
+.debug-filter-details .debug-summary {
+  margin-top: 10px;
+}
+
+.debug-filter-reset {
+  align-self: flex-start;
+  font-size: 11px;
+}
+
 .debug-toggle-row {
   display: flex;
   align-items: center;

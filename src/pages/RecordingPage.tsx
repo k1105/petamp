@@ -301,7 +301,7 @@ export function RecordingPage() {
   const resetFilterSettings = useSettingsStore(s => s.resetFilterSettings);
   const filters = useMemo(
     () => [
-      accuracyGate(9),
+      accuracyGate(15),
       warmupGate(3000),
       minDistanceGate(5),
       maxSpeedGate(filterSettings.maxSpeed),

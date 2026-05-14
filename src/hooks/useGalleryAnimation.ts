@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Run } from '../types'
+import type { Run, TrackPoint } from '../types'
 import { acceptedPoints } from '../utils/recordingFilters'
-import { rawAltitude } from '../utils/tubeMesh'
+import { getFilteredAltitudeMap } from '../utils/altitudeFilters'
 
 export interface DotPosition {
   runId: string
@@ -34,27 +34,39 @@ export function positionAtTime(run: Run, loopSec: number): [number, number] | nu
 /**
  * loopSec の時点での相対高度 (m, 全点中の最低値を 0 基準) を返す。null は前値継続、
  * 先頭で値が無い間は 0。tube 側の relativeAltitudes と同じ規約。
+ *
+ * 高度値は altitudeFilters のパイプラインを通したあとの値を使う。動点と tube の
+ * 高度を一致させるため、フィルタ入力は呼び出し側が memoize した accepted-points
+ * (pts) を渡して共有する。省略時は内部で acceptedPoints() を呼ぶ。
  */
-export function relAltitudeAtTime(run: Run, loopSec: number): number {
-  const pts = acceptedPoints(run.trackPoints)
+export function relAltitudeAtTime(run: Run, loopSec: number, ptsArg?: TrackPoint[]): number {
+  const pts = ptsArg ?? acceptedPoints(run.trackPoints)
   if (pts.length === 0) return 0
+
+  // pts の参照同一性でキャッシュされる。呼び出し側で useMemo していれば毎フレーム
+  // ヒットする。
+  const altMap = getFilteredAltitudeMap(pts)
+  const altOf = (p: TrackPoint): number | null => {
+    const v = altMap.get(p)
+    return v != null ? v : null
+  }
 
   let baseline = Infinity
   for (const p of pts) {
-    const v = rawAltitude(p)
+    const v = altOf(p)
     if (v != null && v < baseline) baseline = v
   }
   if (!Number.isFinite(baseline)) return 0
 
   const absTs = run.startedAt + loopSec * 1000
   if (absTs <= pts[0].timestamp) {
-    const v = rawAltitude(pts[0])
+    const v = altOf(pts[0])
     return v != null ? v - baseline : 0
   }
   if (absTs >= pts[pts.length - 1].timestamp) {
     // 末尾から逆走して有効値を探す (末尾だけ null の場合に備える)
     for (let i = pts.length - 1; i >= 0; i--) {
-      const v = rawAltitude(pts[i])
+      const v = altOf(pts[i])
       if (v != null) return v - baseline
     }
     return 0
@@ -68,8 +80,8 @@ export function relAltitudeAtTime(run: Run, loopSec: number): number {
   }
 
   // a/b のどちらか欠損は他方を採用、両方欠損は 0 (= ベースラインのまま)
-  const va = rawAltitude(pts[lo])
-  const vb = rawAltitude(pts[hi])
+  const va = altOf(pts[lo])
+  const vb = altOf(pts[hi])
   if (va == null && vb == null) return 0
   if (va == null) return (vb as number) - baseline
   if (vb == null) return va - baseline

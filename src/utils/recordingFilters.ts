@@ -36,7 +36,7 @@ export function maxSpeedGate(maxMetersPerSecond: number): PointFilter {
 
 export function defaultFilters(): PointFilter[] {
   return [
-    accuracyGate(9),
+    accuracyGate(15),
     warmupGate(3000),
     minDistanceGate(5),
     maxSpeedGate(15),

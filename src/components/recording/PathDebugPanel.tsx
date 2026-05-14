@@ -2,6 +2,12 @@ import { useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import type { TrackPoint } from '../../types'
 import { useReverseGeocode } from '../../hooks/useReverseGeocode'
+import {
+  applyAltitudePipeline,
+  DEFAULT_ALTITUDE_FILTER_PARAMS,
+  rawAltitudeOf,
+  type AltitudeFilterParams,
+} from '../../utils/altitudeFilters'
 
 interface Props {
   trackPoints: TrackPoint[]
@@ -14,6 +20,7 @@ interface Props {
 export function PathDebugPanel({ trackPoints, areaName, onProceed, onCancel, proceedLabel = '結果画面へ' }: Props) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'ok' | 'fail'>('idle')
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'ok' | 'fail'>('idle')
+  const [filterParams, setFilterParams] = useState<AltitudeFilterParams>(DEFAULT_ALTITUDE_FILTER_PARAMS)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // textarea 表示用 (人間が中身を spot-check する用途)。
@@ -44,6 +51,27 @@ export function PathDebugPanel({ trackPoints, areaName, onProceed, onCancel, pro
       bbox: { latMin, latMax, lngMin, lngMax },
     }
   }, [trackPoints])
+
+  // 現在のスライダー値でフィルタを適用した結果の統計。
+  // 生 altitude (raw, barometric > GPS) と、パイプライン後の値を比較する。
+  const filterStats = useMemo(() => {
+    if (trackPoints.length === 0) return null
+    const raw = trackPoints.map(rawAltitudeOf)
+    const filtered = applyAltitudePipeline(trackPoints, filterParams)
+    const rawValid = raw.filter((v): v is number => v != null)
+    const filtValid = filtered.filter((v): v is number => v != null)
+    const stats = (xs: number[]) => {
+      if (xs.length === 0) return null
+      let mn = Infinity
+      let mx = -Infinity
+      for (const v of xs) {
+        if (v < mn) mn = v
+        if (v > mx) mx = v
+      }
+      return { count: xs.length, min: mn, max: mx, range: mx - mn }
+    }
+    return { raw: stats(rawValid), filtered: stats(filtValid) }
+  }, [trackPoints, filterParams])
 
   const fetchedAreaName = useReverseGeocode(
     areaName ? null : summary?.centerLng,
@@ -137,6 +165,70 @@ export function PathDebugPanel({ trackPoints, areaName, onProceed, onCancel, pro
           <div className="debug-empty">trackPoints は空です</div>
         )}
 
+        {trackPoints.length > 0 && (
+          <details className="debug-filter-details">
+            <summary>高度フィルタ閾値テスト</summary>
+            <div className="debug-sliders">
+              <SliderRow
+                label="垂直精度ゲート"
+                value={filterParams.accuracyMaxM}
+                min={1}
+                max={50}
+                step={1}
+                unit="m"
+                onChange={v => setFilterParams(p => ({ ...p, accuracyMaxM: v }))}
+              />
+              <SliderRow
+                label="垂直速度ゲート"
+                value={filterParams.verticalSpeedMaxMps}
+                min={0.5}
+                max={20}
+                step={0.5}
+                unit="m/s"
+                onChange={v => setFilterParams(p => ({ ...p, verticalSpeedMaxMps: v }))}
+              />
+              <SliderRow
+                label="メディアン kernel"
+                value={filterParams.medianKernel}
+                min={1}
+                max={31}
+                step={2}
+                unit=""
+                onChange={v => setFilterParams(p => ({ ...p, medianKernel: v }))}
+              />
+              <SliderRow
+                label="移動平均 window"
+                value={filterParams.movingAvgWindow}
+                min={1}
+                max={31}
+                step={1}
+                unit=""
+                onChange={v => setFilterParams(p => ({ ...p, movingAvgWindow: v }))}
+              />
+              <button
+                type="button"
+                className="btn-ghost debug-filter-reset"
+                onClick={() => setFilterParams(DEFAULT_ALTITUDE_FILTER_PARAMS)}
+              >
+                <Icon icon="lucide:rotate-ccw" />
+                <span>デフォルトに戻す</span>
+              </button>
+            </div>
+            {filterStats && (
+              <dl className="debug-summary">
+                <div><dt>raw 有効点</dt><dd>{filterStats.raw?.count ?? 0}</dd></div>
+                <div><dt>フィルタ後 有効点</dt><dd>{filterStats.filtered?.count ?? 0}</dd></div>
+                {filterStats.raw && (
+                  <div><dt>raw 高度範囲</dt><dd>{filterStats.raw.min.toFixed(1)} 〜 {filterStats.raw.max.toFixed(1)} m ({filterStats.raw.range.toFixed(1)})</dd></div>
+                )}
+                {filterStats.filtered && (
+                  <div><dt>フィルタ後 高度範囲</dt><dd>{filterStats.filtered.min.toFixed(1)} 〜 {filterStats.filtered.max.toFixed(1)} m ({filterStats.filtered.range.toFixed(1)})</dd></div>
+                )}
+              </dl>
+            )}
+          </details>
+        )}
+
         <textarea
           ref={textareaRef}
           className="debug-textarea"
@@ -171,6 +263,35 @@ export function PathDebugPanel({ trackPoints, areaName, onProceed, onCancel, pro
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function SliderRow({
+  label, value, min, max, step, unit, onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  unit: string
+  onChange: (v: number) => void
+}) {
+  return (
+    <div className="debug-slider-row">
+      <div className="debug-slider-head">
+        <span className="debug-slider-label">{label}</span>
+        <span className="debug-slider-value">{value % 1 === 0 ? value : value.toFixed(1)} {unit}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={e => onChange(Number(e.currentTarget.value))}
+      />
     </div>
   )
 }
