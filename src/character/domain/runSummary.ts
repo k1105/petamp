@@ -3,9 +3,13 @@
  * ここを純粋関数で計算しておくことで、LLM出力の品質を切り分けて評価できる。
  */
 
+import type { BehaviorState } from '../../utils/runBehavior'
+
 export interface RunSegment {
-  /** 0-based, 通常は0..5 (6セグ等分)。 */
+  /** 0-based の連番。振る舞いベースで切られるため可変個数。 */
   index: number
+  /** 区間全体の振る舞いラベル。 */
+  behavior: BehaviorState
   /** 累積距離(m)。区間の始端と終端。 */
   startDistanceM: number
   endDistanceM: number
@@ -23,7 +27,6 @@ export interface RunSegment {
 }
 
 export type RunEventKind =
-  | 'stop'             // value = 停止秒数
   | 'climb_burst'      // value = 上昇 m
   | 'descent_burst'    // value = 下降 m
   | 'u_turn'           // value = 方向変化角(deg)
@@ -85,7 +88,7 @@ export interface RunSummary {
     paceRatio: number
     elevationRatio: number
   }
-  /** 距離6等分セグメント。 */
+  /** 振る舞いベースで切られたセグメント (resting/walking/running)。 */
   segments: RunSegment[]
   /** 特徴的な瞬間。最大~8件にキャップ。 */
   events: RunEvent[]

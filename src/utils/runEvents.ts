@@ -4,8 +4,6 @@ import { acceptedPoints } from './recordingFilters'
 import { bearing, bearingDelta, haversineDistance, smoothAltitudes } from './geoUtils'
 import { computeCumulativeDistances } from './runSegments'
 
-const STOP_SPEED_MPS = 0.5
-const STOP_MIN_DURATION_SEC = 10
 const CLIMB_DELTA_M = 12
 const CLIMB_WINDOW_M = 200
 const DESCENT_DELTA_M = 12
@@ -31,7 +29,6 @@ export function detectRunEvents(run: Run, segments: RunSegment[]): RunEvent[] {
   const events: RunEvent[] = []
   const findSeg = (progress: number) => segmentIndexAtProgress(segments, progress, totalDist)
 
-  pushAll(events, detectStops(pts, cumDist, totalDist, findSeg))
   pushAll(events, detectClimbBursts(pts, cumDist, totalDist, findSeg))
   pushAll(events, detectDescentBursts(pts, cumDist, totalDist, findSeg))
   pushAll(events, detectUTurns(pts, cumDist, totalDist, findSeg))
@@ -55,47 +52,6 @@ function segmentIndexAtProgress(
     if (dist <= s.endDistanceM + 1e-6) return s.index
   }
   return segments[segments.length - 1].index
-}
-
-function detectStops(
-  pts: TrackPoint[], cumDist: number[], totalDist: number,
-  findSeg: (p: number) => number,
-): RunEvent[] {
-  const out: RunEvent[] = []
-  let i = 1
-  while (i < pts.length) {
-    const dt = (pts[i].timestamp - pts[i - 1].timestamp) / 1000
-    const d = cumDist[i] - cumDist[i - 1]
-    const speed = dt > 0 ? d / dt : 0
-    if (speed < STOP_SPEED_MPS) {
-      // accumulate run of slow points
-      const stopStart = i - 1
-      let j = i
-      while (j < pts.length) {
-        const ddt = (pts[j].timestamp - pts[j - 1].timestamp) / 1000
-        const dd = cumDist[j] - cumDist[j - 1]
-        const sp = ddt > 0 ? dd / ddt : 0
-        if (sp >= STOP_SPEED_MPS) break
-        j++
-      }
-      const durSec = (pts[Math.min(j, pts.length - 1)].timestamp - pts[stopStart].timestamp) / 1000
-      if (durSec >= STOP_MIN_DURATION_SEC) {
-        const midIdx = Math.floor((stopStart + Math.min(j, pts.length - 1)) / 2)
-        const progress = cumDist[midIdx] / totalDist
-        out.push({
-          kind: 'stop',
-          progress,
-          segmentIndex: findSeg(progress),
-          value: Math.round(durSec),
-          description: `${Math.round(durSec)}秒止まっていた`,
-        })
-      }
-      i = j + 1
-    } else {
-      i++
-    }
-  }
-  return out
 }
 
 function detectClimbBursts(
@@ -283,7 +239,6 @@ function rankAndCap(events: RunEvent[]): RunEvent[] {
       case 'revisit': return 80
       case 'climb_burst': return 60 + e.value
       case 'descent_burst': return 40 + e.value
-      case 'stop': return 50 + Math.min(60, e.value)
       case 'pace_anomaly_slow':
       case 'pace_anomaly_fast': return 30 + Math.abs(1 - e.value) * 100
     }

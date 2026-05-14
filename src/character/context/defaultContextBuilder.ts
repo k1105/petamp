@@ -5,7 +5,7 @@ import type {
   RelationalState,
   SemanticMemory,
 } from '../domain/memory'
-import type { RunSummary } from '../domain/runSummary'
+import type { RunSegment, RunSummary } from '../domain/runSummary'
 import type { LLMMessage, LLMReply } from '../llm/client'
 import type { MemoryStore } from '../memory/store'
 import type {
@@ -194,9 +194,10 @@ function renderRunSummary(s: RunSummary): string {
       const startKm = (seg.startDistanceM / 1000).toFixed(2)
       const endKm = (seg.endDistanceM / 1000).toFixed(2)
       const pace = seg.avgPaceSecPerKm !== null ? `${formatPace(seg.avgPaceSecPerKm)}/km` : '?'
-      return `seg ${seg.index}: ${startKm}-${endKm}km, ${pace}, ↑${Math.round(seg.elevationGainM)}m ↓${Math.round(seg.elevationLossM)}m`
+      const dur = formatDuration(seg.durationSec)
+      return `seg ${seg.index} (${describeBehavior(seg.behavior)}): ${startKm}-${endKm}km, ${dur}, ${pace}, ↑${Math.round(seg.elevationGainM)}m ↓${Math.round(seg.elevationLossM)}m`
     })
-    sections.push(['セグメント (距離6等分):', ...segLines].join('\n'))
+    sections.push(['セグメント (振る舞いベース):', ...segLines].join('\n'))
   }
 
   if (s.events.length > 0) {
@@ -227,6 +228,21 @@ function formatPace(secPerKm: number): string {
   const m = Math.floor(secPerKm / 60)
   const s = Math.round(secPerKm - m * 60)
   return `${m}'${s.toString().padStart(2, '0')}"`
+}
+
+function formatDuration(sec: number): string {
+  const total = Math.max(0, Math.round(sec))
+  const m = Math.floor(total / 60)
+  const s = total - m * 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+function describeBehavior(b: RunSegment['behavior']): string {
+  switch (b) {
+    case 'resting': return '止まっていた'
+    case 'walking': return '歩いていた'
+    case 'running': return '走っていた'
+  }
 }
 
 /** few-shot1組をuser/assistant 2メッセージに展開。assistantはJSON文字列。 */

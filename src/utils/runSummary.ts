@@ -2,7 +2,7 @@ import type { Run } from '../types'
 import type { RunSummary } from '../character'
 import { elevationGain, elevationLoss, totalDistance } from './geoUtils'
 import { acceptedPoints } from './recordingFilters'
-import { buildRunSegments } from './runSegments'
+import { buildBehaviorSegments } from './runSegments'
 import { detectRunEvents } from './runEvents'
 import { analyzeRunTopology } from './runTopology'
 import { computePaceDistribution } from './runPaceDistribution'
@@ -24,7 +24,7 @@ export function buildRunSummary(run: Run): RunSummary {
   const avgPaceSecPerKm =
     distanceM > 0 ? Math.round((durationSec / distanceM) * 1000) : null
 
-  const segments = buildRunSegments(run)
+  const segments = buildBehaviorSegments(run)
   const rawEvents = detectRunEvents(run, segments)
   const topology = analyzeRunTopology(run)
   const paceDistribution = computePaceDistribution(run)
@@ -44,7 +44,7 @@ export function buildRunSummary(run: Run): RunSummary {
     elevationLossM: elevationLoss(pts),
     avgPaceSecPerKm,
     timeOfDay: timeOfDayLabel(startHour),
-    stopCount: events.filter(e => e.kind === 'stop').length,
+    stopCount: segments.filter(s => s.behavior === 'resting').length,
     noteCount: run.notes.length,
     segments,
     events,
