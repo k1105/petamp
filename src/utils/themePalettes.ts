@@ -63,6 +63,19 @@ export function getTimeOfDay(date: Date = new Date()): TimeOfDay {
   return 'night'
 }
 
+/**
+ * Run 個別表示用のパレット。記録時の startedAt と weather から決定する。
+ * 過去 Run (weather 未保存) は晴れにフォールバック。
+ */
+export function getPaletteForRun(run: {
+  startedAt: number
+  weather?: Weather
+}): Palette {
+  const time = getTimeOfDay(new Date(run.startedAt))
+  const weather = run.weather ?? 'sunny'
+  return getDefaultPalette(weather, time)
+}
+
 /** '#RRGGBB' → [R, G, B]。フォールバックはアクセント緑。 */
 export function hexToRgb(hex: string): [number, number, number] {
   const m = hex.replace('#', '')

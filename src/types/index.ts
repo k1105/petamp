@@ -33,4 +33,6 @@ export interface Run {
   trackPoints: TrackPoint[]
   notes: Note[]
   areaName?: string
+  /** 記録時の天気。未保存 (過去の Run) は表示時に 'sunny' として扱う。 */
+  weather?: 'sunny' | 'cloudy' | 'rainy'
 }

@@ -16,6 +16,7 @@ import {useTransitionStore} from "../store/useTransitionStore";
 import {effectiveRadius} from "../utils/effectiveRadius";
 import {acceptedPoints, accuracyGate, warmupGate, minDistanceGate, maxSpeedGate} from "../utils/recordingFilters";
 import {fetchAreaName} from "../hooks/useReverseGeocode";
+import {fetchWeatherForCoords} from "../utils/fetchWeather";
 import {RecordingDebugPanel} from "../components/recording/RecordingDebugPanel";
 import type {Run, TrackPoint} from "../types";
 
@@ -348,7 +349,12 @@ export function RecordingPage() {
     const lngs = points.map(p => p.lng);
     const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
     const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
-    const areaName = (await fetchAreaName(centerLng, centerLat)) ?? undefined;
+    const [areaNameRaw, weatherRaw] = await Promise.all([
+      fetchAreaName(centerLng, centerLat),
+      fetchWeatherForCoords(centerLat, centerLng),
+    ]);
+    const areaName = areaNameRaw ?? undefined;
+    const weather = weatherRaw ?? "sunny";
     const run: Run = {
       id: crypto.randomUUID(),
       name: `ラン ${new Date().toLocaleDateString("ja-JP")}`,
@@ -357,6 +363,7 @@ export function RecordingPage() {
       trackPoints: points,
       notes: [],
       areaName,
+      weather,
     };
     await addRun(run);
     navigate(`/run/${run.id}/result`);

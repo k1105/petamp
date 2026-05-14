@@ -28,7 +28,7 @@
 
 .map-canvas {
   position: absolute;
-  inset: 15dvh 0;
+  inset: 5dvh 0 10dvh;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
@@ -1265,6 +1265,14 @@
 .run-detail-page .back-btn {
   left: auto;
   right: 16px;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+}
+
+.run-detail-page .map-toggle-btn {
+  top: calc(64px + env(safe-area-inset-top, 0px));
+}
+
+.run-detail-page .debug-btn {
   top: calc(112px + env(safe-area-inset-top, 0px));
 }
 
@@ -1355,31 +1363,27 @@
 /* ---- Animation control ---- */
 .animation-control {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   gap: 12px;
 }
 
 .animation-play-btn {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  backdrop-filter: none;
+  border: none;
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   font-size: 24px;
-  transition:
-    background 0.15s,
-    border-color 0.15s;
 }
 
 .animation-play-btn:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: transparent;
 }
 .animation-play-btn:active {
   transform: scale(0.94);
@@ -1392,7 +1396,7 @@
 .animation-seek {
   width: 280px;
   max-width: 100%;
-  accent-color: var(--accent);
+  accent-color: #fff;
   height: 4px;
 }
 
@@ -2202,18 +2206,18 @@
     );
   }
   to {
-    transform: translate(calc(100vw - 112px), calc(85dvh - 112px));
+    transform: translate(calc(100vw - 112px), calc(90dvh - 112px));
   }
 }
 
 .transition-eye.phase-run-settle {
-  transform: translate(calc(100vw - 112px), calc(85dvh - 112px));
+  transform: translate(calc(100vw - 112px), calc(90dvh - 112px));
 }
 
 /* RunDetailPage: top-left meta column (name, date, distance, elevation). */
 .run-detail-meta {
   position: absolute;
-  top: 15dvh;
+  top: calc(15dvh + 72px);
   left: 20px;
   z-index: 9;
   display: flex;
@@ -2265,14 +2269,19 @@
   transform: translateX(-50%);
   z-index: 20;
   pointer-events: auto;
+  transition: opacity 0.3s ease;
 }
 
-/* Persistent eye on /run/:id anchored to the map's bottom-right corner.
-   bottom = page-bottom - map-bottom + 24px = 100dvh - 85dvh + 24 = 15dvh + 24.
+.run-detail-control.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Persistent eye on /run/:id, placed 10dvh above the page bottom + 24px gap.
    Coords match transition-eye's final position so the handoff is seamless. */
 .run-detail-eye {
   position: fixed;
-  bottom: calc(15dvh + 24px);
+  bottom: calc(10dvh + 24px);
   right: 24px;
   width: 88px;
   height: 88px;

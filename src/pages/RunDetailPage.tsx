@@ -11,8 +11,7 @@ import { AnimationControl } from '../components/detail/AnimationControl'
 import { PathDebugPanel } from '../components/recording/PathDebugPanel'
 import { useAnimation } from '../hooks/useAnimation'
 import { useElevationStats } from '../hooks/useElevationStats'
-import { useActivePalette } from '../hooks/useActivePalette'
-import { hexToRgb } from '../utils/themePalettes'
+import { getPaletteForRun, hexToRgb, type Palette } from '../utils/themePalettes'
 import { useRunStore } from '../store/useRunStore'
 import { positionAtTime, relAltitudeAtTime } from '../hooks/useGalleryAnimation'
 import { buildPathPositions } from '../utils/tubeMesh'
@@ -32,13 +31,12 @@ const MIN_ZOOM = 12.5
 const FIT_MAX_ZOOM = 17
 
 function DetailLayers({
-  run, currentTime, mapVisible,
-}: { run: Run; currentTime: number; mapVisible: boolean }) {
+  run, currentTime, mapVisible, palette,
+}: { run: Run; currentTime: number; mapVisible: boolean; palette: Palette }) {
   const zoom = useMapZoom()
   const { map } = useMap()
   const radii = useSettingsStore(s => s.radii)
   const altitudeScaleSetting = useSettingsStore(s => s.ui.altitudeScale)
-  const { palette } = useActivePalette()
   const accentRgb = useMemo<[number, number, number]>(
     () => hexToRgb(palette.accent),
     [palette.accent],
@@ -136,6 +134,29 @@ export function RunDetailPage() {
   const bubbleRef = useRef<HTMLDivElement>(null)
   const { runs, loadRuns, updateRun } = useRunStore()
   const [runsLoaded, setRunsLoaded] = useState(false)
+  const [controlsVisible, setControlsVisible] = useState(true)
+
+  // 画面タッチ中はシークバーを表示し、一定時間操作がなければフェードアウトする
+  useEffect(() => {
+    const HIDE_DELAY_MS = 2500
+    let timerId: number | null = null
+    const showThenScheduleHide = () => {
+      setControlsVisible(true)
+      if (timerId !== null) window.clearTimeout(timerId)
+      timerId = window.setTimeout(() => {
+        setControlsVisible(false)
+        timerId = null
+      }, HIDE_DELAY_MS)
+    }
+    document.addEventListener('pointerdown', showThenScheduleHide)
+    document.addEventListener('pointermove', showThenScheduleHide)
+    showThenScheduleHide()
+    return () => {
+      document.removeEventListener('pointerdown', showThenScheduleHide)
+      document.removeEventListener('pointermove', showThenScheduleHide)
+      if (timerId !== null) window.clearTimeout(timerId)
+    }
+  }, [])
 
   // 直リンクでrunsが空のままならロード（next/prev算出 + 404判定用）
   useEffect(() => {
@@ -267,8 +288,15 @@ export function RunDetailPage() {
   const prevRun = currentIdx > 0 ? runs[currentIdx - 1] : null
   const nextRun = currentIdx >= 0 && currentIdx < runs.length - 1 ? runs[currentIdx + 1] : null
 
+  const runPalette = getPaletteForRun(run)
+  const pageStyle = {
+    background: !mapVisible ? runPalette.accent : undefined,
+    '--accent': runPalette.accent,
+    '--bg': runPalette.bg,
+  } as React.CSSProperties
+
   return (
-    <div className="page run-detail-page" style={!mapVisible ? { background: 'var(--accent)' } : undefined}>
+    <div className="page run-detail-page" style={pageStyle}>
       <div className="map-container">
         <BaseMap
           initialCenter={center}
@@ -279,7 +307,7 @@ export function RunDetailPage() {
           lockTarget
           mapVisible={mapVisible}
         >
-          <DetailLayers run={run} currentTime={currentTime} mapVisible={mapVisible} />
+          <DetailLayers run={run} currentTime={currentTime} mapVisible={mapVisible} palette={runPalette} />
           <AreaLabel override={run.areaName} />
         </BaseMap>
       </div>
@@ -336,7 +364,7 @@ export function RunDetailPage() {
         </div>
       </div>
 
-      <div className="run-detail-control">
+      <div className={`run-detail-control${controlsVisible ? '' : ' is-hidden'}`}>
         <AnimationControl
           currentTime={currentTime}
           duration={duration}
