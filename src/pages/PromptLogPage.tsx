@@ -59,7 +59,7 @@ export function PromptLogPage() {
   }
 
   return (
-    <div className="page" style={{ background: 'var(--bg)', color: 'var(--text)', overflowY: 'auto', padding: 0 }}>
+    <div className="page" style={{ background: 'var(--bg)', color: 'var(--text)', overflowY: 'auto', overscrollBehavior: 'contain', padding: 0 }}>
       <header className="prompt-log-header">
         <button className="back-btn" onClick={() => navigate(-1)} aria-label="戻る">
           <Icon icon="lucide:arrow-left" />

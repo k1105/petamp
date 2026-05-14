@@ -12,6 +12,8 @@ export function useOrbitMode(map: Map | null, enabled: boolean) {
 
     map.dragPan.disable()
     const canvas = map.getCanvas()
+    const prevTouchAction = canvas.style.touchAction
+    canvas.style.touchAction = 'none'
 
     // Mouse
     const onMouseDown = (e: MouseEvent) => {
@@ -64,6 +66,7 @@ export function useOrbitMode(map: Map | null, enabled: boolean) {
     return () => {
       canvas.removeEventListener('mousedown', onMouseDown)
       canvas.removeEventListener('touchstart', onTouchStart)
+      canvas.style.touchAction = prevTouchAction
       map.dragPan.enable()
     }
   }, [map, enabled])
