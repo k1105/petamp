@@ -1253,6 +1253,32 @@
 .back-btn:hover { background: rgba(255, 255, 255, 0.22); }
 .back-btn:active { transform: scale(0.94); }
 
+/* Run個別画面では3つのボタン(map/debug/閉じる)を縦に並べ、下敷きの円なしのプレーンアイコンにする */
+.run-detail-page .back-btn,
+.run-detail-page .map-toggle-btn,
+.run-detail-page .debug-btn {
+  background: transparent;
+  backdrop-filter: none;
+  border: none;
+}
+
+.run-detail-page .back-btn {
+  left: auto;
+  right: 16px;
+  top: calc(112px + env(safe-area-inset-top, 0px));
+}
+
+.run-detail-page .back-btn:hover,
+.run-detail-page .map-toggle-btn:hover,
+.run-detail-page .debug-btn:hover {
+  background: transparent;
+}
+
+.run-detail-page .map-toggle-btn.active {
+  background: transparent;
+  border-color: transparent;
+}
+
 /* ---- Stats ---- */
 .view-mode-toggle {
   align-self: center;

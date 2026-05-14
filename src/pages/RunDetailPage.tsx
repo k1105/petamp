@@ -268,7 +268,7 @@ export function RunDetailPage() {
   const nextRun = currentIdx >= 0 && currentIdx < runs.length - 1 ? runs[currentIdx + 1] : null
 
   return (
-    <div className="page" style={!mapVisible ? { background: 'var(--accent)' } : undefined}>
+    <div className="page run-detail-page" style={!mapVisible ? { background: 'var(--accent)' } : undefined}>
       <div className="map-container">
         <BaseMap
           initialCenter={center}
@@ -284,8 +284,8 @@ export function RunDetailPage() {
         </BaseMap>
       </div>
 
-      <button className="back-btn" onClick={() => navigate('/')} aria-label="戻る">
-        <Icon icon="lucide:arrow-left" />
+      <button className="back-btn" onClick={() => navigate('/')} aria-label="閉じる">
+        <Icon icon="lucide:x" />
       </button>
       <button
         className={`map-toggle-btn ${!mapVisible ? 'active' : ''}`}
