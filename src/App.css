@@ -1523,7 +1523,8 @@
   flex-direction: column;
   gap: 14px;
   color: var(--text);
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .debug-header {

@@ -27,7 +27,7 @@ const CURRENT_DOT_SCALE = 1.2;
 const FIT_INTERVAL_EARLY = 3;
 const FIT_INTERVAL_LATE = 20;
 const EARLY_PHASE_THRESHOLD = 100;
-const INITIAL_ZOOM = 17;
+const INITIAL_ZOOM = 18;
 const FIT_MAX_ZOOM = 18;
 const FIT_DURATION_MS = 500;
 const FOLLOW_DURATION_MS = 400;
@@ -98,6 +98,8 @@ function BoundsFitter({
       map.easeTo({
         center: [trackPoints[0].lng, trackPoints[0].lat],
         zoom: INITIAL_ZOOM,
+        pitch: 0,
+        bearing: 0,
         duration: FIT_DURATION_MS,
       });
     } else {
@@ -109,6 +111,8 @@ function BoundsFitter({
         padding: 60,
         duration: FIT_DURATION_MS,
         maxZoom: FIT_MAX_ZOOM,
+        pitch: 0,
+        bearing: 0,
       });
     }
     lastFitLengthRef.current = len;
@@ -161,25 +165,6 @@ function FollowUpdater({
     }
     map.easeTo(opts);
   }, [map, trackPoints, enabled]);
-
-  return null;
-}
-
-function OverviewPitchReset({enabled}: {enabled: boolean}) {
-  const {map} = useMap();
-  const appliedRef = useRef(false);
-
-  useEffect(() => {
-    if (!map) return;
-    if (!enabled) {
-      appliedRef.current = false;
-      return;
-    }
-    if (appliedRef.current) return;
-    appliedRef.current = true;
-    // overview突入時にだけpitch/bearingをリセット。以降のfitBoundsはこの角度を維持する。
-    map.easeTo({pitch: 0, bearing: 0, duration: FIT_DURATION_MS});
-  }, [map, enabled]);
 
   return null;
 }
@@ -394,7 +379,6 @@ export function RecordingPage() {
               trackPoints={acceptedTrackPoints}
               enabled={viewMode === "follow"}
             />
-            <OverviewPitchReset enabled={viewMode === "overview"} />
             <RecordingLayers
               trackPoints={trackPoints}
               acceptedTrackPoints={acceptedTrackPoints}
