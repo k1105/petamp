@@ -37,6 +37,11 @@ export interface UiSettings {
   altitudeScale: number     // run detail (単色表現時) の高度可視化倍率。0 で平面。
 }
 
+export interface ExperimentalSettings {
+  /** 環世界記譜法。ON で /run/:id/notation 系のテスト画面が解禁される。既存 chat/Diary 系には影響しない。 */
+  notation: boolean
+}
+
 export const DEFAULT_RADII: Radii = {
   tubeRadius: 1.0,
   rawTubeRadius: 0.9,
@@ -66,11 +71,16 @@ export const DEFAULT_THEME_SETTINGS: ThemeSettings = {
   overrides: {},
 }
 
+export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
+  notation: false,
+}
+
 interface SettingsState {
   radii: Radii
   filterSettings: FilterSettings
   ui: UiSettings
   theme: ThemeSettings
+  experimental: ExperimentalSettings
   setRadii: (partial: Partial<Radii>) => void
   resetRadii: () => void
   setFilterSettings: (partial: Partial<FilterSettings>) => void
@@ -80,6 +90,7 @@ interface SettingsState {
   setTheme: (partial: Partial<ThemeSettings>) => void
   setPaletteOverride: (key: PaletteKey, patch: Partial<Palette> | null) => void
   resetTheme: () => void
+  setExperimental: (partial: Partial<ExperimentalSettings>) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -89,6 +100,7 @@ export const useSettingsStore = create<SettingsState>()(
       filterSettings: DEFAULT_FILTER_SETTINGS,
       ui: DEFAULT_UI_SETTINGS,
       theme: DEFAULT_THEME_SETTINGS,
+      experimental: DEFAULT_EXPERIMENTAL_SETTINGS,
       setRadii: (partial) => set((s) => ({ radii: { ...s.radii, ...partial } })),
       resetRadii: () => set({ radii: DEFAULT_RADII }),
       setFilterSettings: (partial) =>
@@ -108,6 +120,8 @@ export const useSettingsStore = create<SettingsState>()(
           return { theme: { ...s.theme, overrides: next } }
         }),
       resetTheme: () => set({ theme: DEFAULT_THEME_SETTINGS }),
+      setExperimental: (partial) =>
+        set((s) => ({ experimental: { ...s.experimental, ...partial } })),
     }),
     {
       name: 'petamp.settings',
@@ -134,6 +148,7 @@ export const useSettingsStore = create<SettingsState>()(
           filterSettings: { ...current.filterSettings, ...(p.filterSettings ?? {}) },
           ui: { ...current.ui, ...(p.ui ?? {}) },
           theme: { ...current.theme, ...(p.theme ?? {}) },
+          experimental: { ...current.experimental, ...(p.experimental ?? {}) },
         }
       },
     },

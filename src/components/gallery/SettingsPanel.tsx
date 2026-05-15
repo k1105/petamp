@@ -49,6 +49,8 @@ export function SettingsPanel() {
   const theme = useSettingsStore(s => s.theme)
   const setTheme = useSettingsStore(s => s.setTheme)
   const setPaletteOverride = useSettingsStore(s => s.setPaletteOverride)
+  const experimental = useSettingsStore(s => s.experimental)
+  const setExperimental = useSettingsStore(s => s.setExperimental)
   const { weather, time, palette, autoWeather, autoTime } = useActivePalette()
 
   const [busy, setBusy] = useState<AsyncActionKey | null>(null)
@@ -238,6 +240,15 @@ export function SettingsPanel() {
         </div>
       </Section>
 
+      <Section title="実験機能">
+        <ToggleRow
+          label="環世界記譜法"
+          hint="ペタンプの足音で軌跡を書き起こす実験画面 (Run詳細から開ける)"
+          value={experimental.notation}
+          onChange={v => setExperimental({ notation: v })}
+        />
+      </Section>
+
       <Section title="ペタンプ">
         <button className="settings-btn-secondary" onClick={() => navigate('/prompt-logs')}>
           <Icon icon="lucide:scroll-text" />
@@ -360,6 +371,32 @@ interface ColorRowProps {
   label: string
   value: string
   onChange: (v: string) => void
+}
+
+interface ToggleRowProps {
+  label: string
+  hint?: string
+  value: boolean
+  onChange: (v: boolean) => void
+}
+
+function ToggleRow({ label, hint, value, onChange }: ToggleRowProps) {
+  return (
+    <div className="settings-slider-row">
+      <div className="settings-slider-head">
+        <span className="settings-slider-label">{label}</span>
+        <button
+          type="button"
+          className={`settings-segment-btn${value ? ' is-active' : ''}`}
+          onClick={() => onChange(!value)}
+          aria-pressed={value}
+        >
+          {value ? 'ON' : 'OFF'}
+        </button>
+      </div>
+      {hint && <div className="settings-slider-hint">{hint}</div>}
+    </div>
+  )
 }
 
 function ColorRow({ label, value, onChange }: ColorRowProps) {

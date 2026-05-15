@@ -6,6 +6,7 @@ import { RunDetailPage } from './pages/RunDetailPage'
 import { RunResultPage } from './pages/RunResultPage'
 import { ShapeEditorPage } from './pages/ShapeEditorPage'
 import { RunChatPage } from './pages/RunChatPage'
+import { NotationChatPage } from './pages/NotationChatPage'
 import { CharacterSmokePage } from './pages/CharacterSmokePage'
 import { PromptLogPage } from './pages/PromptLogPage'
 import { OnboardingPage } from './pages/OnboardingPage'
@@ -48,6 +49,7 @@ function App() {
         <Route path="/run/:id" element={<RunDetailPage />} />
         <Route path="/run/:id/result" element={<RunResultPage />} />
         <Route path="/run/:id/chat" element={<RunChatPage />} />
+        <Route path="/run/:id/notation" element={<NotationChatPage />} />
         <Route path="/shape-editor" element={<ShapeEditorPage />} />
         <Route path="/character-smoke" element={<CharacterSmokePage />} />
         <Route path="/prompt-logs" element={<PromptLogPage />} />

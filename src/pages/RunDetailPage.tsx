@@ -135,6 +135,7 @@ export function RunDetailPage() {
   const { runs, loadRuns, updateRun } = useRunStore()
   const [runsLoaded, setRunsLoaded] = useState(false)
   const [controlsVisible, setControlsVisible] = useState(true)
+  const notationEnabled = useSettingsStore(s => s.experimental.notation)
 
   // 画面タッチ中はシークバーを表示し、一定時間操作がなければフェードアウトする
   useEffect(() => {
@@ -421,6 +422,15 @@ export function RunDetailPage() {
                   話す →
                 </button>
               </>
+            )}
+            {notationEnabled && (
+              <button
+                type="button"
+                className="run-detail-bubble-link"
+                onClick={() => navigate(`/run/${run.id}/notation`)}
+              >
+                ぼくのことばで見る →
+              </button>
             )}
           </div>
         </>
