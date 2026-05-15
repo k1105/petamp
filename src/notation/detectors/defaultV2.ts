@@ -1,7 +1,7 @@
 import type { MotifDetector, Motif, Phoneme } from '../types'
 
 const MIN_LEN = 2
-const MAX_LEN = 8
+const MAX_LEN = 3
 const MIN_INSTANCES = 2
 
 /**
@@ -51,7 +51,11 @@ export const defaultV2Detector: MotifDetector = {
       if (v.instances.length < MIN_INSTANCES) continue
       motifs.push({ id, pattern: v.pattern, instances: v.instances })
     }
-    motifs.sort((a, b) => b.instances.length - a.instances.length)
+    // 短い → 多く出現 を優先。ペタンプの語彙が長文化することを防ぐ
+    motifs.sort((a, b) => {
+      if (a.pattern.length !== b.pattern.length) return a.pattern.length - b.pattern.length
+      return b.instances.length - a.instances.length
+    })
     return motifs
   },
 }
