@@ -26,7 +26,7 @@ export function buildRunSummary(run: Run): RunSummary {
 
   const segments = buildBehaviorSegments(run)
   const rawEvents = detectRunEvents(run, segments)
-  const topology = analyzeRunTopology(run)
+  const topology = analyzeRunTopology(run, segments)
   const paceDistribution = computePaceDistribution(run)
   // out_and_back では revisit が当然発生するため、特徴ポイントから除外。
   // u_turn も折り返し点として topology から自明なので情報量が低い。

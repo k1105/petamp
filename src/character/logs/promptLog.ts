@@ -43,6 +43,9 @@ export interface PromptLogEntry {
   meta: LLMCallMeta
   error?: { message: string; stack?: string }
 
+  /** このログ生成時に使われた PromptTemplates のバージョン。差し替え時の追跡用。 */
+  templatesVersion?: string
+
   /** あとから人手で精度評価するための欄。 */
   rating?: { liked: boolean; note?: string }
 }

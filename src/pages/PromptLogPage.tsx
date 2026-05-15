@@ -133,6 +133,7 @@ function PromptLogRow({ entry, expanded, onToggle }: RowProps) {
       <button className="prompt-log-row-summary" onClick={onToggle}>
         <div className="prompt-log-row-line1">
           <span className="prompt-log-purpose">{entry.purpose}</span>
+          <span className="prompt-log-shortid">id:{entry.id.slice(0, 8)}</span>
           <span className="prompt-log-time">{dateStr}</span>
           <span className="prompt-log-meta">
             {entry.meta.model} · {latencyMs}ms

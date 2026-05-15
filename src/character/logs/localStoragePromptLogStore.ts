@@ -45,6 +45,19 @@ function matches(row: IndexRow, q: PromptLogQuery): boolean {
   return true
 }
 
+/**
+ * dev server (vite.config.ts の promptLogPlugin) に追記要求を投げる。
+ * 本番 / Capacitor / iOS では 404 になるが void で無視する。
+ */
+function teeToDevServer(entry: PromptLogEntry): void {
+  if (typeof fetch === 'undefined') return
+  void fetch('/__prompt-log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(entry),
+  }).catch(() => undefined)
+}
+
 export class LocalStoragePromptLogStore implements PromptLogStore {
   async append(entry: PromptLogEntry): Promise<void> {
     localStorage.setItem(entryKey(entry.id), JSON.stringify(entry))
@@ -57,6 +70,7 @@ export class LocalStoragePromptLogStore implements PromptLogStore {
       purpose: entry.purpose,
     })
     writeIndex(index)
+    teeToDevServer(entry)
   }
 
   async get(id: PromptLogId): Promise<PromptLogEntry | undefined> {

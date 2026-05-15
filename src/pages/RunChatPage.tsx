@@ -99,6 +99,9 @@ export function RunChatPage() {
   const [input, setInput] = useState('')
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
   const [newEpisodic, setNewEpisodic] = useState<EpisodicMemory | null>(null)
+  // 最終ペタンプ発話をユーザが読んでから ending 画面に遷移するためのフラグ。
+  // sessionEnded だけで遷移すると CLOSING_NOTE 込みの最終発話を見せる前に画面が消える。
+  const [endingDismissed, setEndingDismissed] = useState(false)
   const relationalSnapshotRef = useRef<RelationalState | null>(null)
   const discardedRef = useRef(false)
   const closedRef = useRef(false)
@@ -292,9 +295,11 @@ export function RunChatPage() {
 
   const petampBubbleText = visiblePair.petamp?.content ?? null
 
+  const showChatUi = !sessionEnded || !endingDismissed
+
   return (
     <div className="chat-page">
-      {!sessionEnded && (
+      {showChatUi && (
         <>
           <div className="chat-map-bg">
             <BaseMap
@@ -322,9 +327,11 @@ export function RunChatPage() {
             ))}
           </div>
 
-          <button className="chat-close-btn" onClick={onCloseTap} aria-label="閉じる">
-            <Icon icon="lucide:x" width={18} height={18} />
-          </button>
+          {!sessionEnded && (
+            <button className="chat-close-btn" onClick={onCloseTap} aria-label="閉じる">
+              <Icon icon="lucide:x" width={18} height={18} />
+            </button>
+          )}
 
           {petampBubbleText && (
             <div className="chat-petamp-area" key={visiblePair.petamp?.id ?? 'turn'}>
@@ -364,33 +371,44 @@ export function RunChatPage() {
             <div className="chat-error-pill">エラー: {dialogue.error.message}</div>
           )}
 
-          <footer className="chat-input-area">
-            <textarea
-              className="chat-input"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault()
-                  onSend()
-                }
-              }}
-              rows={1}
-              placeholder="ペタンプに話しかける…"
-            />
-            <button
-              className="chat-send-btn"
-              onClick={onSend}
-              disabled={!input.trim() || dialogue.isThinking}
-              aria-label="送信"
-            >
-              <Icon icon="lucide:arrow-up" width={20} height={20} />
-            </button>
-          </footer>
+          {!sessionEnded ? (
+            <footer className="chat-input-area">
+              <textarea
+                className="chat-input"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    onSend()
+                  }
+                }}
+                rows={1}
+                placeholder="ペタンプに話しかける…"
+              />
+              <button
+                className="chat-send-btn"
+                onClick={onSend}
+                disabled={!input.trim() || dialogue.isThinking}
+                aria-label="送信"
+              >
+                <Icon icon="lucide:arrow-up" width={20} height={20} />
+              </button>
+            </footer>
+          ) : (
+            <footer className="chat-finish-area">
+              <button
+                className="chat-ending-btn"
+                onClick={() => setEndingDismissed(true)}
+              >
+                おわる
+              </button>
+            </footer>
+          )}
         </>
       )}
 
-      {sessionEnded && (
+      {sessionEnded && endingDismissed && (
         <div className="chat-ending">
           <div className="chat-ending-eye"><EyesIcon /></div>
           {newEpisodic ? (

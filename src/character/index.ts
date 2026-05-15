@@ -73,6 +73,22 @@ export {
   type UseCharacterDialogueReturn,
 } from './hooks/useCharacterDialogue'
 
+export {
+  defaultPromptTemplates,
+  describeBehavior,
+  describeShape,
+  formatDuration,
+  formatPace,
+  formatRunFacts,
+  pct,
+  REPLY_JSON_SCHEMA,
+  renderRunSummary,
+  renderSystemPrompt,
+  SUMMARY_SYSTEM_PROMPT,
+  type PromptTemplates,
+  type SystemPromptInput,
+} from './prompts'
+
 export { petampCharacter, resolveCharacter } from './config'
 export {
   onboardingScript,

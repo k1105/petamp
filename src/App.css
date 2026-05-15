@@ -1159,6 +1159,14 @@
   letter-spacing: 0.04em;
 }
 
+.prompt-log-shortid {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  color: var(--text);
+  opacity: 0.7;
+  user-select: all;
+}
+
 .prompt-log-time {
   color: var(--text);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -2445,7 +2453,7 @@
 /* Indicator: 入力欄のすぐ上、中央寄せ。 */
 .chat-indicator {
   position: fixed;
-  bottom: calc(72px + var(--safe-bottom));
+  bottom: calc(12px + var(--safe-bottom));
   left: 50%;
   transform: translateX(-50%);
   z-index: 30;
@@ -2607,11 +2615,22 @@
   position: fixed;
   left: 12px;
   right: 12px;
-  bottom: calc(12px + var(--safe-bottom));
+  bottom: calc(40px + var(--safe-bottom));
   z-index: 30;
   display: flex;
   gap: 8px;
   align-items: flex-end;
+}
+
+/* 最終発話を読んだ後の「おわる」ボタンだけを置くフッター。 */
+.chat-finish-area {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(40px + var(--safe-bottom));
+  z-index: 30;
+  display: flex;
+  justify-content: center;
 }
 
 .chat-input {

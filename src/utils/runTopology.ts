@@ -1,14 +1,27 @@
 import type { Run, TrackPoint } from '../types'
-import type { RunTopology, RunTopologyShape } from '../character/domain/runSummary'
+import type { RunSegment, RunTopology, RunTopologyShape } from '../character/domain/runSummary'
 import { acceptedPoints } from './recordingFilters'
-import { haversineDistance, segmentsIntersect2D } from './geoUtils'
+import { haversineDistance, segmentIntersectionPoint2D } from './geoUtils'
+
+/** 自己交差として記録されている1件分の詳細。可視化/デバッグ用。 */
+export interface SelfIntersection {
+  /** 1本目の segment 開始 index (pts内、accepted ベース)。 */
+  i: number
+  /** 2本目の segment 開始 index (pts内、accepted ベース)。 */
+  j: number
+  /** 2 segment の交点座標 [lng, lat]。 */
+  lng: number
+  lat: number
+  /** 経路上で i→j までに進んだ距離 (m)。minPathDistM 閾値の判定に使う値。 */
+  pathDistBetween: number
+}
 
 /**
  * 経路の形を判定。
  * - shape: loop/out_and_back/one_way/figure_eight
  * - 自己交差は粗い手法 (隣接していない segment 同士の交差をスキャン)
  */
-export function analyzeRunTopology(run: Run): RunTopology {
+export function analyzeRunTopology(run: Run, segments: RunSegment[] = []): RunTopology {
   const pts = acceptedPoints(run.trackPoints)
   if (pts.length < 2) {
     return {
@@ -20,8 +33,12 @@ export function analyzeRunTopology(run: Run): RunTopology {
     }
   }
 
+  const restingRanges = segments
+    .filter(s => s.behavior === 'resting')
+    .map(s => [s.startPointIdx, s.endPointIdx] as [number, number])
+
   const startEndDistanceM = haversineDistance(pts[0], pts[pts.length - 1])
-  const selfIntersections = countSelfIntersections(pts)
+  const selfIntersections = findSelfIntersections(pts, restingRanges).length
   const bbox = computeBbox(pts)
   const bboxWidthM = haversineDistance(
     { ...pts[0], lat: bbox.latMid, lng: bbox.lngMin },
@@ -89,22 +106,42 @@ function looksLikeOutAndBack(pts: TrackPoint[], thresholdM = 30): boolean {
   return matched / second.length >= 0.5
 }
 
-function countSelfIntersections(pts: TrackPoint[]): number {
-  if (pts.length < 4) return 0
-  let count = 0
-  // segmentが lat/lng を 2D とみなして交差判定。隣接および1点共有はスキップ。
+/** 自己交差は経路上で十分離れた segment 同士の交差のみ列挙する。
+ * - resting 区間に絡む segment は GPS ジッタ起因の局所交差を生むので除外
+ * - 経路距離が minPathDistM 未満の segment ペアは「同じ道を再度通った」と呼べないので除外
+ */
+export function findSelfIntersections(
+  pts: TrackPoint[],
+  restingRanges: Array<[number, number]> = [],
+  minPathDistM = 50,
+): SelfIntersection[] {
+  if (pts.length < 4) return []
+
+  const cumDist = new Array<number>(pts.length)
+  cumDist[0] = 0
+  for (let k = 1; k < pts.length; k++) {
+    cumDist[k] = cumDist[k - 1] + haversineDistance(pts[k - 1], pts[k])
+  }
+  const inResting = (idx: number) =>
+    restingRanges.some(([s, e]) => idx >= s && idx <= e)
+
+  const out: SelfIntersection[] = []
   for (let i = 0; i < pts.length - 1; i++) {
+    if (inResting(i) || inResting(i + 1)) continue
     for (let j = i + 2; j < pts.length - 1; j++) {
-      // 同じ点を共有する segment はスキップ (path closure点)
       if (i === 0 && j === pts.length - 2) continue
+      if (inResting(j) || inResting(j + 1)) continue
+      const pathDistBetween = cumDist[j] - cumDist[i + 1]
+      if (pathDistBetween < minPathDistM) continue
       const a: [number, number] = [pts[i].lng, pts[i].lat]
       const b: [number, number] = [pts[i + 1].lng, pts[i + 1].lat]
       const c: [number, number] = [pts[j].lng, pts[j].lat]
       const d: [number, number] = [pts[j + 1].lng, pts[j + 1].lat]
-      if (segmentsIntersect2D(a, b, c, d)) count++
+      const ip = segmentIntersectionPoint2D(a, b, c, d)
+      if (ip) out.push({ i, j, lng: ip[0], lat: ip[1], pathDistBetween })
     }
   }
-  return count
+  return out
 }
 
 interface Bbox {
