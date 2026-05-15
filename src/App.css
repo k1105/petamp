@@ -3168,3 +3168,47 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+.notation-score-motifs {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.notation-score-motifs li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--accent-dim);
+  border: 1px solid rgba(28, 151, 94, 0.4);
+}
+
+.notation-score-motif-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.notation-score-motif-count {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.notation-thinking {
+  align-self: flex-start;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 4px 12px;
+}
+
+.notation-error {
+  align-self: center;
+  font-size: 12px;
+  color: #ff7575;
+  padding: 4px 12px;
+}

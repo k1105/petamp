@@ -4,23 +4,31 @@ import { Icon } from '@iconify/react'
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { loadRun } from '../db/runRepository'
+import { buildRunSummary } from '../utils/runSummary'
 import {
-  activeComposer,
+  getDialogueService,
+  getMemoryStore,
+  hasApiKey,
+  petampCharacter,
+  useCharacterDialogue,
+} from '../character'
+import type { DialogueTurn, RunSummary } from '../character'
+import {
   activeDetector,
   activeStrategy,
+  buildNotationSystemNote,
   renderPhonemes,
 } from '../notation'
 import type { Run } from '../types'
 
 /**
- * 環世界記譜法 (実験機能) 専用 chat ルート。
- * 既存 RunChatPage / Gemini Dialogue Service / Episodic Memory には一切依存しない。
- * Settings `experimental.notation` ON で解禁。
+ * 環世界記譜法 (実験機能) — Run単位の対話画面。
  *
- * 構成:
- *  - 画面上部: その Run の音素列 (NotationStrategy.encode の生出力)
- *  - 中央: petamp 発話バブル (SpeechComposer.compose の出力)
- *  - 下部: ユーザ入力欄。turn を進めるためのトリガに使う (内容は SpeechComposer に渡るが現状未使用)。
+ * アーキテクチャ (2026-05-15 ymgishi 確定):
+ *  - 既存の useCharacterDialogue / getDialogueService をそのまま使う
+ *  - 音素列 / 検出済みモチーフは extraSystemNote として毎ターン注入
+ *  - persona / Diary / Ambient / 既存 RunChatPage には触らない
+ *  - Settings `experimental.notation` ON のときだけ到達可能
  */
 export function NotationChatPage() {
   const { id } = useParams<{ id: string }>()
@@ -29,9 +37,9 @@ export function NotationChatPage() {
 
   const { runs, loadRuns } = useRunStore()
   const [run, setRun] = useState<Run | null>(null)
-  const [turns, setTurns] = useState<Array<{ role: 'petamp' | 'user'; text: string }>>([])
+  const [runsLoaded, setRunsLoaded] = useState(false)
   const [input, setInput] = useState('')
-  const composedOnceRef = useRef(false)
+  const openedRef = useRef(false)
 
   useEffect(() => {
     if (!enabled) {
@@ -40,8 +48,21 @@ export function NotationChatPage() {
   }, [enabled, navigate])
 
   useEffect(() => {
-    if (runs.length === 0) void loadRuns()
-  }, [runs.length, loadRuns])
+    let cancelled = false
+    if (runs.length > 0) {
+      Promise.resolve().then(() => {
+        if (!cancelled) setRunsLoaded(true)
+      })
+    } else {
+      loadRuns().finally(() => {
+        if (!cancelled) setRunsLoaded(true)
+      })
+    }
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (!id) return
@@ -49,8 +70,11 @@ export function NotationChatPage() {
     const inMemory = runs.find(r => r.id === id)
     if (inMemory) {
       setRun(inMemory)
-      return
+      return () => {
+        cancelled = true
+      }
     }
+    if (!runsLoaded) return
     void loadRun(id).then(r => {
       if (cancelled) return
       if (!r) {
@@ -62,43 +86,75 @@ export function NotationChatPage() {
     return () => {
       cancelled = true
     }
-  }, [id, runs, navigate])
+  }, [id, runs, runsLoaded, navigate])
 
+  const apiOk = hasApiKey()
+  const service = useMemo(() => (apiOk ? getDialogueService() : null), [apiOk])
+  const memory = useMemo(() => getMemoryStore(), [])
+
+  const runSummary = useMemo<RunSummary | undefined>(
+    () => (run ? buildRunSummary(run) : undefined),
+    [run],
+  )
+  const refs = useMemo(
+    () => (run ? [{ kind: 'run' as const, id: run.id }] : undefined),
+    [run],
+  )
+
+  // 譜面 + モチーフ表示用 (毎ターン system prompt にも入る)
   const phonemes = useMemo(
     () => (run ? activeStrategy.encode(run) : []),
     [run],
   )
   const phonemeText = useMemo(() => renderPhonemes(phonemes), [phonemes])
+  const motifs = useMemo(() => {
+    if (!run) return []
+    const all = runs.map(r => ({
+      runId: r.id,
+      phonemes: r.id === run.id ? phonemes : activeStrategy.encode(r),
+    }))
+    return activeDetector.detect(all)
+  }, [run, runs, phonemes])
 
-  // 開幕発話
+  const extraSystemNote = useMemo(() => {
+    if (!run) return undefined
+    return buildNotationSystemNote(run, runs)
+  }, [run, runs])
+
+  const dialogue = useCharacterDialogue({
+    characterId: petampCharacter.id,
+    service: service!,
+    memory,
+    defaultRunSummary: runSummary,
+    defaultRefs: refs,
+  })
+
+  // 開幕発話 (1回だけ)。hidden trigger 風に音素オープナーを投げて、petamp に最初の発話を作らせる。
   useEffect(() => {
-    if (!run || composedOnceRef.current || phonemes.length === 0) return
-    composedOnceRef.current = true
-    const opener = activeComposer.compose({
-      currentRun: { runId: run.id, phonemes },
-      motifs: activeDetector.detect([{ runId: run.id, phonemes }]),
-      turnIndex: 0,
-    })
-    setTurns([{ role: 'petamp', text: opener }])
-  }, [run, phonemes])
+    if (!service || !run || openedRef.current) return
+    if (phonemes.length === 0) return
+    openedRef.current = true
+    void dialogue.send(
+      'はじめまして。ぼくのことばで、このランのこと、おしえて。',
+      { extraSystemNote },
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [service, run, phonemes.length])
 
   const onSend = () => {
-    if (!run) return
     const text = input.trim()
     if (!text) return
     setInput('')
-    const nextTurns: Array<{ role: 'petamp' | 'user'; text: string }> = [
-      ...turns,
-      { role: 'user', text },
-    ]
-    const petampTurnIndex = nextTurns.filter(t => t.role === 'petamp').length
-    const reply = activeComposer.compose({
-      currentRun: { runId: run.id, phonemes },
-      motifs: activeDetector.detect([{ runId: run.id, phonemes }]),
-      userInput: text,
-      turnIndex: petampTurnIndex,
-    })
-    setTurns([...nextTurns, { role: 'petamp', text: reply }])
+    void dialogue.send(text, { extraSystemNote })
+  }
+
+  if (!apiOk) {
+    return (
+      <div className="page" style={{ padding: 24, color: 'var(--text)' }}>
+        <p>VITE_GEMINI_API_KEY が設定されていません。</p>
+        <button className="btn-ghost" onClick={() => navigate(-1)}>戻る</button>
+      </div>
+    )
   }
 
   if (!run) {
@@ -122,18 +178,31 @@ export function NotationChatPage() {
       <section className="notation-score">
         <h3 className="notation-score-label">譜面</h3>
         <p className="notation-score-text">{phonemeText || '(音素なし)'}</p>
-        <p className="notation-score-meta">音素数 {phonemes.length}</p>
+        <p className="notation-score-meta">
+          音素数 {phonemes.length} / モチーフ {motifs.length}
+        </p>
+        {motifs.length > 0 && (
+          <ul className="notation-score-motifs">
+            {motifs.slice(0, 5).map(m => (
+              <li key={m.id}>
+                <span className="notation-score-motif-id">{m.id}</span>
+                <span className="notation-score-motif-count">×{m.instances.length}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="notation-dialog">
-        {turns.map((t, i) => (
-          <div
-            key={i}
-            className={`notation-turn ${t.role === 'petamp' ? 'notation-turn-petamp' : 'notation-turn-user'}`}
-          >
-            <div className="notation-bubble">{t.text}</div>
-          </div>
+        {dialogue.messages.map(t => (
+          <NotationTurnView key={t.id} turn={t} />
         ))}
+        {dialogue.isThinking && (
+          <div className="notation-thinking">ペタンプが考え中…</div>
+        )}
+        {dialogue.error && (
+          <div className="notation-error">エラー: {dialogue.error.message}</div>
+        )}
       </section>
 
       <footer className="notation-input-area">
@@ -153,12 +222,27 @@ export function NotationChatPage() {
         <button
           className="notation-send-btn"
           onClick={onSend}
-          disabled={!input.trim()}
+          disabled={!input.trim() || dialogue.isThinking}
           aria-label="送信"
         >
           <Icon icon="lucide:arrow-up" width={20} height={20} />
         </button>
       </footer>
+    </div>
+  )
+}
+
+const HIDDEN_OPENING = 'はじめまして。ぼくのことばで、このランのこと、おしえて。'
+
+function NotationTurnView({ turn }: { turn: DialogueTurn }) {
+  if (turn.role === 'user' && turn.content === HIDDEN_OPENING) {
+    return null
+  }
+  return (
+    <div
+      className={`notation-turn ${turn.role === 'character' ? 'notation-turn-petamp' : 'notation-turn-user'}`}
+    >
+      <div className="notation-bubble">{turn.content}</div>
     </div>
   )
 }

@@ -42,17 +42,6 @@ export interface MotifDetector {
   detect(input: Array<{ runId: string; phonemes: Phoneme[] }>): Motif[]
 }
 
-/** 発話組み立て。petamp が今ターンで返す文字列。 */
-export interface SpeechComposer {
-  readonly id: string
-  compose(input: {
-    currentRun: { runId: string; phonemes: Phoneme[] }
-    motifs: Motif[]
-    userInput?: string
-    turnIndex: number
-  }): string
-}
-
 /**
  * Phoneme を表示用文字列にレンダリングする。
  * weak → ひらがな、sharp → 促音化、pitch → 末尾 ↑/↓、durationMs → 反復数。

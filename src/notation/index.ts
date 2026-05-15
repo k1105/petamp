@@ -10,13 +10,13 @@
  *
  * 3 module 構造 (interface 抽象化、初期実装 defaultV1)。差し替え時は index.ts の export を切替える。
  */
-export type { Phoneme, Motif, NotationStrategy, MotifDetector, SpeechComposer } from './types'
+export type { Phoneme, Motif, NotationStrategy, MotifDetector } from './types'
 export { renderPhoneme, renderPhonemes } from './types'
 
 import { defaultV1Strategy } from './strategies/defaultV1'
-import { defaultV1Detector } from './detectors/defaultV1'
-import { defaultV1Composer } from './composers/defaultV1'
+import { defaultV2Detector } from './detectors/defaultV2'
 
 export const activeStrategy = defaultV1Strategy
-export const activeDetector = defaultV1Detector
-export const activeComposer = defaultV1Composer
+export const activeDetector = defaultV2Detector
+
+export { buildNotationSystemNote } from './context'
