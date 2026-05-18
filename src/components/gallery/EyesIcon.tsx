@@ -37,12 +37,24 @@ function computeOffset(
   }
 }
 
-export function EyesIcon({ forceBlink = false }: { forceBlink?: boolean } = {}) {
+export function EyesIcon({ blinkSignal }: { blinkSignal?: number } = {}) {
   const ui = useSettingsStore(s => s.ui)
   const svgRef = useRef<SVGSVGElement>(null)
   const [target, setTarget] = useState<{ x: number; y: number } | null>(null)
   const [blink, setBlink] = useState(false)
-  const closed = forceBlink || blink
+
+  // blinkSignal が変わるたびに 1 回まばたき。値変化のみが起動条件で、初回マウント
+  // (signal が定義されているがまだ何も起きていない) では発火しないよう、前回値を
+  // ref で記憶しておく。
+  const lastSignalRef = useRef(blinkSignal)
+  useEffect(() => {
+    if (blinkSignal === undefined) return
+    if (blinkSignal === lastSignalRef.current) return
+    lastSignalRef.current = blinkSignal
+    setBlink(true)
+    const t = window.setTimeout(() => setBlink(false), 120)
+    return () => window.clearTimeout(t)
+  }, [blinkSignal])
 
   useEffect(() => {
     const onPointer = (e: PointerEvent) => {
@@ -139,18 +151,18 @@ export function EyesIcon({ forceBlink = false }: { forceBlink?: boolean } = {}) 
         <clipPath id={clipIdL} clipPathUnits="userSpaceOnUse">
           <rect
             x={EYE_LEFT_X - scleraRx}
-            y={closed ? lidTopClosed : lidTopOpen}
+            y={blink ? lidTopClosed : lidTopOpen}
             width={scleraRx * 2}
-            height={closed ? lidHeightClosed : lidHeightOpen}
+            height={blink ? lidHeightClosed : lidHeightOpen}
             style={lidRectStyle}
           />
         </clipPath>
         <clipPath id={clipIdR} clipPathUnits="userSpaceOnUse">
           <rect
             x={EYE_RIGHT_X - scleraRx}
-            y={closed ? lidTopClosed : lidTopOpen}
+            y={blink ? lidTopClosed : lidTopOpen}
             width={scleraRx * 2}
-            height={closed ? lidHeightClosed : lidHeightOpen}
+            height={blink ? lidHeightClosed : lidHeightOpen}
             style={lidRectStyle}
           />
         </clipPath>

@@ -168,34 +168,17 @@ export function GalleryPage() {
   armedRef.current = armed
   useMetaballSheet({ canvasRef, sheetRef, fabRef, armedRef })
 
-  // FAB の transform トランジション中は目を閉じる。`transitionstart` を待つと
-  // 1 フレーム遅れて開いた目が見えるので、view/armed 変化時点で先回りで閉じ、
-  // `transitionend` (transform) で開く。初回マウントでは作動させない。
-  const [fabMoving, setFabMoving] = useState(false)
-  const didMountRef = useRef(false)
+  // view / armed が変わる (= FAB が動く) たびに 1 回まばたき。初回マウントは
+  // スキップ。signal は単調増加 (number) で EyesIcon に渡し、値の変化を検出
+  // させる。
+  const [blinkSignal, setBlinkSignal] = useState(0)
+  const blinkDidMountRef = useRef(false)
   useEffect(() => {
-    const fab = fabRef.current
-    if (!fab) return
-    const onEnd = (e: TransitionEvent) => {
-      if (e.target !== fab) return
-      if (e.propertyName === 'transform') setFabMoving(false)
-    }
-    fab.addEventListener('transitionend', onEnd)
-    fab.addEventListener('transitioncancel', onEnd)
-    return () => {
-      fab.removeEventListener('transitionend', onEnd)
-      fab.removeEventListener('transitioncancel', onEnd)
-    }
-  }, [])
-  useEffect(() => {
-    if (!didMountRef.current) {
-      didMountRef.current = true
+    if (!blinkDidMountRef.current) {
+      blinkDidMountRef.current = true
       return
     }
-    setFabMoving(true)
-    // transitionend が発火しないブラウザ/状況用のセーフティ。
-    const t = window.setTimeout(() => setFabMoving(false), 600)
-    return () => window.clearTimeout(t)
+    setBlinkSignal(s => s + 1)
   }, [view, armed])
 
   // パネル中身は active のときだけ mount。閉じてもスライドアウト中は残し、
@@ -466,7 +449,7 @@ export function GalleryPage() {
             onClick={handleFabClick}
             aria-label={armed ? 'TAP TO START' : '記録開始'}
           >
-            <span className="fab-icon" style={{ width: ui.fabIconSize, height: ui.fabIconSize }}><EyesIcon forceBlink={fabMoving} /></span>
+            <span className="fab-icon" style={{ width: ui.fabIconSize, height: ui.fabIconSize }}><EyesIcon blinkSignal={blinkSignal} /></span>
           </button>
           <button
             className={`map-btn${view === 'map' ? ' is-active' : ''}`}
