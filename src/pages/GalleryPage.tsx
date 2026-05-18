@@ -148,10 +148,9 @@ export function GalleryPage() {
   const { runs, loadRuns, removeRun } = useRunStore()
   const ui = useSettingsStore(s => s.ui)
   const setUi = useSettingsStore(s => s.setUi)
-  const [listOpen, setListOpen] = useState(false)
+  const [view, setView] = useState<'map' | 'list' | 'settings'>('map')
   const [armed, setArmed] = useState(false)
   const [focusGPSSignal, setFocusGPSSignal] = useState(0)
-  const [sheetView, setSheetView] = useState<'list' | 'settings'>('list')
   const [bubblePhrase, setBubblePhrase] = useState<string | null>(null)
   const [showFirstRunIntro, setShowFirstRunIntro] = useState(false)
   // ホーム画面 (Gallery) は通常 1/10 のスローモー: 60 → 6
@@ -168,6 +167,62 @@ export function GalleryPage() {
   const armedRef = useRef(armed)
   armedRef.current = armed
   useMetaballSheet({ canvasRef, sheetRef, fabRef, armedRef })
+
+  // FAB の transform トランジション中は目を閉じる。`transitionstart` を待つと
+  // 1 フレーム遅れて開いた目が見えるので、view/armed 変化時点で先回りで閉じ、
+  // `transitionend` (transform) で開く。初回マウントでは作動させない。
+  const [fabMoving, setFabMoving] = useState(false)
+  const didMountRef = useRef(false)
+  useEffect(() => {
+    const fab = fabRef.current
+    if (!fab) return
+    const onEnd = (e: TransitionEvent) => {
+      if (e.target !== fab) return
+      if (e.propertyName === 'transform') setFabMoving(false)
+    }
+    fab.addEventListener('transitionend', onEnd)
+    fab.addEventListener('transitioncancel', onEnd)
+    return () => {
+      fab.removeEventListener('transitionend', onEnd)
+      fab.removeEventListener('transitioncancel', onEnd)
+    }
+  }, [])
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      return
+    }
+    setFabMoving(true)
+    // transitionend が発火しないブラウザ/状況用のセーフティ。
+    const t = window.setTimeout(() => setFabMoving(false), 600)
+    return () => window.clearTimeout(t)
+  }, [view, armed])
+
+  // パネル中身は active のときだけ mount。閉じてもスライドアウト中は残し、
+  // トランジション完了後 (350ms) に unmount する。これで GalleryPage 初回
+  // マウント時に run-tile 全件や SettingsPanel が同期描画されてマップ表示を
+  // 遅らせるのを避ける。
+  const PANEL_TRANSITION_MS = 350
+  const [listMounted, setListMounted] = useState(false)
+  const [settingsMounted, setSettingsMounted] = useState(false)
+  useEffect(() => {
+    if (view === 'list') {
+      setListMounted(true)
+      return
+    }
+    if (!listMounted) return
+    const t = window.setTimeout(() => setListMounted(false), PANEL_TRANSITION_MS)
+    return () => window.clearTimeout(t)
+  }, [view, listMounted])
+  useEffect(() => {
+    if (view === 'settings') {
+      setSettingsMounted(true)
+      return
+    }
+    if (!settingsMounted) return
+    const t = window.setTimeout(() => setSettingsMounted(false), PANEL_TRANSITION_MS)
+    return () => window.clearTimeout(t)
+  }, [view, settingsMounted])
 
   const [runsLoaded, setRunsLoaded] = useState(false)
   useEffect(() => {
@@ -324,7 +379,12 @@ export function GalleryPage() {
       setFocusGPSSignal(s => s + 1)
     }
     setArmed(true)
-    setListOpen(false)
+    setView('map')
+  }
+
+  const toggleView = (target: 'list' | 'settings') => {
+    if (armed) return
+    setView(current => (current === target ? 'map' : target))
   }
 
   return (
@@ -357,6 +417,22 @@ export function GalleryPage() {
         )}
       </div>
 
+      <div className={`gallery-panel gallery-panel-list${view === 'list' ? ' open' : ''}`}>
+        {listMounted && (runs.length === 0 ? (
+          <p className="empty-hint">記録したランがここに表示されます</p>
+        ) : (
+          <div className="run-grid">
+            {runs.map(run => (
+              <RunTile key={run.id} run={run} onDelete={removeRun} onSelect={handleRunSelect} />
+            ))}
+          </div>
+        ))}
+      </div>
+
+      <div className={`gallery-panel gallery-panel-settings${view === 'settings' ? ' open' : ''}`}>
+        {settingsMounted && <SettingsPanel />}
+      </div>
+
       {armed && <div className="armed-backdrop" onClick={() => setArmed(false)} />}
       {activeBubbleText && (
         <button
@@ -370,66 +446,45 @@ export function GalleryPage() {
         </button>
       )}
       {armed && <div ref={startLabelRef} className="start-label">TAP TO START</div>}
-      {listOpen && !armed && (
-        <div className="sheet-backdrop" onClick={() => setListOpen(false)} />
-      )}
 
       <canvas ref={canvasRef} className="metaball-canvas" />
 
-      <div ref={sheetRef} className={`bottom-sheet ${listOpen ? 'open' : ''} ${armed ? 'armed' : ''}`}>
+      <div ref={sheetRef} className={`bottom-sheet ${armed ? 'armed' : ''}`}>
         <div className="bottom-sheet-shape">
           {runs.length > 0 && (
             <button
-              className={`list-toggle-btn${listOpen && sheetView === 'list' ? ' is-active' : ''}`}
-              onClick={() => {
-                if (listOpen && sheetView === 'list') {
-                  setListOpen(false)
-                } else {
-                  setSheetView('list')
-                  setListOpen(true)
-                }
-              }}
-              aria-label={listOpen && sheetView === 'list' ? 'ラン一覧を閉じる' : 'ラン一覧を開く'}
+              className={`list-toggle-btn${view === 'list' ? ' is-active' : ''}`}
+              onClick={() => toggleView('list')}
+              aria-label={view === 'list' ? 'ラン一覧を閉じる' : 'ラン一覧を開く'}
             >
               <Icon icon="lucide:layout-list" />
             </button>
           )}
           <button
             ref={fabRef}
-            className={`fab fab-sheet${listOpen && !armed ? ` fab-pos-${sheetView}` : ''}${!armed ? ' fab-idle' : ''}`}
+            className={`fab fab-sheet${view !== 'map' && !armed ? ` fab-pos-${view}` : ''}${!armed ? ' fab-idle' : ''}`}
             onClick={handleFabClick}
             aria-label={armed ? 'TAP TO START' : '記録開始'}
           >
-            <span className="fab-icon" style={{ width: ui.fabIconSize, height: ui.fabIconSize }}><EyesIcon /></span>
+            <span className="fab-icon" style={{ width: ui.fabIconSize, height: ui.fabIconSize }}><EyesIcon forceBlink={fabMoving} /></span>
           </button>
           <button
-            className={`settings-btn${listOpen && sheetView === 'settings' ? ' is-active' : ''}`}
-            onClick={() => {
-              if (listOpen && sheetView === 'settings') {
-                setListOpen(false)
-              } else {
-                setSheetView('settings')
-                setListOpen(true)
-              }
-            }}
-            aria-label={listOpen && sheetView === 'settings' ? '設定を閉じる' : '設定を開く'}
+            className={`map-btn${view === 'map' ? ' is-active' : ''}`}
+            onClick={() => { if (!armed) setView('map') }}
+            aria-label="マップに戻る"
+            title="マップ"
+          >
+            <Icon icon="lucide:map" />
+          </button>
+          <button
+            className={`settings-btn${view === 'settings' ? ' is-active' : ''}`}
+            onClick={() => toggleView('settings')}
+            aria-label={view === 'settings' ? '設定を閉じる' : '設定を開く'}
             title="設定"
           >
             <Icon icon="lucide:settings" />
           </button>
         </div>
-        <div className="bottom-sheet-handle" onClick={() => setListOpen(v => !v)} />
-        {sheetView === 'settings' ? (
-          <SettingsPanel />
-        ) : runs.length === 0 ? (
-          <p className="empty-hint">記録したランがここに表示されます</p>
-        ) : (
-          <div className="run-grid">
-            {runs.map(run => (
-              <RunTile key={run.id} run={run} onDelete={removeRun} onSelect={handleRunSelect} />
-            ))}
-          </div>
-        )}
       </div>
 
       {showFirstRunIntro && (

@@ -109,7 +109,45 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 1;
+  z-index: 12;
+}
+
+/* ---- Gallery panels (list / settings) — full-screen, slide over map ---- */
+/* z:11 so the panel covers map-only UI (orbit-toggle z:10, group-edge z:9,
+   area-label z:5). metaball-canvas z:12 stays on top so the face is visible.
+   Panel bg fills viewport edge-to-edge; nav clearance is provided by the
+   inner scroll container's own bottom padding so content can scroll past
+   the FAB area. */
+.gallery-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.gallery-panel-list {
+  transform: translateX(-100%);
+  color: var(--accent);
+}
+
+.gallery-panel-settings {
+  transform: translateX(100%);
+}
+
+.gallery-panel.open {
+  transform: translateX(0);
+}
+
+.gallery-panel .settings-content {
+  background: transparent;
+  border-top: none;
+  /* Match run-grid: clear FAB row + safe-area at the bottom of the scroll
+     content so the last section can fully scroll above the nav. */
+  padding-bottom: calc(96px + var(--safe-bottom));
 }
 
 .armed-backdrop {
@@ -220,9 +258,13 @@
   flex: 1;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 8px 16px calc(16px + var(--safe-bottom));
+  /* Bottom padding clears the FAB + toggle row (~70px from viewport bottom)
+     plus safe-area so the last tile can fully scroll above the nav. */
+  padding: 8px 16px calc(96px + var(--safe-bottom));
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: min-content;
+  align-content: start;
   gap: 10px;
 }
 
@@ -328,17 +370,21 @@
   padding: 7px 6px;
   border: 0;
   background: transparent;
+  max-width: 100px;
   border-radius: 7px;
   color: var(--text-muted);
   font-size: 12px;
   font-family: inherit;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  background: rgba(255, 255, 255, 0.06);
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .settings-segment-btn:hover:not(.is-active) {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.1);
   color: var(--text);
 }
 
@@ -372,8 +418,13 @@
   cursor: pointer;
 }
 
-.settings-color-control input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
-.settings-color-control input[type="color"]::-webkit-color-swatch { border: none; border-radius: 4px; }
+.settings-color-control input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+.settings-color-control input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
 
 .settings-color-hex {
   font-size: 11px;
@@ -608,7 +659,7 @@
   position: absolute;
   top: calc(-64px * 0.6);
   left: calc(50% - 32px);
-  z-index: 21;
+  z-index: 23;
   pointer-events: auto;
   box-shadow: none;
   transition:
@@ -652,9 +703,15 @@
 }
 
 @keyframes petamp-idle-bob {
-  0%   { transform: translateY(0); }
-  50%  { transform: translateY(-6px); }
-  100% { transform: translateY(0); }
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+  100% {
+    transform: translateY(0);
+  }
 }
 
 /* ---- List toggle (left of FAB on gallery) ---- */
@@ -697,9 +754,24 @@
 /* When this tab is active, FAB sits on top of it — hide the icon glyph
    and let taps fall through to the FAB underneath (which arms recording). */
 .list-toggle-btn.is-active,
-.settings-btn.is-active {
+.settings-btn.is-active,
+.map-btn.is-active {
   color: transparent;
   pointer-events: none;
+}
+
+/* Extend each nav button's hit area 12px in every direction. The visible
+   icon (32px) sits at the top of a 56×56 button, which is a small touch
+   target. ::before is transparent and inherits pointer-events from its
+   parent, so an inactive toggle gains an 80×80 effective hit zone while
+   an .is-active toggle stays untappable. 12px is within the gap to FAB
+   on both sides so taps never spill over. */
+.list-toggle-btn::before,
+.settings-btn::before,
+.map-btn::before {
+  content: '';
+  position: absolute;
+  inset: -12px;
 }
 
 .bottom-sheet.armed .list-toggle-btn {
@@ -826,8 +898,12 @@
     transform 0.15s;
 }
 
-.orbit-toggle:hover { background: rgba(255, 255, 255, 0.22); }
-.orbit-toggle:active { transform: scale(0.94); }
+.orbit-toggle:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.orbit-toggle:active {
+  transform: scale(0.94);
+}
 
 .orbit-toggle.orbit-toggle-active {
   color: var(--accent);
@@ -892,8 +968,12 @@
     border-color 0.15s;
 }
 
-.map-toggle-btn:hover { background: rgba(255, 255, 255, 0.22); }
-.map-toggle-btn:active { transform: scale(0.94); }
+.map-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.map-toggle-btn:active {
+  transform: scale(0.94);
+}
 
 .map-toggle-btn.active {
   background: rgba(255, 255, 255, 0.28);
@@ -1255,11 +1335,17 @@
   align-items: center;
   justify-content: center;
   z-index: 10;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
-.back-btn:hover { background: rgba(255, 255, 255, 0.22); }
-.back-btn:active { transform: scale(0.94); }
+.back-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.back-btn:active {
+  transform: scale(0.94);
+}
 
 /* Run個別画面では3つのボタン(map/debug/閉じる)を縦に並べ、下敷きの円なしのプレーンアイコンにする */
 .run-detail-page .back-btn,
@@ -1454,11 +1540,17 @@
   align-items: center;
   justify-content: center;
   z-index: 10;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
-.debug-btn:hover { background: rgba(255, 255, 255, 0.22); }
-.debug-btn:active { transform: scale(0.94); }
+.debug-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.debug-btn:active {
+  transform: scale(0.94);
+}
 
 .locate-btn {
   position: absolute;
@@ -1693,6 +1785,39 @@
 }
 
 .bottom-sheet.armed .settings-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---- Map back button (centered, FAB overlays when view='map') ---- */
+.map-btn {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  top: calc(-64px * 0.6);
+  /* dead-center, under FAB when view='map' */
+  left: calc(50% - 28px);
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0;
+  font-size: 32px;
+  cursor: pointer;
+  z-index: 22;
+  pointer-events: auto;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+}
+
+.map-btn:active {
+  opacity: 0.85;
+}
+
+.bottom-sheet.armed .map-btn {
   opacity: 0;
   pointer-events: none;
 }
@@ -2407,7 +2532,6 @@
   }
 }
 
-
 /* ==== Run chat page (Phase C: map background + single pair) ==== */
 .chat-page {
   position: fixed;
@@ -2424,7 +2548,7 @@
   z-index: 0;
 }
 .chat-map-bg .map-canvas {
-  inset: 0;          /* override the 15dvh top/bottom mask used elsewhere */
+  inset: 0; /* override the 15dvh top/bottom mask used elsewhere */
   -webkit-mask-image: none;
   mask-image: none;
 }
@@ -2489,10 +2613,16 @@
   align-items: center;
   justify-content: center;
   z-index: 30;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
-.chat-close-btn:hover { background: rgba(255, 255, 255, 0.22); }
-.chat-close-btn:active { transform: scale(0.94); }
+.chat-close-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.chat-close-btn:active {
+  transform: scale(0.94);
+}
 
 /* Petamp area: 目玉の右隣に横並びで配置。バブル+rate を縦に並べる wrapper。 */
 .chat-petamp-area {
@@ -2526,7 +2656,7 @@
 /* 尾は CSS border triangle。corner-radius (14px) より下に置いて、
    角の丸みと干渉しないようにする。色はバブルと同じ #fff で完全一致。 */
 .chat-petamp-bubble::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 21px;
   left: -7px;
@@ -2555,14 +2685,27 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    transform 0.15s;
 }
-.chat-petamp-rate button:hover { background: rgba(255, 255, 255, 0.24); }
-.chat-petamp-rate button:active { transform: scale(0.92); }
+.chat-petamp-rate button:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+.chat-petamp-rate button:active {
+  transform: scale(0.92);
+}
 
 @keyframes chat-bubble-pop {
-  from { opacity: 0; transform: translateY(6px) scale(0.96); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* User bubble: bottom-right, just above input. */
@@ -2671,8 +2814,12 @@
   flex-shrink: 0;
   transition: background 0.15s;
 }
-.chat-send-btn:hover:not(:disabled) { background: #18a464; }
-.chat-send-btn:active:not(:disabled) { transform: scale(0.94); }
+.chat-send-btn:hover:not(:disabled) {
+  background: #18a464;
+}
+.chat-send-btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
 .chat-send-btn:disabled {
   background: rgba(255, 255, 255, 0.18);
   color: rgba(255, 255, 255, 0.5);
@@ -2770,19 +2917,30 @@
 }
 
 @keyframes chat-ending-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .chat-ending-eye {
   width: 96px;
   height: 96px;
   flex-shrink: 0;
-  animation: chat-ending-eye-pop 420ms cubic-bezier(0.34, 1.4, 0.64, 1) 200ms both;
+  animation: chat-ending-eye-pop 420ms cubic-bezier(0.34, 1.4, 0.64, 1) 200ms
+    both;
 }
 @keyframes chat-ending-eye-pop {
-  from { opacity: 0; transform: scale(0.7); }
-  to   { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .chat-ending-summary {
@@ -2798,7 +2956,8 @@
   white-space: pre-wrap;
   word-break: break-word;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
-  animation: chat-ending-bubble 420ms cubic-bezier(0.34, 1.4, 0.64, 1) 600ms both;
+  animation: chat-ending-bubble 420ms cubic-bezier(0.34, 1.4, 0.64, 1) 600ms
+    both;
 }
 
 .chat-ending-loading {
@@ -2808,8 +2967,14 @@
 }
 
 @keyframes chat-ending-bubble {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .chat-ending-btn {
@@ -2822,10 +2987,15 @@
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
-  animation: chat-ending-bubble 420ms cubic-bezier(0.34, 1.4, 0.64, 1) 1000ms both;
+  animation: chat-ending-bubble 420ms cubic-bezier(0.34, 1.4, 0.64, 1) 1000ms
+    both;
 }
-.chat-ending-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.92); }
-.chat-ending-btn:active:not(:disabled) { transform: scale(0.96); }
+.chat-ending-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.92);
+}
+.chat-ending-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
 .chat-ending-btn:disabled {
   background: rgba(255, 255, 255, 0.45);
   color: rgba(255, 255, 255, 0.7);
@@ -2903,7 +3073,7 @@
 }
 
 .run-result-bubble::after {
-  content: '';
+  content: "";
   position: absolute;
   right: 18px;
   bottom: -10px;
@@ -2993,7 +3163,9 @@
   font-family: inherit;
   letter-spacing: 0.12em;
   cursor: pointer;
-  transition: transform 0.12s ease, opacity 0.12s ease;
+  transition:
+    transform 0.12s ease,
+    opacity 0.12s ease;
 }
 
 .first-run-intro-ok:active {
@@ -3002,13 +3174,23 @@
 }
 
 @keyframes first-run-intro-fade {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes first-run-intro-pop {
-  from { opacity: 0; transform: scale(0.92); }
-  to   { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* ---------------- 環世界記譜法 (実験機能) ---------------- */
@@ -3108,8 +3290,12 @@
   display: flex;
 }
 
-.notation-turn-petamp { justify-content: flex-start; }
-.notation-turn-user   { justify-content: flex-end; }
+.notation-turn-petamp {
+  justify-content: flex-start;
+}
+.notation-turn-user {
+  justify-content: flex-end;
+}
 
 .notation-bubble {
   max-width: 80%;

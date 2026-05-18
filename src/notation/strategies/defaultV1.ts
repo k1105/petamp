@@ -16,7 +16,7 @@ interface SpeedBucket {
 const BUCKETS: SpeedBucket[] = [
   { symbol: '・',      upper: 0.3 },
   { symbol: 'ペタン',   upper: 1.5 },
-  { symbol: 'ペタペタ', upper: 2.5 },
+  { symbol: 'ペタ', upper: 2.5 },
   { symbol: 'ペッ',     upper: 3.8 },
   { symbol: 'ぺっ',     upper: 5.5 },
   { symbol: 'ピー',     upper: Number.POSITIVE_INFINITY },
@@ -38,56 +38,53 @@ function pitchFromGradient(gradient: number): -1 | 0 | 1 {
   return 0
 }
 
+/**
+ * セグメント単位 (= 隣り合う採用点ペアごと) に 1 Phoneme を返す。マージ・sharp 吸収は行わない。
+ * 主にビジュアライザ側で「1 座標点 1 音素」レンダリングをするために使う。
+ * defaultV1Strategy.encode はこの結果を後段でマージしている。
+ */
+export function encodeSegments(run: Run): Phoneme[] {
+  const pts = acceptedPoints(run.trackPoints)
+  if (pts.length < 2) return []
+  const out: Phoneme[] = []
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]
+    const b = pts[i]
+    const dt = (b.timestamp - a.timestamp) / 1000
+    if (dt <= 0) continue
+    const dist = haversineDistance(a, b)
+    const speed = dist / dt
+    const symbol = classifySpeed(speed)
+    const pitch = symbol === '・' ? 0 : pitchFromGradient(altitudeGradient(a, b, dt))
+    out.push({
+      symbol,
+      durationMs: dt * 1000,
+      pitch,
+      sharp: false,
+      weak: false,
+      startPointIdx: i - 1,
+      endPointIdx: i,
+    })
+  }
+  return out
+}
+
 export const defaultV1Strategy: NotationStrategy = {
   id: 'notation.strategy.defaultV1',
   encode(run: Run): Phoneme[] {
-    const pts = acceptedPoints(run.trackPoints)
-    if (pts.length < 2) return []
-
-    // ステップ1: 各 segment (i, i+1) に対し symbol と pitch を計算
-    interface Step {
-      symbol: string
-      pitch: -1 | 0 | 1
-      durationMs: number
-      startIdx: number
-      endIdx: number
-    }
-    const steps: Step[] = []
-    for (let i = 1; i < pts.length; i++) {
-      const a = pts[i - 1]
-      const b = pts[i]
-      const dt = (b.timestamp - a.timestamp) / 1000
-      if (dt <= 0) continue
-      const dist = haversineDistance(a, b)
-      const speed = dist / dt
-      const symbol = classifySpeed(speed)
-      const pitch = symbol === '・' ? 0 : pitchFromGradient(altitudeGradient(a, b, dt))
-      steps.push({
-        symbol,
-        pitch,
-        durationMs: dt * 1000,
-        startIdx: i - 1,
-        endIdx: i,
-      })
-    }
+    const segments = encodeSegments(run)
+    if (segments.length === 0) return []
 
     // ステップ2: 同symbol/同pitchが連続する区間を1つの Phoneme に集約
     const phonemes: Phoneme[] = []
-    for (const s of steps) {
+    for (const s of segments) {
       const last = phonemes[phonemes.length - 1]
       if (last && last.symbol === s.symbol && last.pitch === s.pitch) {
         last.durationMs += s.durationMs
-        last.endPointIdx = s.endIdx
+        last.endPointIdx = s.endPointIdx
       } else {
-        phonemes.push({
-          symbol: s.symbol,
-          durationMs: s.durationMs,
-          pitch: s.pitch,
-          sharp: false,
-          weak: false,
-          startPointIdx: s.startIdx,
-          endPointIdx: s.endIdx,
-        })
+        // segments の Phoneme は再利用せずコピーする (encodeSegments の戻り値を不変に保つ)
+        phonemes.push({ ...s })
       }
     }
 

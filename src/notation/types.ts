@@ -74,7 +74,7 @@ function typicalStepMs(symbol: string): number {
   if (symbol === '・') return 1000
   if (symbol === 'ピー') return 1000
   if (symbol === 'ペッ' || symbol === 'ぺっ') return 400
-  if (symbol === 'ペタペタ') return 800
+  if (symbol === 'ペタ') return 400
   if (symbol === 'ペタン') return 600
   return 500
 }

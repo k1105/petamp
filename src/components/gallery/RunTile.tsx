@@ -28,7 +28,7 @@ export function RunTile({ run, onDelete, onSelect }: Props) {
           {path ? (
             <path
               d={path}
-              stroke="#ffffff"
+              stroke="currentColor"
               strokeWidth="1.6"
               strokeLinecap="round"
               strokeLinejoin="round"

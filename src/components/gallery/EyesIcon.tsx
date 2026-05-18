@@ -37,11 +37,12 @@ function computeOffset(
   }
 }
 
-export function EyesIcon() {
+export function EyesIcon({ forceBlink = false }: { forceBlink?: boolean } = {}) {
   const ui = useSettingsStore(s => s.ui)
   const svgRef = useRef<SVGSVGElement>(null)
   const [target, setTarget] = useState<{ x: number; y: number } | null>(null)
   const [blink, setBlink] = useState(false)
+  const closed = forceBlink || blink
 
   useEffect(() => {
     const onPointer = (e: PointerEvent) => {
@@ -138,18 +139,18 @@ export function EyesIcon() {
         <clipPath id={clipIdL} clipPathUnits="userSpaceOnUse">
           <rect
             x={EYE_LEFT_X - scleraRx}
-            y={blink ? lidTopClosed : lidTopOpen}
+            y={closed ? lidTopClosed : lidTopOpen}
             width={scleraRx * 2}
-            height={blink ? lidHeightClosed : lidHeightOpen}
+            height={closed ? lidHeightClosed : lidHeightOpen}
             style={lidRectStyle}
           />
         </clipPath>
         <clipPath id={clipIdR} clipPathUnits="userSpaceOnUse">
           <rect
             x={EYE_RIGHT_X - scleraRx}
-            y={blink ? lidTopClosed : lidTopOpen}
+            y={closed ? lidTopClosed : lidTopOpen}
             width={scleraRx * 2}
-            height={blink ? lidHeightClosed : lidHeightOpen}
+            height={closed ? lidHeightClosed : lidHeightOpen}
             style={lidRectStyle}
           />
         </clipPath>
