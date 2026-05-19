@@ -159,7 +159,7 @@ export function BaseMap({
       />
       {!lockTarget && interactive && (
         <button
-          className={`orbit-toggle ${orbitMode ? 'orbit-toggle-active' : ''}`}
+          className={`orbit-toggle orbit-toggle-bottom ${orbitMode ? 'orbit-toggle-active' : ''}`}
           onClick={() => setOrbitMode(v => !v)}
           title={orbitMode ? 'パンモード' : '回転モード'}
           aria-label={orbitMode ? 'パンモード' : '回転モード'}

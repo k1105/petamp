@@ -1,7 +1,37 @@
 import { create } from 'zustand'
 import type { Run } from '../types'
-import { listRuns, loadRun, saveRun, deleteRun } from '../db/runRepository'
+import { listRuns, loadRun, saveRun, deleteRun, putRunLocal } from '../db/runRepository'
+import { cloudListRuns } from '../firebase/runCloud'
 import { DUMMY_RUNS } from '../utils/dummyData'
+
+async function syncCloudIntoLocal(): Promise<void> {
+  let cloudRuns: Run[] = []
+  try {
+    cloudRuns = await cloudListRuns()
+  } catch (e) {
+    console.warn('cloudListRuns failed', e)
+    return
+  }
+  const local = await listRuns()
+  const localById = new Map(local.map(r => [r.id, r]))
+  for (const cloud of cloudRuns) {
+    const localRun = localById.get(cloud.id)
+    if (!localRun) {
+      await putRunLocal(cloud)
+      continue
+    }
+    if ((cloud.finishedAt ?? 0) > (localRun.finishedAt ?? 0)) {
+      const merged: Run = {
+        ...cloud,
+        notes: cloud.notes.map(cn => {
+          const ln = localRun.notes.find(n => n.id === cn.id)
+          return ln?.photoDataUrl ? { ...cn, photoDataUrl: ln.photoDataUrl } : cn
+        }),
+      }
+      await putRunLocal(merged)
+    }
+  }
+}
 
 interface RunStore {
   runs: Run[]
@@ -23,6 +53,7 @@ export const useRunStore = create<RunStore>((set) => ({
       return
     }
     try {
+      await syncCloudIntoLocal()
       const saved = await listRuns()
       set({ runs: saved })
     } catch (e) {

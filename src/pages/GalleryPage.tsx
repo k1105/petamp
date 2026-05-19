@@ -12,6 +12,7 @@ import { groupRunsByBboxOverlap, makeHomeGroup, findGroupContaining } from '../u
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { SettingsPanel } from '../components/gallery/SettingsPanel'
+import { UserMenu } from '../components/UserMenu'
 import { RunTile } from '../components/gallery/RunTile'
 import { EyesIcon } from '../components/gallery/EyesIcon'
 import { IslandView } from '../components/island/IslandView'
@@ -374,6 +375,7 @@ export function GalleryPage() {
 
   return (
     <div className="page">
+      <UserMenu />
       <div className="map-container">
         {initialCenter !== undefined && runsLoaded && (
           <BaseMap

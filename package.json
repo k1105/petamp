@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@capacitor-community/background-geolocation": "^1.2.26",
+    "@capacitor-firebase/authentication": "^7.5.0",
+    "@capacitor-firebase/firestore": "^7.5.0",
     "@capacitor/core": "^7.6.4",
     "@capacitor/ios": "^7.6.4",
     "@deck.gl/mapbox": "^9.3.2",
@@ -19,6 +21,7 @@
     "@iconify/react": "^6.0.2",
     "@types/mapbox-gl": "^3.4.1",
     "deck.gl": "^9.3.2",
+    "firebase": "^12.13.0",
     "idb-keyval": "^6.2.2",
     "mapbox-gl": "^3.23.1",
     "react": "^19.2.5",

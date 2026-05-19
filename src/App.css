@@ -956,6 +956,126 @@
   border-color: var(--accent);
 }
 
+/* BaseMap で使う variant: 画面下端中央 (bottom-sheet の上)。
+   bottom-sheet 折りたたみ時 32px + FAB が peek するので、十分上方に置く。 */
+.orbit-toggle.orbit-toggle-bottom {
+  top: auto;
+  right: auto;
+  bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+}
+.orbit-toggle.orbit-toggle-bottom:active {
+  transform: translateX(-50%) scale(0.94);
+}
+
+/* ---- User menu (top-right) ---- */
+.user-menu {
+  position: absolute;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: 16px;
+  z-index: 10;
+}
+
+.user-menu-trigger {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  overflow: hidden;
+  transition:
+    background 0.15s,
+    transform 0.15s;
+}
+.user-menu-trigger:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.user-menu-trigger:active {
+  transform: scale(0.94);
+}
+
+.user-menu-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-menu-dropdown {
+  position: absolute;
+  top: 48px;
+  right: 0;
+  min-width: 200px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-menu-info {
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.user-menu-name {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu-email {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu-item {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.user-menu-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.user-menu-item:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.user-menu-error {
+  margin-top: 4px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #f88;
+  word-break: break-all;
+  white-space: normal;
+  max-width: 260px;
+}
+
 /* ---- Location crosshair (recording, before start) ---- */
 .location-crosshair {
   position: absolute;
