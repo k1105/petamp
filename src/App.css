@@ -150,6 +150,52 @@
   padding-bottom: calc(96px + var(--safe-bottom));
 }
 
+.list-mode-header {
+  display: flex;
+  justify-content: center;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px;
+}
+
+.list-mode-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+}
+
+.list-mode-toggle-btn {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  padding: 5px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.list-mode-toggle-btn.is-active {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.island-view-wrap {
+  flex: 1;
+  /* run-grid 同様、FAB 行 + safe-area 分の余白を下に確保する。 */
+  padding-bottom: calc(96px + var(--safe-bottom));
+  position: relative;
+  overflow: hidden;
+}
+
+/* 親 (.list-mode-header) で既にノッチ分のパディングを消費しているので、
+   この中の orbit-toggle は env(safe-area-inset-top) を加算しない。 */
+.island-view-wrap .orbit-toggle {
+  top: 12px;
+}
+
 .armed-backdrop {
   position: absolute;
   inset: 0;

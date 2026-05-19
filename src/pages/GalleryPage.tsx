@@ -14,6 +14,7 @@ import { useSettingsStore } from '../store/useSettingsStore'
 import { SettingsPanel } from '../components/gallery/SettingsPanel'
 import { RunTile } from '../components/gallery/RunTile'
 import { EyesIcon } from '../components/gallery/EyesIcon'
+import { IslandView } from '../components/island/IslandView'
 import { buildPathPositions } from '../utils/tubeMesh'
 import { effectiveRadius } from '../utils/effectiveRadius'
 import { acceptedPoints } from '../utils/recordingFilters'
@@ -149,6 +150,7 @@ export function GalleryPage() {
   const ui = useSettingsStore(s => s.ui)
   const setUi = useSettingsStore(s => s.setUi)
   const [view, setView] = useState<'map' | 'list' | 'settings'>('map')
+  const [listMode, setListMode] = useState<'trail' | 'island'>('trail')
   const [armed, setArmed] = useState(false)
   const [focusGPSSignal, setFocusGPSSignal] = useState(0)
   const [bubblePhrase, setBubblePhrase] = useState<string | null>(null)
@@ -401,15 +403,45 @@ export function GalleryPage() {
       </div>
 
       <div className={`gallery-panel gallery-panel-list${view === 'list' ? ' open' : ''}`}>
-        {listMounted && (runs.length === 0 ? (
-          <p className="empty-hint">記録したランがここに表示されます</p>
-        ) : (
-          <div className="run-grid">
-            {runs.map(run => (
-              <RunTile key={run.id} run={run} onDelete={removeRun} onSelect={handleRunSelect} />
-            ))}
-          </div>
-        ))}
+        {listMounted && (
+          <>
+            <div className="list-mode-header">
+              <div className="list-mode-toggle" role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={listMode === 'trail'}
+                  className={`list-mode-toggle-btn${listMode === 'trail' ? ' is-active' : ''}`}
+                  onClick={() => setListMode('trail')}
+                >
+                  TRAIL
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={listMode === 'island'}
+                  className={`list-mode-toggle-btn${listMode === 'island' ? ' is-active' : ''}`}
+                  onClick={() => setListMode('island')}
+                >
+                  ISLAND
+                </button>
+              </div>
+            </div>
+            {runs.length === 0 ? (
+              <p className="empty-hint">記録したランがここに表示されます</p>
+            ) : listMode === 'trail' ? (
+              <div className="run-grid">
+                {runs.map(run => (
+                  <RunTile key={run.id} run={run} onDelete={removeRun} onSelect={handleRunSelect} />
+                ))}
+              </div>
+            ) : (
+              <div className="island-view-wrap">
+                <IslandView runs={runs} />
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <div className={`gallery-panel gallery-panel-settings${view === 'settings' ? ' open' : ''}`}>
