@@ -46,7 +46,13 @@ export interface RunEvent {
   description: string
 }
 
-export type RunTopologyShape = 'loop' | 'out_and_back' | 'one_way' | 'figure_eight'
+export type RunTopologyShape =
+  | 'loop'
+  | 'out_and_back'
+  | 'one_way'
+  | 'figure_eight'
+  | 'lollipop'
+  | 'complex'
 
 export interface RunTopology {
   shape: RunTopologyShape
@@ -54,6 +60,8 @@ export interface RunTopology {
   startEndDistanceM: number
   /** 自己交差回数 (図形的)。 */
   selfIntersections: number
+  /** 平面グラフで囲まれた領域数 (オイラー特性から導出)。0=開いた一本道、1=単純ループ or lollipop、2=8の字、≥3=複雑。 */
+  enclosedRegions: number
   /** bbox の幅/高さ比 (m単位)。1超は横長、1未満は縦長。 */
   bboxAspectRatio: number
   /** 全距離 / bbox 対角線 m。1.0付近=直線的、大きいほど蛇行。 */

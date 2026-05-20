@@ -10,6 +10,8 @@ export function describeShape(topo: RunSummary['topology']): string {
     topo.shape === 'loop' ? 'ぐるっと回る道'
     : topo.shape === 'out_and_back' ? '同じ道を往復'
     : topo.shape === 'figure_eight' ? '8の字'
+    : topo.shape === 'lollipop' ? '一本道のあとにぐるっと回る道'
+    : topo.shape === 'complex' ? '何度も交差する入りくんだ道'
     : '一方通行'
   return `${label} (${topo.shape}, 蛇行度${topo.squiggliness.toFixed(2)})`
 }

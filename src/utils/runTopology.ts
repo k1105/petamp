@@ -18,8 +18,14 @@ export interface SelfIntersection {
 
 /**
  * 経路の形を判定。
- * - shape: loop/out_and_back/one_way/figure_eight
- * - 自己交差は粗い手法 (隣接していない segment 同士の交差をスキャン)
+ *
+ * 平面グラフ的に経路を扱う:
+ * - 自己交差を内部頂点 (degree 4) とみなす
+ * - start/end が近ければ仮想エッジで閉じてサイクル化
+ * - オイラー特性から囲まれた領域数 (enclosedRegions) を導出
+ * - 自己交差 k 個 + 閉路: 領域 = k + 1
+ * - 自己交差 k 個 + 開路: 領域 = k
+ * - 8の字は更に 2 つのローブが均衡している (それぞれ全周長の 30% 以上) ことを確認
  */
 export function analyzeRunTopology(run: Run, segments: RunSegment[] = []): RunTopology {
   const pts = acceptedPoints(run.trackPoints)
@@ -28,6 +34,7 @@ export function analyzeRunTopology(run: Run, segments: RunSegment[] = []): RunTo
       shape: 'one_way',
       startEndDistanceM: 0,
       selfIntersections: 0,
+      enclosedRegions: 0,
       bboxAspectRatio: 1,
       squiggliness: 1,
     }
@@ -38,7 +45,8 @@ export function analyzeRunTopology(run: Run, segments: RunSegment[] = []): RunTo
     .map(s => [s.startPointIdx, s.endPointIdx] as [number, number])
 
   const startEndDistanceM = haversineDistance(pts[0], pts[pts.length - 1])
-  const selfIntersections = findSelfIntersections(pts, restingRanges).length
+  const intersections = findSelfIntersections(pts, restingRanges)
+  const selfIntersections = intersections.length
   const bbox = computeBbox(pts)
   const bboxWidthM = haversineDistance(
     { ...pts[0], lat: bbox.latMid, lng: bbox.lngMin },
@@ -48,8 +56,7 @@ export function analyzeRunTopology(run: Run, segments: RunSegment[] = []): RunTo
     { ...pts[0], lat: bbox.latMin, lng: bbox.lngMid },
     { ...pts[0], lat: bbox.latMax, lng: bbox.lngMid },
   )
-  const bboxAspectRatio =
-    bboxHeightM > 0 ? bboxWidthM / bboxHeightM : 1
+  const bboxAspectRatio = bboxHeightM > 0 ? bboxWidthM / bboxHeightM : 1
   const diag = Math.sqrt(bboxWidthM ** 2 + bboxHeightM ** 2)
 
   let totalDist = 0
@@ -58,32 +65,81 @@ export function analyzeRunTopology(run: Run, segments: RunSegment[] = []): RunTo
   }
   const squiggliness = diag > 0 ? totalDist / diag : 1
 
-  const shape = decideShape(startEndDistanceM, totalDist, selfIntersections, pts)
+  const closed = isPathClosed(startEndDistanceM, totalDist)
+  const enclosedRegions = closed ? selfIntersections + 1 : selfIntersections
+  const shape = decideShape({
+    pts,
+    intersections,
+    closed,
+    totalDist,
+    enclosedRegions,
+  })
 
   return {
     shape,
     startEndDistanceM,
     selfIntersections,
+    enclosedRegions,
     bboxAspectRatio,
     squiggliness,
   }
 }
 
-function decideShape(
-  startEndDist: number,
-  totalDist: number,
-  selfIntersections: number,
-  pts: TrackPoint[],
-): RunTopologyShape {
-  // 後半が前半の道を再利用しているなら out_and_back を最優先で判定。
+function isPathClosed(startEndDistanceM: number, totalDist: number): boolean {
+  return startEndDistanceM < Math.max(50, totalDist * 0.05)
+}
+
+interface DecideArgs {
+  pts: TrackPoint[]
+  intersections: SelfIntersection[]
+  closed: boolean
+  totalDist: number
+  enclosedRegions: number
+}
+
+function decideShape(args: DecideArgs): RunTopologyShape {
+  const { pts, intersections, closed, totalDist, enclosedRegions } = args
+
+  // 後半が前半をなぞっているなら最優先で out_and_back。
   // (始終点が近い out_and_back を loop と誤判定するのを防ぐ)
   if (looksLikeOutAndBack(pts)) return 'out_and_back'
-  // 始終点が近く、かつ retrace していない → loop or figure_eight
-  if (startEndDist < Math.max(50, totalDist * 0.05)) {
-    if (selfIntersections >= 1) return 'figure_eight'
+
+  if (enclosedRegions === 0) {
+    return closed ? 'loop' : 'one_way'
+  }
+
+  if (enclosedRegions === 1) {
+    return closed ? 'loop' : 'lollipop'
+  }
+
+  // enclosedRegions === 2: 8の字候補。ローブの均衡をチェック。
+  if (enclosedRegions === 2 && closed && intersections.length === 1) {
+    if (lobesBalanced(intersections[0], totalDist)) return 'figure_eight'
+    // 片寄っていれば実質ループ。
     return 'loop'
   }
-  return 'one_way'
+
+  return 'complex'
+}
+
+/**
+ * 1点交差で 2 ローブを持つ閉路の、両ローブの経路長バランスを評価。
+ * - ローブA: 交差の t1 から t2 までの内側経路
+ * - ローブB: start→t1 + t2→end + 仮想閉路エッジ
+ * 両方が全周長の minFraction 以上ならバランスしているとみなす。
+ */
+function lobesBalanced(
+  x: SelfIntersection,
+  totalDist: number,
+  minFraction = 0.35,
+): boolean {
+  // i→i+1, j→j+1 が交差。t1 ≈ i+1 までの累積距離、t2 ≈ j までの累積距離 と近似。
+  const lobeAInner = x.pathDistBetween // i+1 から j まで
+  const lobeBOuter = totalDist - lobeAInner // 残り全部 (start→i+1 と j→end と仮想エッジ)
+  const cycle = lobeAInner + lobeBOuter
+  if (cycle <= 0) return false
+  const ratio = Math.min(lobeAInner, lobeBOuter) / cycle
+  return ratio >= minFraction
 }
 
 /**
