@@ -24,6 +24,13 @@ service cloud.firestore {
         allow read: if isSignedIn();
         allow write: if isSelf(uid);
       }
+
+      // キャラ記憶: episodic / semantic / relational / namedPlace を
+      // users/{uid}/characters/{characterId}/{kind}/{docId} の階層に保存。
+      // 完全に本人プライベート。
+      match /characters/{characterId}/{kind}/{docId} {
+        allow read, write: if isSelf(uid);
+      }
     }
 
     // フォロー関係: doc ID は `${followerUid}__${followeeUid}`
