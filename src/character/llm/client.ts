@@ -7,12 +7,23 @@ export interface LLMMessage {
 
 /**
  * 発話が指す話題。軌跡ハイライト等の可視化のため、
- * say が "全体について" か "特定セグメントについて" かを区別する。
+ * say が "全体について" か "特定セグメントについて" か "特定ポイントについて" を区別する。
  */
 export interface LLMReplyTopic {
-  kind: 'whole' | 'segment'
+  kind: 'whole' | 'segment' | 'point'
   /** kind='segment' のとき: 0-based のセグメント index。 */
   segmentIndex?: number
+  /** kind='point' のとき: acceptedPoints 配列の 0-based index。 */
+  pointIdx?: number
+}
+
+/**
+ * 「忘れたくないので名前をつける」操作。1ターンに高々1個、かつ
+ * topic が segment / point を指しているときだけ有効。サービス層で永続化する。
+ */
+export interface LLMReplyNameProposal {
+  /** ペタンプがつけた名前。短く、子供らしい言葉で。 */
+  name: string
 }
 
 /**
@@ -29,6 +40,11 @@ export interface LLMReply {
    * 既存データとの互換性のため optional。新規生成では schema 側で必須。
    */
   topic?: LLMReplyTopic
+  /**
+   * 命名提案。topic が segment / point を指しているときのみ意味を持つ。
+   * サービス層が NamedPlace として永続化する。スレッドあたり最大1個。
+   */
+  nameProposal?: LLMReplyNameProposal
 }
 
 export interface LLMOptions {

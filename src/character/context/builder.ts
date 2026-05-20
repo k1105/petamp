@@ -1,6 +1,6 @@
 import type { Character } from '../domain/character'
 import type { DialogueThread, TurnRef } from '../domain/dialogue'
-import type { EpisodicMemory, RelationalState, SemanticMemory } from '../domain/memory'
+import type { EpisodicMemory, NamedPlace, RelationalState, SemanticMemory } from '../domain/memory'
 import type { RunSummary } from '../domain/runSummary'
 import type { LLMMessage } from '../llm/client'
 
@@ -11,6 +11,8 @@ export interface BuildContextInput {
   userInput: string
   /** 話題のRun(あれば)。RunDetail起点ならnon-null。 */
   runSummary?: RunSummary
+  /** 話題Runの軌跡点列。NamedPlace の近傍検索とアンカー解決に使う。 */
+  runPoints?: ReadonlyArray<{ lat: number; lng: number }>
   /** 話題のNoteなど。 */
   refs?: TurnRef[]
   /** このターン限定でsystem promptに添える追加指示 (締めの指示など)。 */
@@ -29,6 +31,10 @@ export interface BuiltContext {
     relational: RelationalState | null
     retrievedEpisodic: EpisodicMemory[]
     retrievedSemantic: SemanticMemory[]
+    retrievedNamedPlaces: {
+      currentThread: NamedPlace[]
+      nearby: NamedPlace[]
+    }
     runSummary?: RunSummary
   }
 }

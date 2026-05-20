@@ -5,6 +5,7 @@ import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { loadRun } from '../db/runRepository'
 import { buildRunSummary } from '../utils/runSummary'
+import { acceptedPoints } from '../utils/recordingFilters'
 import {
   CLOSING_NOTE,
   NOTATION_OPENING_TRIGGER_FRESH,
@@ -122,6 +123,10 @@ export function NotationChatPage() {
     () => (run ? [{ kind: 'run' as const, id: run.id }] : undefined),
     [run],
   )
+  const runPoints = useMemo(
+    () => (run ? acceptedPoints(run.trackPoints) : undefined),
+    [run],
+  )
 
   const phonemes = useMemo(
     () => (run ? activeStrategy.encode(run) : []),
@@ -147,6 +152,7 @@ export function NotationChatPage() {
     service: service!,
     memory,
     defaultRunSummary: runSummary,
+    defaultRunPoints: runPoints,
     defaultRefs: refs,
   })
 

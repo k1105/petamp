@@ -27,6 +27,31 @@ export interface SemanticMemory {
   updatedAt: number
 }
 
+/**
+ * ペタンプが「忘れたくない」と思って名づけた場所。座標に紐づく。
+ * - 1ターンに最大1個 (会話スレッドあたり最大1個)
+ * - 将来の別Runでも近くを走れば surface される
+ */
+export interface NamedPlace {
+  id: string
+  characterId: CharacterId
+  /** ペタンプがつけた名前。 */
+  name: string
+  /** 1点に紐づける場合の lat/lng。 */
+  point?: { lat: number; lng: number }
+  /** 区間に紐づける場合の経路 (lat/lng の連なり)。 */
+  polyline?: Array<{ lat: number; lng: number }>
+  /** 命名の元になった Run。 */
+  sourceRunId: string
+  /** point 命名のときの accepted pts index。 */
+  sourcePointIdx?: number
+  /** segment 命名のときの segment index。 */
+  sourceSegmentIndex?: number
+  /** どの会話スレッドで生まれた名前か。 */
+  sourceThreadId: ThreadId
+  createdAt: number
+}
+
 /** キャラとユーザの関係値。単一レコード。 */
 export interface RelationalState {
   characterId: CharacterId

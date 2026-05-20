@@ -12,6 +12,11 @@ export interface SendInput {
   text: string
   /** 話題のRun(RunDetailから話しかけた等)。 */
   runSummary?: RunSummary
+  /**
+   * 話題Runの軌跡点列 (acceptedPoints と同じ順序)。
+   * nameProposal の座標解決に使う。なければ命名は永続化されない。
+   */
+  runPoints?: ReadonlyArray<{ lat: number; lng: number }>
   refs?: TurnRef[]
   /** このターンだけsystem promptに足したい指示 (締めの指示など)。 */
   extraSystemNote?: string

@@ -47,7 +47,12 @@ function isLLMReply(value: unknown): value is LLMReply {
   if (v.topic !== undefined) {
     if (typeof v.topic !== 'object' || v.topic === null) return false
     const t = v.topic as Record<string, unknown>
-    if (t.kind !== 'whole' && t.kind !== 'segment') return false
+    if (t.kind !== 'whole' && t.kind !== 'segment' && t.kind !== 'point') return false
+  }
+  if (v.nameProposal !== undefined) {
+    if (typeof v.nameProposal !== 'object' || v.nameProposal === null) return false
+    const n = v.nameProposal as Record<string, unknown>
+    if (typeof n.name !== 'string' || n.name.trim() === '') return false
   }
   return true
 }

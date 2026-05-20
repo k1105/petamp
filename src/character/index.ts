@@ -108,5 +108,6 @@ export {
   resetAllCharacterMemory,
   resetOnboarding,
   resetPromptLog,
+  setMemoryStoreFactory,
 } from './wiring'
 export type { HomeAmbientInput } from './ambient'

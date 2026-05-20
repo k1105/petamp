@@ -1,6 +1,11 @@
 import type { CharacterId } from '../domain/character'
 import type { DialogueThread, DialogueTurn, ThreadId, TurnRef } from '../domain/dialogue'
-import type { EpisodicMemory, RelationalState, SemanticMemory } from '../domain/memory'
+import type {
+  EpisodicMemory,
+  NamedPlace,
+  RelationalState,
+  SemanticMemory,
+} from '../domain/memory'
 
 export interface ThreadQuery {
   characterId: CharacterId
@@ -18,6 +23,15 @@ export interface SemanticQuery {
   characterId: CharacterId
   /** key prefixで絞り込み(例: "preference.")。 */
   keyPrefix?: string
+}
+
+export interface NamedPlaceQuery {
+  characterId: CharacterId
+  /** 中心座標と半径 (m) で近傍検索。指定なしは全件返す。 */
+  near?: { lat: number; lng: number; radiusM: number }
+  /** 特定 thread で生まれた名前のみ返す。 */
+  sourceThreadId?: ThreadId
+  limit?: number
 }
 
 /** キャラ単位の永続化。実装は IndexedDB / LocalStorage どちらでもよい。 */
@@ -42,6 +56,10 @@ export interface MemoryStore {
   putSemantic(memory: SemanticMemory): Promise<void>
   querySemantic(query: SemanticQuery): Promise<SemanticMemory[]>
   deleteSemantic(id: string): Promise<void>
+
+  // --- NamedPlace ---
+  putNamedPlace(place: NamedPlace): Promise<void>
+  queryNamedPlaces(query: NamedPlaceQuery): Promise<NamedPlace[]>
 
   // --- Relational ---
   getRelational(characterId: CharacterId): Promise<RelationalState | undefined>

@@ -12,6 +12,7 @@ import { PromptLogPage } from './pages/PromptLogPage'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { TransitionOverlay } from './components/transition/TransitionOverlay'
 import { useApplyTheme } from './hooks/useApplyTheme'
+import { useCharacterMemorySync } from './hooks/useCharacterMemorySync'
 import { useEnsureUserDoc } from './hooks/useEnsureUserDoc'
 import { getMemoryStore, petampCharacter } from './character'
 import './App.css'
@@ -43,6 +44,7 @@ function HomeRoute() {
 function App() {
   useApplyTheme()
   useEnsureUserDoc()
+  useCharacterMemorySync()
   return (
     <BrowserRouter>
       <Routes>

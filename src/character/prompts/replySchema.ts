@@ -19,15 +19,30 @@ export const REPLY_JSON_SCHEMA = {
       properties: {
         kind: {
           type: 'string',
-          enum: ['whole', 'segment'],
-          description: '"whole" = ラン全体について話している / "segment" = 特定区間',
+          enum: ['whole', 'segment', 'point'],
+          description: '"whole" = ラン全体 / "segment" = 特定区間 / "point" = 軌跡上の特定の1点',
         },
         segmentIndex: {
           type: 'integer',
           description: 'kind=segment のとき、0-basedのセグメントindex。',
         },
+        pointIdx: {
+          type: 'integer',
+          description: 'kind=point のとき、軌跡点列の0-based index。指したい場所が「ある一点」のときに使う。',
+        },
       },
       required: ['kind'],
+    },
+    nameProposal: {
+      type: 'object',
+      description: '「忘れたくないからこの場所に名前をつけたい」と思ったとき(かつ topic が segment か point のとき)だけ入れる。会話スレッドあたり最大1個。',
+      properties: {
+        name: {
+          type: 'string',
+          description: '短く、子供らしい言葉で。例: "おりかえしの坂", "さかみち", "あのまがりかど"',
+        },
+      },
+      required: ['name'],
     },
   },
   required: ['thought', 'say', 'topic'],

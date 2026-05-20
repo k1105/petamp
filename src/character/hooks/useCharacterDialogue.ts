@@ -21,6 +21,8 @@ export interface UseCharacterDialogueOptions {
   /** 送信時に毎回付与するrefとrunSummary(画面起点で固定したい場合)。 */
   defaultRunSummary?: RunSummary
   defaultRefs?: TurnRef[]
+  /** 命名提案の座標解決に使う、軌跡点列(acceptedPoints と同順)。 */
+  defaultRunPoints?: ReadonlyArray<{ lat: number; lng: number }>
 }
 
 export interface UseCharacterDialogueReturn {
@@ -40,7 +42,7 @@ export interface UseCharacterDialogueReturn {
 export function useCharacterDialogue(
   options: UseCharacterDialogueOptions,
 ): UseCharacterDialogueReturn {
-  const { characterId, service, memory, defaultRunSummary, defaultRefs } = options
+  const { characterId, service, memory, defaultRunSummary, defaultRefs, defaultRunPoints } = options
 
   const [messages, setMessages] = useState<DialogueTurn[]>([])
   const [threadId, setThreadId] = useState<ThreadId | null>(options.threadId ?? null)
@@ -99,6 +101,7 @@ export function useCharacterDialogue(
           threadId: threadId ?? undefined,
           text,
           runSummary: defaultRunSummary,
+          runPoints: defaultRunPoints,
           refs: defaultRefs,
           extraSystemNote: options?.extraSystemNote,
         })
@@ -116,7 +119,7 @@ export function useCharacterDialogue(
         setIsThinking(false)
       }
     },
-    [service, memory, characterId, threadId, defaultRunSummary, defaultRefs],
+    [service, memory, characterId, threadId, defaultRunSummary, defaultRunPoints, defaultRefs],
   )
 
   const rate = useCallback(

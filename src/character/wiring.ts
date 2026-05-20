@@ -18,6 +18,9 @@ let promptLogInstance: PromptLogStore | null = null
 let llmInstance: LLMClient | null = null
 let serviceInstance: DialogueService | null = null
 
+type MemoryStoreFactory = () => MemoryStore
+let memoryFactory: MemoryStoreFactory = () => new IdbMemoryStore()
+
 function getLlmClient(): LLMClient {
   if (llmInstance) return llmInstance
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined
@@ -26,8 +29,20 @@ function getLlmClient(): LLMClient {
   return llmInstance
 }
 
+/**
+ * MemoryStore のファクトリを差し替える。
+ * アプリ起動時 (どこかで getMemoryStore が呼ばれる前) に1度だけ呼ぶ想定。
+ * 既にインスタンス化されていたら例外。
+ */
+export function setMemoryStoreFactory(factory: MemoryStoreFactory): void {
+  if (memoryInstance) {
+    throw new Error('setMemoryStoreFactory: memory store already initialized')
+  }
+  memoryFactory = factory
+}
+
 export function getMemoryStore(): MemoryStore {
-  if (!memoryInstance) memoryInstance = new IdbMemoryStore()
+  if (!memoryInstance) memoryInstance = memoryFactory()
   return memoryInstance
 }
 

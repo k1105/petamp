@@ -8,12 +8,14 @@ import type {
 } from '../domain/dialogue'
 import type {
   EpisodicMemory,
+  NamedPlace,
   RelationalState,
   SemanticMemory,
 } from '../domain/memory'
 import type {
   EpisodicQuery,
   MemoryStore,
+  NamedPlaceQuery,
   SemanticQuery,
   ThreadQuery,
 } from './store'
@@ -24,6 +26,7 @@ const PFX = {
   episodic: 'char:episodic:',
   semantic: 'char:semantic:',
   relational: 'char:relational:',
+  namedPlace: 'char:namedPlace:',
 }
 
 /** 13桁ゼロ埋め timestamp。lexicographic順 = 時系列順を保証。 */
@@ -61,6 +64,34 @@ function semanticPrefix(characterId: CharacterId): string {
 
 function relationalKey(characterId: CharacterId): string {
   return `${PFX.relational}${characterId}`
+}
+
+function namedPlaceKey(p: NamedPlace): string {
+  return `${PFX.namedPlace}${p.characterId}:${p.id}`
+}
+
+function namedPlacePrefix(characterId: CharacterId): string {
+  return `${PFX.namedPlace}${characterId}:`
+}
+
+/** 緯度経度を平面近似してユークリッド距離 (m)。near 検索の高速判定用。 */
+function approxDistanceM(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const R = 6371000
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const latRad = toRad((a.lat + b.lat) / 2)
+  const dLat = toRad(b.lat - a.lat)
+  const dLng = toRad(b.lng - a.lng) * Math.cos(latRad)
+  return Math.sqrt(dLat * dLat + dLng * dLng) * R
+}
+
+/** NamedPlace の代表点 (point があればそれ、polyline なら最初の点) を返す。 */
+function placeAnchor(p: NamedPlace): { lat: number; lng: number } | null {
+  if (p.point) return p.point
+  if (p.polyline && p.polyline.length > 0) return p.polyline[0]
+  return null
 }
 
 async function keysWithPrefix(prefix: string): Promise<string[]> {
@@ -183,6 +214,44 @@ export class IdbMemoryStore implements MemoryStore {
     }
   }
 
+  // --- NamedPlace ---
+
+  async putNamedPlace(place: NamedPlace): Promise<void> {
+    await set(namedPlaceKey(place), place)
+  }
+
+  async queryNamedPlaces(query: NamedPlaceQuery): Promise<NamedPlace[]> {
+    const all = await loadByPrefix<NamedPlace>(namedPlacePrefix(query.characterId))
+    let filtered = all
+    if (query.sourceThreadId) {
+      filtered = filtered.filter(p => p.sourceThreadId === query.sourceThreadId)
+    }
+    if (query.near) {
+      const { lat, lng, radiusM } = query.near
+      const scored: Array<{ p: NamedPlace; d: number }> = []
+      for (const p of filtered) {
+        // polyline は最近接点までの距離を見る。point はそのまま。
+        let minDist = Infinity
+        if (p.polyline && p.polyline.length > 0) {
+          for (const node of p.polyline) {
+            const d = approxDistanceM({ lat, lng }, node)
+            if (d < minDist) minDist = d
+          }
+        } else {
+          const anchor = placeAnchor(p)
+          if (!anchor) continue
+          minDist = approxDistanceM({ lat, lng }, anchor)
+        }
+        if (minDist <= radiusM) scored.push({ p, d: minDist })
+      }
+      scored.sort((a, b) => a.d - b.d)
+      const result = scored.map(s => s.p)
+      return query.limit !== undefined ? result.slice(0, query.limit) : result
+    }
+    const sorted = filtered.sort((a, b) => b.createdAt - a.createdAt)
+    return query.limit !== undefined ? sorted.slice(0, query.limit) : sorted
+  }
+
   // --- Relational ---
 
   async getRelational(
@@ -204,7 +273,8 @@ export class IdbMemoryStore implements MemoryStore {
           k.startsWith(PFX.turn) ||
           k.startsWith(PFX.episodic) ||
           k.startsWith(PFX.semantic) ||
-          k.startsWith(PFX.relational)),
+          k.startsWith(PFX.relational) ||
+          k.startsWith(PFX.namedPlace)),
     )
     await Promise.all(targets.map(k => del(k)))
   }

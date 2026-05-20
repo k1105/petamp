@@ -2,6 +2,7 @@ import type { Character } from '../domain/character'
 import type { TurnRef } from '../domain/dialogue'
 import type {
   EpisodicMemory,
+  NamedPlace,
   RelationalState,
   SemanticMemory,
 } from '../domain/memory'
@@ -16,6 +17,10 @@ export interface SystemPromptInput {
   currentRefs?: TurnRef[]
   runSummary?: RunSummary
   extraSystemNote?: string
+  /** 現スレッドで既に名づけた場所。重複名づけ防止用。 */
+  currentThreadNames?: NamedPlace[]
+  /** 現Runの近くにある、過去に名づけた場所。 */
+  nearbyNames?: NamedPlace[]
 }
 
 function refKey(r: TurnRef): string {
@@ -103,9 +108,40 @@ export function renderSystemPrompt(input: SystemPromptInput): string {
     sections.push(['[今話している話題のRun]', renderRunSummary(input.runSummary)].join('\n'))
   }
 
+  if (input.nearbyNames && input.nearbyNames.length > 0) {
+    const lines = input.nearbyNames.map(n => describeName(n))
+    sections.push(
+      [
+        '[前に名前をつけた場所 (この近くにある)]',
+        '(過去にぼくがつけた名前。会話で自然に出てきたら使ってよい。新しい名前はつけ直さない)',
+        ...lines,
+      ].join('\n'),
+    )
+  }
+
+  if (input.currentThreadNames && input.currentThreadNames.length > 0) {
+    const lines = input.currentThreadNames.map(n => describeName(n))
+    sections.push(
+      [
+        '[このRunで名前をつけた場所]',
+        '★ この対話ではもう名前をつけてある。これ以上 nameProposal を返さない。',
+        ...lines,
+      ].join('\n'),
+    )
+  }
+
   if (input.extraSystemNote) {
     sections.push(['[このターンの追加指示]', input.extraSystemNote].join('\n'))
   }
 
   return sections.join('\n\n')
+}
+
+function describeName(n: NamedPlace): string {
+  const where = n.point
+    ? '1点'
+    : n.polyline && n.polyline.length > 0
+      ? '区間'
+      : '場所'
+  return `- 「${n.name}」(${where})`
 }

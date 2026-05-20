@@ -5,7 +5,7 @@ import type {
   ThreadId,
   TurnRef,
 } from '../domain/dialogue'
-import type { EpisodicMemory, RelationalState } from '../domain/memory'
+import type { EpisodicMemory, NamedPlace, RelationalState } from '../domain/memory'
 import type { RunSummary } from '../domain/runSummary'
 import type { ContextBuilder } from '../context/builder'
 import type { LLMClient, LLMMessage } from '../llm/client'
@@ -113,6 +113,7 @@ export class DefaultDialogueService implements DialogueService {
       thread,
       userInput: input.text,
       runSummary: input.runSummary,
+      runPoints: input.runPoints,
       refs: input.refs,
       extraSystemNote: input.extraSystemNote,
     })
@@ -147,6 +148,16 @@ export class DefaultDialogueService implements DialogueService {
       topic: result.reply.topic,
     }
     await this.memory.appendTurn(characterTurn)
+
+    await this.persistNameProposalIfAny({
+      reply: result.reply,
+      characterId: character.id,
+      threadId: thread.id,
+      runSummary: input.runSummary,
+      runPoints: input.runPoints,
+      refs: input.refs,
+      now: result.meta.finishedAt,
+    })
 
     const updatedThread: DialogueThread = {
       ...thread,
@@ -287,6 +298,68 @@ export class DefaultDialogueService implements DialogueService {
   }
 
   // --- internals ---
+
+  private async persistNameProposalIfAny(args: {
+    reply: { topic?: { kind: string; segmentIndex?: number; pointIdx?: number }; nameProposal?: { name: string } }
+    characterId: CharacterId
+    threadId: ThreadId
+    runSummary?: RunSummary
+    runPoints?: ReadonlyArray<{ lat: number; lng: number }>
+    refs?: TurnRef[]
+    now: number
+  }): Promise<void> {
+    const { reply, characterId, threadId, runSummary, runPoints, refs, now } = args
+    const proposal = reply.nameProposal
+    if (!proposal) return
+    const topic = reply.topic
+    if (!topic || (topic.kind !== 'segment' && topic.kind !== 'point')) return
+    if (!runSummary || !runPoints || runPoints.length === 0) return
+    const runRef = refs?.find(r => r.kind === 'run')
+    if (!runRef) return
+
+    // スレッドあたり最大1個。既存があれば無視。
+    const existing = await this.memory.queryNamedPlaces({
+      characterId,
+      sourceThreadId: threadId,
+      limit: 1,
+    })
+    if (existing.length > 0) return
+
+    const name = proposal.name.trim()
+    if (name === '') return
+
+    const base: Omit<NamedPlace, 'point' | 'polyline' | 'sourcePointIdx' | 'sourceSegmentIndex'> = {
+      id: newId(),
+      characterId,
+      name,
+      sourceRunId: runRef.id,
+      sourceThreadId: threadId,
+      createdAt: now,
+    }
+
+    let place: NamedPlace | null = null
+    if (topic.kind === 'point') {
+      const idx = topic.pointIdx
+      if (idx === undefined || idx < 0 || idx >= runPoints.length) return
+      const pt = runPoints[idx]
+      place = { ...base, point: { lat: pt.lat, lng: pt.lng }, sourcePointIdx: idx }
+    } else if (topic.kind === 'segment') {
+      const segIdx = topic.segmentIndex
+      if (segIdx === undefined) return
+      const seg = runSummary.segments[segIdx]
+      if (!seg) return
+      const start = Math.max(0, Math.min(seg.startPointIdx, runPoints.length - 1))
+      const end = Math.max(0, Math.min(seg.endPointIdx, runPoints.length - 1))
+      if (end < start) return
+      const polyline = []
+      for (let i = start; i <= end; i++) {
+        polyline.push({ lat: runPoints[i].lat, lng: runPoints[i].lng })
+      }
+      place = { ...base, polyline, sourceSegmentIndex: segIdx }
+    }
+
+    if (place) await this.memory.putNamedPlace(place)
+  }
 
   private async resolveThread(
     characterId: CharacterId,

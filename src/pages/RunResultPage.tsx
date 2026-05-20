@@ -141,6 +141,7 @@ export function RunResultPage() {
     service: service!,
     memory,
     defaultRunSummary: runSummary,
+    defaultRunPoints: acceptedRunPoints,
     defaultRefs: refs,
   })
 
