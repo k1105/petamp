@@ -13,6 +13,8 @@ import { useAnimation } from '../hooks/useAnimation'
 import { useElevationStats } from '../hooks/useElevationStats'
 import { getPaletteForRun, hexToRgb, type Palette } from '../utils/themePalettes'
 import { useRunStore } from '../store/useRunStore'
+import { useSocialFeedStore } from '../store/useSocialFeedStore'
+import { useAuth } from '../hooks/useAuth'
 import { positionAtTime, relAltitudeAtTime } from '../hooks/useGalleryAnimation'
 import { buildPathPositions } from '../utils/tubeMesh'
 import { effectiveRadius } from '../utils/effectiveRadius'
@@ -133,6 +135,9 @@ export function RunDetailPage() {
   const eyeRef = useRef<HTMLButtonElement>(null)
   const bubbleRef = useRef<HTMLDivElement>(null)
   const { runs, loadRuns, updateRun } = useRunStore()
+  const followedRuns = useSocialFeedStore(s => s.followedRuns)
+  const followedUsers = useSocialFeedStore(s => s.followedUsers)
+  const { user: currentUser } = useAuth()
   const [runsLoaded, setRunsLoaded] = useState(false)
   const [controlsVisible, setControlsVisible] = useState(true)
   const notationEnabled = useSettingsStore(s => s.experimental.notation)
@@ -205,9 +210,21 @@ export function RunDetailPage() {
     }
   }, [bubbleOpen, memories])
 
-  // このRunに紐づく episodic memory を取得
+  // 他人のランかどうか。ownerUid が現在ユーザー以外、または currentUser 不在 + ownerUid あり。
+  const isOthers = useMemo(() => {
+    if (!run?.ownerUid) return false
+    return !currentUser || run.ownerUid !== currentUser.uid
+  }, [run, currentUser])
+  const ownerUser = useMemo(
+    () => (run?.ownerUid ? followedUsers.find(u => u.uid === run.ownerUid) ?? null : null),
+    [run, followedUsers],
+  )
+
+  // このRunに紐づく episodic memory を取得 (自分のランのみ)。他人のランでは
+  // 取得しない。前回 own ラン分の state が残るが、UI 側で isOthers 時に
+  // memories を参照しないので問題ない。
   useEffect(() => {
-    if (!run) return
+    if (!run || isOthers) return
     let cancelled = false
     void getMemoryStore()
       .queryEpisodic({
@@ -220,11 +237,11 @@ export function RunDetailPage() {
     return () => {
       cancelled = true
     }
-  }, [run])
+  }, [run, isOthers])
 
-  // 過去のラン (areaName未保存) を初回表示時にバックフィル
+  // 過去のラン (areaName未保存) を初回表示時にバックフィル (自分のランのみ)
   useEffect(() => {
-    if (!run || run.areaName) return
+    if (!run || run.areaName || isOthers) return
     const lats = run.trackPoints.map(p => p.lat)
     const lngs = run.trackPoints.map(p => p.lng)
     if (lats.length === 0) return
@@ -236,7 +253,7 @@ export function RunDetailPage() {
         if (updated) setRun(updated)
       })
     })
-  }, [run?.id])
+  }, [run?.id, isOthers])
 
   useEffect(() => {
     if (!id) return
@@ -244,6 +261,14 @@ export function RunDetailPage() {
     if (inMemory) {
       setRun(inMemory)
       setDuration(buildTripLayerData(inMemory).duration)
+      reset()
+      return
+    }
+    // 自分のランに見つからなければフォロー中ユーザーのランも探す (read-only)。
+    const fromFollowed = followedRuns.find(r => r.id === id)
+    if (fromFollowed) {
+      setRun(fromFollowed)
+      setDuration(buildTripLayerData(fromFollowed).duration)
       reset()
       return
     }
@@ -259,7 +284,7 @@ export function RunDetailPage() {
       setDuration(buildTripLayerData(r).duration)
       reset()
     })
-  }, [id, runs, runsLoaded])
+  }, [id, runs, followedRuns, runsLoaded])
 
   const center = useMemo((): [number, number] | undefined => {
     if (!run || acceptedRunPoints.length === 0) return undefined
@@ -324,14 +349,16 @@ export function RunDetailPage() {
       >
         <Icon icon={mapVisible ? 'lucide:map-pin-off' : 'lucide:map'} />
       </button>
-      <button
-        className="debug-btn"
-        onClick={() => setDebugOpen(true)}
-        title="パスデータを表示"
-        aria-label="パスデータを表示"
-      >
-        <Icon icon="lucide:braces" />
-      </button>
+      {!isOthers && (
+        <button
+          className="debug-btn"
+          onClick={() => setDebugOpen(true)}
+          title="パスデータを表示"
+          aria-label="パスデータを表示"
+        >
+          <Icon icon="lucide:braces" />
+        </button>
+      )}
 
       <button
         className="run-nav-btn run-nav-prev"
@@ -401,7 +428,11 @@ export function RunDetailPage() {
         <>
           <div className="run-detail-bubble-backdrop" onClick={() => setBubbleOpen(false)} />
           <div ref={bubbleRef} className="run-detail-bubble">
-            {memories.length > 0 ? (
+            {isOthers ? (
+              <p className="run-detail-bubble-text">
+                {ownerUser?.displayName ? `${ownerUser.displayName} のラン` : '他のユーザーのラン'}
+              </p>
+            ) : memories.length > 0 ? (
               <>
                 <p className="run-detail-bubble-text">{memories[0].summary}</p>
                 <button
@@ -424,7 +455,7 @@ export function RunDetailPage() {
                 </button>
               </>
             )}
-            {notationEnabled && (
+            {!isOthers && notationEnabled && (
               <button
                 type="button"
                 className="run-detail-bubble-link"

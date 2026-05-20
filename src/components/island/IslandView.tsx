@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { COORDINATE_SYSTEM, type Layer } from '@deck.gl/core'
-import { TextLayer } from '@deck.gl/layers'
+import { IconLayer, TextLayer } from '@deck.gl/layers'
 import type { ArchipelagoLayoutResult } from '../../utils/archipelagoLayout'
 import { DEFAULT_ARCHIPELAGO_PARAMS } from '../../utils/archipelagoLayout'
 import { buildTerrainLayers } from '../../utils/terrainShared'
@@ -8,13 +8,24 @@ import { fetchAreaName } from '../../hooks/useReverseGeocode'
 import { useActivePalette } from '../../hooks/useActivePalette'
 import { hexToRgb } from '../../utils/themePalettes'
 import { ArchipelagoMapView, type ArchipelagoBbox } from './ArchipelagoMapView'
+import type { Run } from '../../types'
+import type { PublicUser } from '../../firebase/userCloud'
 
 interface Props {
   layout: ArchipelagoLayoutResult | null
   loading: boolean
+  /** TRAIL/ISLAND タブで表示する全ラン (自分 + フォロー中)。owner 推定用。 */
+  socialRuns?: Run[]
+  /** uid → PublicUser のルックアップ。フォロー中ユーザーのアイコン解決用。 */
+  ownerByUid?: Map<string, PublicUser>
 }
 
-export function IslandView({ layout, loading }: Props) {
+type GroupOwnerAvatar = {
+  position: [number, number, number]
+  iconUrl: string
+}
+
+export function IslandView({ layout, loading, socialRuns, ownerByUid }: Props) {
   const { palette } = useActivePalette()
   const seaColor = useMemo<[number, number, number]>(() => hexToRgb(palette.bg), [palette.bg])
 
@@ -81,8 +92,61 @@ export function IslandView({ layout, loading }: Props) {
         ]
       : []
 
-    return [...terrainLayers, ...labelLayers]
-  }, [layout, groupNames, seaColor])
+    // フォロー中ユーザーのランを含む島には、グループ中心の少し横にユーザーアイコンを並べる。
+    // 同一島に複数 owner がいる場合は横方向にオフセットして重ならないようにする。
+    const ownerAvatars: GroupOwnerAvatar[] = []
+    if (socialRuns && ownerByUid && socialRuns.length > 0) {
+      const runById = new Map<string, Run>()
+      for (const r of socialRuns) runById.set(r.id, r)
+      for (const g of layout.groups) {
+        const uidSet = new Set<string>()
+        for (const rid of g.runIds) {
+          const r = runById.get(rid)
+          if (r?.ownerUid) uidSet.add(r.ownerUid)
+        }
+        if (uidSet.size === 0) continue
+        const labelZ = Math.max(0, g.maxAlt) * params.zScale + 30
+        const uids = [...uidSet]
+        const spacingMeters = 18
+        const total = uids.length
+        uids.forEach((uid, i) => {
+          const u = ownerByUid.get(uid)
+          if (!u?.photoURL) return
+          // 中央に集まりすぎないよう左右に均等配置
+          const offset = (i - (total - 1) / 2) * spacingMeters
+          ownerAvatars.push({
+            position: [g.center.x + offset, g.center.y, labelZ + 6],
+            iconUrl: u.photoURL,
+          })
+        })
+      }
+    }
+
+    const ownerLayers: Layer[] = ownerAvatars.length > 0
+      ? [
+          new IconLayer<GroupOwnerAvatar>({
+            id: 'island:owner-avatars',
+            data: ownerAvatars,
+            getPosition: (d) => d.position,
+            getIcon: (d) => ({
+              url: d.iconUrl,
+              width: 64,
+              height: 64,
+              anchorX: 32,
+              anchorY: 32,
+              mask: false,
+            }),
+            getSize: 24,
+            sizeUnits: 'pixels',
+            billboard: true,
+            coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
+            coordinateOrigin,
+          }),
+        ]
+      : []
+
+    return [...terrainLayers, ...labelLayers, ...ownerLayers]
+  }, [layout, groupNames, seaColor, socialRuns, ownerByUid])
 
   const fitBbox = useMemo<ArchipelagoBbox | null>(() => {
     if (!layout) return null

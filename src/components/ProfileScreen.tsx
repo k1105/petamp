@@ -8,6 +8,7 @@ import {
   listMyOutgoing,
   type FollowDoc,
 } from '../firebase/follows'
+import { useSocialFeedStore } from '../store/useSocialFeedStore'
 import { DiscoverTab } from './profile/DiscoverTab'
 import { RequestsTab } from './profile/RequestsTab'
 
@@ -51,6 +52,8 @@ export function ProfileScreen({ onClose }: Props) {
       setOutgoing(out)
       setIncoming(inc)
       setDataError(null)
+      // フォロー関係が変わるとフォロー先のランも増減するので feed も更新
+      void useSocialFeedStore.getState().refresh()
     } catch (e) {
       console.error('profile data load failed', e)
       setDataError(formatError(e))

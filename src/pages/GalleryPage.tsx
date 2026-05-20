@@ -11,6 +11,7 @@ import { expandBboxByMeters } from '../utils/runBbox'
 import { groupRunsByBboxOverlap, makeHomeGroup, findGroupContaining } from '../utils/runGroups'
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
+import { useSocialFeedStore } from '../store/useSocialFeedStore'
 import { SettingsPanel } from '../components/gallery/SettingsPanel'
 import { UserMenu } from '../components/UserMenu'
 import { RunTile } from '../components/gallery/RunTile'
@@ -150,8 +151,22 @@ function pickFallback(): string {
 
 export function GalleryPage() {
   const { runs, loadRuns, removeRun } = useRunStore()
+  const followedRuns = useSocialFeedStore(s => s.followedRuns)
+  const followedUsers = useSocialFeedStore(s => s.followedUsers)
   const ui = useSettingsStore(s => s.ui)
   const setUi = useSettingsStore(s => s.setUi)
+
+  // TRAIL / ISLAND タブにはフォロー中ユーザーのランも混ぜて表示する。
+  // マップ・dot アニメ・home phrase・STATS は今まで通り自分のランのみ。
+  const socialRuns = useMemo(
+    () => [...runs, ...followedRuns].sort((a, b) => b.startedAt - a.startedAt),
+    [runs, followedRuns],
+  )
+  const ownerByUid = useMemo(() => {
+    const m = new Map<string, typeof followedUsers[number]>()
+    for (const u of followedUsers) m.set(u.uid, u)
+    return m
+  }, [followedUsers])
   const [view, setView] = useState<'map' | 'list' | 'settings'>('map')
   const [listMode, setListMode] = useState<'trail' | 'island' | 'stats'>('trail')
   const [armed, setArmed] = useState(false)
@@ -228,22 +243,22 @@ export function GalleryPage() {
   // キャンセルして二度と rAF が走らなくなる。
   const archInFlightRef = useRef(false)
 
-  // runs 参照が変わったら layout を破棄。
+  // socialRuns 参照が変わったら layout を破棄。
   useEffect(() => {
-    if (archLayoutRunsRef.current !== null && archLayoutRunsRef.current !== runs) {
+    if (archLayoutRunsRef.current !== null && archLayoutRunsRef.current !== socialRuns) {
       archLayoutRunsRef.current = null
       setArchLayout(null)
     }
-  }, [runs])
+  }, [socialRuns])
 
   useEffect(() => {
     if (listMode !== 'island') return
-    if (archLayoutRunsRef.current === runs) return
+    if (archLayoutRunsRef.current === socialRuns) return
     if (archInFlightRef.current) return
-    if (runs.length === 0) return
+    if (socialRuns.length === 0) return
     archInFlightRef.current = true
     setArchLoading(true)
-    const target = runs
+    const target = socialRuns
     // rAF で 1 フレーム譲ってローディング UI を確実に描画してから計算。
     const raf = requestAnimationFrame(() => {
       const result = computeArchipelagoLayout(target)
@@ -256,7 +271,7 @@ export function GalleryPage() {
       cancelAnimationFrame(raf)
       archInFlightRef.current = false
     }
-  }, [listMode, runs])
+  }, [listMode, socialRuns])
 
   // 初回ラン完了後にトップへ戻ってきたタイミングで一度だけ案内を出す。
   useEffect(() => {
@@ -481,17 +496,28 @@ export function GalleryPage() {
                 </button>
               </div>
             </div>
-            {runs.length === 0 ? (
+            {socialRuns.length === 0 ? (
               <p className="empty-hint">記録したランがここに表示されます</p>
             ) : listMode === 'trail' ? (
               <div className="run-grid">
-                {runs.map(run => (
-                  <RunTile key={run.id} run={run} onDelete={removeRun} onSelect={handleRunSelect} />
+                {socialRuns.map(run => (
+                  <RunTile
+                    key={run.id}
+                    run={run}
+                    owner={run.ownerUid ? ownerByUid.get(run.ownerUid) ?? null : null}
+                    onDelete={removeRun}
+                    onSelect={handleRunSelect}
+                  />
                 ))}
               </div>
             ) : listMode === 'island' ? (
               <div className="island-view-wrap">
-                <IslandView layout={archLayout} loading={archLoading} />
+                <IslandView
+                  layout={archLayout}
+                  loading={archLoading}
+                  socialRuns={socialRuns}
+                  ownerByUid={ownerByUid}
+                />
               </div>
             ) : (
               <div className="stats-view-wrap">

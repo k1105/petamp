@@ -18,9 +18,11 @@ service cloud.firestore {
         && request.resource.data.uid == uid;
       allow delete: if false;
 
-      // 既存: ラン
+      // ラン: trail データはフォロワー間で見せ合うのでサインイン済みなら誰でも読める。
+      // 書き込みは本人のみ。UI 側でフォローしていないユーザーへの取得はしない。
       match /runs/{runId} {
-        allow read, write: if isSelf(uid);
+        allow read: if isSignedIn();
+        allow write: if isSelf(uid);
       }
     }
 

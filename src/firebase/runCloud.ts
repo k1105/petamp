@@ -56,12 +56,18 @@ export async function cloudDeleteRun(runId: string): Promise<void> {
 export async function cloudListRuns(): Promise<Run[]> {
   const uid = await getUid()
   if (!uid) return []
+  return cloudListRunsOf(uid)
+}
+
+export async function cloudListRunsOf(uid: string): Promise<Run[]> {
   if (Capacitor.isNativePlatform()) {
     const { snapshots } = await FirebaseFirestore.getCollection({
       reference: `users/${uid}/runs`,
     })
-    return snapshots.map(s => s.data as unknown as Run).filter(Boolean)
+    return snapshots
+      .map(s => s.data as unknown as Run | null)
+      .filter((r): r is Run => !!r && typeof r.id === 'string')
   }
   const snap = await getDocs(collection(db, 'users', uid, 'runs'))
-  return snap.docs.map(d => d.data() as Run)
+  return snap.docs.map(d => d.data() as Run).filter(r => !!r && typeof r.id === 'string')
 }

@@ -35,4 +35,9 @@ export interface Run {
   areaName?: string
   /** 記録時の天気。未保存 (過去の Run) は表示時に 'sunny' として扱う。 */
   weather?: 'sunny' | 'cloudy' | 'rainy'
+  /**
+   * フォロー中ユーザーのランをローカルに表示するときに付与される uid。
+   * 自分自身のランでは undefined。Firestore には保存しない (受信時に組み立て)。
+   */
+  ownerUid?: string
 }
