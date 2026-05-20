@@ -1,0 +1,52 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // 公開プロフィール: 自分自身のみ書き込み可、サインイン済みなら誰でも読める
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create, update: if isSelf(uid)
+        && request.resource.data.uid == uid;
+      allow delete: if false;
+
+      // 既存: ラン
+      match /runs/{runId} {
+        allow read, write: if isSelf(uid);
+      }
+    }
+
+    // フォロー関係: doc ID は `${followerUid}__${followeeUid}`
+    match /follows/{followId} {
+      allow read: if isSignedIn();
+
+      // フォローリクエスト送信: 自分が follower で status=pending のみ
+      allow create: if isSignedIn()
+        && request.resource.data.followerUid == request.auth.uid
+        && request.resource.data.followeeUid != request.auth.uid
+        && request.resource.data.status == 'pending'
+        && followId == request.resource.data.followerUid + '__' + request.resource.data.followeeUid;
+
+      // 承認: followee 本人のみ、status='accepted' への更新だけ許可
+      allow update: if isSignedIn()
+        && resource.data.followeeUid == request.auth.uid
+        && resource.data.status == 'pending'
+        && request.resource.data.status == 'accepted'
+        && request.resource.data.followerUid == resource.data.followerUid
+        && request.resource.data.followeeUid == resource.data.followeeUid;
+
+      // 削除: follower (キャンセル/アンフォロー) もしくは followee (拒否/フォロワー削除) 本人のみ
+      allow delete: if isSignedIn()
+        && (resource.data.followerUid == request.auth.uid
+            || resource.data.followeeUid == request.auth.uid);
+    }
+  }
+}
