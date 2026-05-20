@@ -1,5 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from "react";
 import {useNavigate} from "react-router-dom";
+import {Capacitor} from "@capacitor/core";
+import {useGeolocationPermission} from "../hooks/useGeolocationPermission";
 import {PathLayer, ScatterplotLayer} from "@deck.gl/layers";
 import {Icon} from "@iconify/react";
 import {BaseMap} from "../components/map/BaseMap";
@@ -316,29 +318,44 @@ export function RecordingPage() {
   // マウント時点で flag を snapshot。reset() 後では失われるため。
   const [fromOnboarding] = useState(() => useTransitionStore.getState().fromOnboarding);
 
+  // Web (非 native) で geolocation が拒否されているとランは始められない。
+  // Permissions API の状態 変化を購読し、拒否時はモーダルで案内する。
+  const permissionState = useGeolocationPermission();
+  const isNative = Capacitor.isNativePlatform();
+  const isPermissionDenied = !isNative && permissionState === "denied";
+
   // 入場時の円アニメーション（iris系phase）が終わって idle に戻ったタイミングで
   // popup を出す。onboarding 経由のときは初回チュートリアルを、それ以外は
-  // 既存の「注意！」を表示する (2連打を避けるため排他)。
+  // 既存の「注意！」を表示する (2連打を避けるため排他)。注意モーダルは
+  // バックグラウンド継続できる native アプリでは出さない (web のみ)。
+  // 位置情報拒否時は許可案内モーダルが排他的に出るので、ここでは何も出さない。
   useEffect(() => {
     if (warningShownRef.current) return;
     if (transitionPhase !== "idle") return;
+    if (permissionState === "unknown") return; // 権限状態の確定待ち
+    if (isPermissionDenied) return;
     warningShownRef.current = true;
     // iris アニメ完了 (transitionPhase==='idle') の1ショットでのみ発火する。
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (fromOnboarding) setIntroOpen(true);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    else setWarningOpen(true);
-  }, [transitionPhase, fromOnboarding]);
+    if (fromOnboarding) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIntroOpen(true);
+    } else if (!isNative) {
+      setWarningOpen(true);
+    }
+  }, [transitionPhase, fromOnboarding, permissionState, isPermissionDenied, isNative]);
   const initialCenter = useCurrentPosition();
   const acceptedTrackPoints = useMemo(() => acceptedPoints(trackPoints), [trackPoints]);
 
+  // 位置情報が拒否されていない場合だけ記録を開始する。
+  // 途中で拒否に切り替わったら cleanup の stop() で停止する。
   useEffect(() => {
+    if (isPermissionDenied) return;
     start();
     return () => {
       stop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isPermissionDenied]);
 
   const handleFinish = async () => {
     let points = trackPoints;
@@ -444,7 +461,30 @@ export function RecordingPage() {
         </div>
       </div>
 
-      {warningOpen && (
+      {isPermissionDenied && (
+        <div className="chat-modal-backdrop" role="dialog" aria-modal="true">
+          <div className="chat-modal recording-warning">
+            <p className="recording-warning-title">位置情報の許可が必要です</p>
+            <p className="chat-modal-text">
+              ペタンプはランの軌跡を記録するために位置情報を使用します。
+              現在ブラウザ側でブロックされているため、記録を開始できません。
+            </p>
+            <p className="chat-modal-text">
+              アドレスバー左の鍵 / 情報アイコンから「位置情報」を「許可」に変更し、ページを再読み込みしてください。
+            </p>
+            <div className="chat-modal-actions">
+              <button
+                className="chat-modal-btn chat-modal-btn-primary"
+                onClick={() => navigate("/")}
+              >
+                戻る
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {warningOpen && !isPermissionDenied && (
         <div className="chat-modal-backdrop" role="dialog" aria-modal="true">
           <div className="chat-modal recording-warning">
             <p className="recording-warning-title">注意！</p>
