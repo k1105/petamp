@@ -14,7 +14,11 @@ import type { Run } from '../types'
 function stripForCloud(run: Run): Run {
   return {
     ...run,
-    notes: run.notes.map(({ photoDataUrl: _omit, ...rest }) => rest),
+    notes: run.notes.map(n => {
+      const copy = { ...n }
+      delete copy.photoDataUrl
+      return copy
+    }),
   }
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { LngLatBoundsLike } from 'mapbox-gl'
-import { useMap } from './BaseMap'
+import { useMap } from './MapContext'
 import { expandBboxByMeters, type LngLatBbox } from '../../utils/runBbox'
 
 interface Props {

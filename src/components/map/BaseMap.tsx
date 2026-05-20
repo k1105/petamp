@@ -1,37 +1,13 @@
-import { useEffect, useRef, createContext, useContext, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { Icon } from '@iconify/react'
 import { useOrbitMode } from '../../hooks/useOrbitMode'
 import { useActivePalette } from '../../hooks/useActivePalette'
 import { DebugPanel } from './DebugPanel'
+import { MapContext } from './MapContext'
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
-
-interface MapContextValue {
-  map: mapboxgl.Map | null
-}
-
-const MapContext = createContext<MapContextValue>({ map: null })
-
-export function useMap() {
-  return useContext(MapContext)
-}
-
-export function useMapZoom(minZoom = 0): number {
-  const { map } = useContext(MapContext)
-  const [zoom, setZoom] = useState(() => map?.getZoom() ?? minZoom)
-
-  useEffect(() => {
-    if (!map) return
-    const update = () => setZoom(map.getZoom())
-    map.on('zoom', update)
-    setZoom(map.getZoom())
-    return () => { map.off('zoom', update) }
-  }, [map])
-
-  return zoom
-}
 
 interface BaseMapProps {
   children?: React.ReactNode

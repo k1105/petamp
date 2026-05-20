@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { MapboxOverlay } from '@deck.gl/mapbox'
 import { Deck, MapView } from '@deck.gl/core'
 import type { Layer, MapViewState } from '@deck.gl/core'
-import { useMap } from './BaseMap'
+import { useMap } from './MapContext'
 
 interface DeckOverlayProps {
   layers: Layer[]

@@ -5,7 +5,7 @@ import { cloudListRuns } from '../firebase/runCloud'
 import { DUMMY_RUNS } from '../utils/dummyData'
 
 async function syncCloudIntoLocal(): Promise<void> {
-  let cloudRuns: Run[] = []
+  let cloudRuns: Run[]
   try {
     cloudRuns = await cloudListRuns()
   } catch (e) {

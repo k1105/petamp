@@ -47,6 +47,8 @@ export function useWeather(coords: [number, number] | null | undefined): Weather
       Math.abs(cached.lng - lng) < 0.1 &&
       Math.abs(cached.lat - lat) < 0.1
     if (fresh) {
+      // キャッシュヒット時は同期的にセット。await を挟まず確定値を返したいため許容。
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setWeather(cached.weather)
       return
     }

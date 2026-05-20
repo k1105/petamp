@@ -2,7 +2,8 @@ import {useEffect, useMemo, useRef, useState} from "react";
 import {useNavigate} from "react-router-dom";
 import {PathLayer, ScatterplotLayer} from "@deck.gl/layers";
 import {Icon} from "@iconify/react";
-import {BaseMap, useMap, useMapZoom} from "../components/map/BaseMap";
+import {BaseMap} from "../components/map/BaseMap";
+import {useMap, useMapZoom} from "../components/map/MapContext";
 import {DeckOverlay} from "../components/map/DeckOverlay";
 import {AreaLabel} from "../components/map/AreaLabel";
 import {LiveStats} from "../components/recording/LiveStats";
@@ -322,7 +323,10 @@ export function RecordingPage() {
     if (warningShownRef.current) return;
     if (transitionPhase !== "idle") return;
     warningShownRef.current = true;
+    // iris アニメ完了 (transitionPhase==='idle') の1ショットでのみ発火する。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (fromOnboarding) setIntroOpen(true);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     else setWarningOpen(true);
   }, [transitionPhase, fromOnboarding]);
   const initialCenter = useCurrentPosition();

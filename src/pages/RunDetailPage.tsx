@@ -4,7 +4,8 @@ import { PathLayer } from '@deck.gl/layers'
 import { ScatterplotLayer } from '@deck.gl/layers'
 import { Icon } from '@iconify/react'
 import { EyesIcon } from '../components/gallery/EyesIcon'
-import { BaseMap, useMap, useMapZoom } from '../components/map/BaseMap'
+import { BaseMap } from '../components/map/BaseMap'
+import { useMap, useMapZoom } from '../components/map/MapContext'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AreaLabel } from '../components/map/AreaLabel'
 import { AnimationControl } from '../components/detail/AnimationControl'
@@ -167,6 +168,8 @@ export function RunDetailPage() {
   // 直リンクでrunsが空のままならロード（next/prev算出 + 404判定用）
   useEffect(() => {
     if (runs.length > 0) {
+      // store にロード済みなら明示的に loaded=true へ。
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRunsLoaded(true)
       return
     }
@@ -259,6 +262,8 @@ export function RunDetailPage() {
     if (!id) return
     const inMemory = runs.find(r => r.id === id)
     if (inMemory) {
+      // store にあれば追加 IO 無しで即セット。
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRun(inMemory)
       setDuration(buildTripLayerData(inMemory).duration)
       reset()
@@ -267,6 +272,8 @@ export function RunDetailPage() {
     // 自分のランに見つからなければフォロー中ユーザーのランも探す (read-only)。
     const fromFollowed = followedRuns.find(r => r.id === id)
     if (fromFollowed) {
+      // social feed キャッシュにあればこちらも同期セット。
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRun(fromFollowed)
       setDuration(buildTripLayerData(fromFollowed).duration)
       reset()

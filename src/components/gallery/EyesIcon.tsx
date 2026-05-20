@@ -113,7 +113,11 @@ export function EyesIcon({ blinkSignal }: { blinkSignal?: number } = {}) {
   const maxOffset = Math.max(0, scleraRx - pupilR - 0.5)
 
   const offsets = useMemo<[Offset, Offset]>(() => {
+    // SVG の bounding rect を測定するためにマウント済みノードを参照する。
+    // 視線オフセット計算用で、target が変わったタイミングだけ再評価される。
+    // eslint-disable-next-line react-hooks/refs
     if (!svgRef.current || !target) return [{ x: 0, y: 0 }, { x: 0, y: 0 }]
+    // eslint-disable-next-line react-hooks/refs
     const rect = svgRef.current.getBoundingClientRect()
     return [
       computeOffset(rect, EYE_LEFT_X, eyeY, target, maxOffset),

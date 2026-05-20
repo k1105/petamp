@@ -89,6 +89,8 @@ export function NotationChatPage() {
     let cancelled = false
     const inMemory = runs.find(r => r.id === id)
     if (inMemory) {
+      // store に既にあれば追加 IO 無しで即セット。
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRun(inMemory)
       return () => {
         cancelled = true

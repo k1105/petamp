@@ -39,6 +39,8 @@ export function useReverseGeocode(
 
   useEffect(() => {
     if (lng == null || lat == null) {
+      // 入力が無効になったら既存の名前をクリアする。
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setName(null)
       return
     }

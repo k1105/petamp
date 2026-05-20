@@ -242,6 +242,8 @@ export function ArchipelagoMapView({ layers, fitBbox, background = 'rgb(30, 110,
       }
       viewStateRef.current = next
       deck.setProps({ initialViewState: next })
+      // fitBbox 反映後に親 children へ最新 viewport を伝えるため tick を1進める。
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       forceTick((t) => t + 1)
     } catch (e) {
       console.error('archipelago fit failed', e)

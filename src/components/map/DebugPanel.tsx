@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMap } from './BaseMap'
+import { useMap } from './MapContext'
 
 export function DebugPanel() {
   const { map } = useMap()

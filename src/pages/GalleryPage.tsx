@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PathLayer, ScatterplotLayer } from '@deck.gl/layers'
 import { Icon } from '@iconify/react'
-import { BaseMap, useMap, useMapZoom } from '../components/map/BaseMap'
+import { BaseMap } from '../components/map/BaseMap'
+import { useMap, useMapZoom } from '../components/map/MapContext'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AreaLabel } from '../components/map/AreaLabel'
 import { MapBoundsConstraint } from '../components/map/MapBoundsConstraint'
@@ -185,6 +186,8 @@ export function GalleryPage() {
   const speechBubbleRef = useRef<HTMLButtonElement>(null)
   const startLabelRef = useRef<HTMLDivElement>(null)
   const armedRef = useRef(armed)
+  // armed の最新値を sheet 描画ループから参照するため ref に同期する。
+  // eslint-disable-next-line react-hooks/refs
   armedRef.current = armed
   useMetaballSheet({ canvasRef, sheetRef, fabRef, armedRef })
 
@@ -210,6 +213,8 @@ export function GalleryPage() {
   const [settingsMounted, setSettingsMounted] = useState(false)
   useEffect(() => {
     if (view === 'list') {
+      // パネルを開く瞬間に同期マウントする (open class 適用と同フレームで)。
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setListMounted(true)
       return
     }
@@ -219,6 +224,7 @@ export function GalleryPage() {
   }, [view, listMounted])
   useEffect(() => {
     if (view === 'settings') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSettingsMounted(true)
       return
     }
@@ -247,6 +253,8 @@ export function GalleryPage() {
   useEffect(() => {
     if (archLayoutRunsRef.current !== null && archLayoutRunsRef.current !== socialRuns) {
       archLayoutRunsRef.current = null
+      // socialRuns 入れ替えで前回キャッシュを破棄するための同期 reset。
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setArchLayout(null)
     }
   }, [socialRuns])
@@ -257,6 +265,8 @@ export function GalleryPage() {
     if (archInFlightRef.current) return
     if (socialRuns.length === 0) return
     archInFlightRef.current = true
+    // rAF 計算前にローディング UI を確実に描画させるための同期セット。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setArchLoading(true)
     const target = socialRuns
     // rAF で 1 フレーム譲ってローディング UI を確実に描画してから計算。
@@ -278,6 +288,8 @@ export function GalleryPage() {
     if (!runsLoaded) return
     if (ui.hasSeenFirstRunIntro) return
     if (runs.length !== 1) return
+    // 初回ラン完了直後にだけ案内モーダルを出す one-shot トリガー。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setShowFirstRunIntro(true)
   }, [runsLoaded, runs.length, ui.hasSeenFirstRunIntro])
 
@@ -322,8 +334,11 @@ export function GalleryPage() {
     if (initialCenter === undefined) return
     if (currentGroupId && allGroups.some(g => g.id === currentGroupId)) return
     if (homeGroup) {
+      // GPS 確定後の default group 選択。複数候補をまとめて初期化する都合上同期セット。
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCurrentGroupId('home')
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCurrentGroupId(containingRealGroup?.id ?? realGroups[0]?.id ?? null)
     }
   }, [runsLoaded, allGroups, currentGroupId, homeGroup, containingRealGroup, realGroups, initialCenter])
@@ -350,7 +365,11 @@ export function GalleryPage() {
   const homePhrase = useHomePhrase(initialCenter ?? undefined, runs, runsLoaded)
 
   useEffect(() => {
+    // armed 切替時に bubble phrase を一括更新する。pickFallback がランダム要素を
+    // 持つため useMemo 化せず effect に置いている。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (armed) setBubblePhrase(homePhrase ?? pickFallback())
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     else setBubblePhrase(null)
   }, [armed, homePhrase])
 

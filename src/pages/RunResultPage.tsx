@@ -98,6 +98,7 @@ export function RunResultPage() {
 
   useEffect(() => {
     if (runs.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRunsLoaded(true)
       return
     }
@@ -109,6 +110,7 @@ export function RunResultPage() {
     if (!id) return
     const inMemory = runs.find(r => r.id === id)
     if (inMemory) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRun(inMemory)
       return
     }

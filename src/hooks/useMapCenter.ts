@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMap } from '../components/map/BaseMap'
+import { useMap } from '../components/map/MapContext'
 
 export function useMapCenter(): [number, number] | null {
   const { map } = useMap()

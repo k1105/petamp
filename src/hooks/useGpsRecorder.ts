@@ -33,9 +33,13 @@ export function useGpsRecorder(
   })
   const unsubscribeRef = useRef<LocationUnsubscribe | null>(null)
   const recordingStartedAtRef = useRef<number>(0)
+  // render 中に props を ref に同期する。次のレンダー以降の callback で
+  // 最新の filters/kalmanConfig を参照するための定石パターン。
   const filtersRef = useRef(filters)
+  // eslint-disable-next-line react-hooks/refs
   filtersRef.current = filters
   const kalmanConfigRef = useRef(kalmanConfig)
+  // eslint-disable-next-line react-hooks/refs
   kalmanConfigRef.current = kalmanConfig
   const kalmanStateRef = useRef<KalmanGpsState | null>(null)
 
