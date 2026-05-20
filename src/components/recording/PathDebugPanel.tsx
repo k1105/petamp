@@ -1,7 +1,9 @@
 import { useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
-import type { TrackPoint } from '../../types'
+import type { Run, TrackPoint } from '../../types'
 import { useReverseGeocode } from '../../hooks/useReverseGeocode'
+import { useAuth } from '../../hooks/useAuth'
+import { cloudSaveRun } from '../../firebase/runCloud'
 import {
   applyAltitudePipeline,
   DEFAULT_ALTITUDE_FILTER_PARAMS,
@@ -12,12 +14,40 @@ import {
 interface Props {
   trackPoints: TrackPoint[]
   areaName?: string
+  run?: Run
   onProceed?: () => void
   onCancel: () => void
   proceedLabel?: string
 }
 
-export function PathDebugPanel({ trackPoints, areaName, onProceed, onCancel, proceedLabel = '結果画面へ' }: Props) {
+type MigrateLog = { ts: number; level: 'info' | 'ok' | 'error'; text: string }
+
+export function PathDebugPanel({ trackPoints, areaName, run, onProceed, onCancel, proceedLabel = '結果画面へ' }: Props) {
+  const { user } = useAuth()
+  const [migrateBusy, setMigrateBusy] = useState(false)
+  const [migrateLogs, setMigrateLogs] = useState<MigrateLog[]>([])
+
+  const appendLog = (level: MigrateLog['level'], text: string) => {
+    setMigrateLogs(prev => [...prev, { ts: Date.now(), level, text }])
+  }
+
+  const handleMigrate = async () => {
+    if (!run) return
+    setMigrateBusy(true)
+    appendLog('info', `uid=${user?.uid ?? '(未ログイン)'} run.id=${run.id}`)
+    appendLog('info', `points=${run.trackPoints.length} notes=${run.notes.length}`)
+    try {
+      await cloudSaveRun(run)
+      appendLog('ok', 'cloudSaveRun 成功 (users/{uid}/runs/{id} に書き込み)')
+    } catch (e) {
+      const err = e as { code?: string; name?: string; message?: string }
+      appendLog('error', `失敗: ${err.code ?? err.name ?? 'error'} :: ${err.message ?? String(e)}`)
+      console.error('migrate failed', e)
+    } finally {
+      setMigrateBusy(false)
+    }
+  }
+
   const [copyStatus, setCopyStatus] = useState<'idle' | 'ok' | 'fail'>('idle')
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'ok' | 'fail'>('idle')
   const [filterParams, setFilterParams] = useState<AltitudeFilterParams>(DEFAULT_ALTITUDE_FILTER_PARAMS)
@@ -227,6 +257,34 @@ export function PathDebugPanel({ trackPoints, areaName, onProceed, onCancel, pro
               </dl>
             )}
           </details>
+        )}
+
+        {run && (
+          <div className="debug-migrate">
+            <div className="debug-migrate-head">
+              <span>Firestore マイグレーション</span>
+              <span className="debug-migrate-user">{user ? user.email ?? user.uid : '未ログイン'}</span>
+            </div>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={handleMigrate}
+              disabled={migrateBusy || !user}
+            >
+              <Icon icon={migrateBusy ? 'lucide:loader' : 'lucide:cloud-upload'} />
+              <span>{migrateBusy ? '送信中…' : 'この Run を Firestore に送信'}</span>
+            </button>
+            {migrateLogs.length > 0 && (
+              <ul className="debug-migrate-logs">
+                {migrateLogs.map((l, i) => (
+                  <li key={i} data-level={l.level}>
+                    <span className="debug-migrate-time">{new Date(l.ts).toLocaleTimeString()}</span>
+                    <span className="debug-migrate-text">{l.text}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
 
         <textarea

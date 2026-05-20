@@ -23,6 +23,7 @@ async function getUid(): Promise<string | null> {
     const { user } = await FirebaseAuthentication.getCurrentUser()
     return user?.uid ?? null
   }
+  await auth.authStateReady()
   return auth.currentUser?.uid ?? null
 }
 

@@ -380,6 +380,7 @@ export function RunDetailPage() {
         <PathDebugPanel
           trackPoints={run.trackPoints}
           areaName={run.areaName}
+          run={run}
           onCancel={() => setDebugOpen(false)}
         />
       )}

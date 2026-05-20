@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { COORDINATE_SYSTEM, type Layer } from '@deck.gl/core'
 import { TextLayer } from '@deck.gl/layers'
-import type { Run } from '../../types'
-import { computeArchipelagoLayout, DEFAULT_ARCHIPELAGO_PARAMS } from '../../utils/archipelagoLayout'
+import type { ArchipelagoLayoutResult } from '../../utils/archipelagoLayout'
+import { DEFAULT_ARCHIPELAGO_PARAMS } from '../../utils/archipelagoLayout'
 import { buildTerrainLayers } from '../../utils/terrainShared'
 import { fetchAreaName } from '../../hooks/useReverseGeocode'
 import { useActivePalette } from '../../hooks/useActivePalette'
@@ -10,13 +10,13 @@ import { hexToRgb } from '../../utils/themePalettes'
 import { ArchipelagoMapView, type ArchipelagoBbox } from './ArchipelagoMapView'
 
 interface Props {
-  runs: Run[]
+  layout: ArchipelagoLayoutResult | null
+  loading: boolean
 }
 
-export function IslandView({ runs }: Props) {
+export function IslandView({ layout, loading }: Props) {
   const { palette } = useActivePalette()
   const seaColor = useMemo<[number, number, number]>(() => hexToRgb(palette.bg), [palette.bg])
-  const layout = useMemo(() => computeArchipelagoLayout(runs), [runs])
 
   // 各グループの地理的中心から area name を逐次解決する。
   const [groupNames, setGroupNames] = useState<Map<string, string>>(new Map())
@@ -94,6 +94,21 @@ export function IslandView({ runs }: Props) {
       maxLat: origin.lat + bounds.maxY / mPerDegLat,
     }
   }, [layout])
+
+  if (!layout) {
+    return (
+      <div className="island-loading">
+        <div className="island-loading-inner">
+          <span className="island-loading-dot" />
+          <span className="island-loading-dot" />
+          <span className="island-loading-dot" />
+          <p className="island-loading-text">
+            {loading ? 'ISLAND を計算中…' : 'ISLAND を準備中…'}
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return <ArchipelagoMapView layers={layers} fitBbox={fitBbox} background={palette.bg} />
 }

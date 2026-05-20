@@ -16,6 +16,8 @@ import { UserMenu } from '../components/UserMenu'
 import { RunTile } from '../components/gallery/RunTile'
 import { EyesIcon } from '../components/gallery/EyesIcon'
 import { IslandView } from '../components/island/IslandView'
+import { StatsView } from '../components/gallery/StatsView'
+import { computeArchipelagoLayout, type ArchipelagoLayoutResult } from '../utils/archipelagoLayout'
 import { buildPathPositions } from '../utils/tubeMesh'
 import { effectiveRadius } from '../utils/effectiveRadius'
 import { acceptedPoints } from '../utils/recordingFilters'
@@ -151,7 +153,7 @@ export function GalleryPage() {
   const ui = useSettingsStore(s => s.ui)
   const setUi = useSettingsStore(s => s.setUi)
   const [view, setView] = useState<'map' | 'list' | 'settings'>('map')
-  const [listMode, setListMode] = useState<'trail' | 'island'>('trail')
+  const [listMode, setListMode] = useState<'trail' | 'island' | 'stats'>('trail')
   const [armed, setArmed] = useState(false)
   const [focusGPSSignal, setFocusGPSSignal] = useState(0)
   const [bubblePhrase, setBubblePhrase] = useState<string | null>(null)
@@ -214,6 +216,47 @@ export function GalleryPage() {
   useEffect(() => {
     loadRuns(isDebug).finally(() => setRunsLoaded(true))
   }, [isDebug])
+
+  // ISLAND タブの archipelago layout はマウントするたびに再計算すると重いので、
+  // GalleryPage 側に持ち上げて runs 参照単位でキャッシュする。ISLAND タブが
+  // 初めて開かれたタイミングで非同期 (1 フレーム後) に計算してローディングを
+  // 描画してから走らせる。
+  const [archLayout, setArchLayout] = useState<ArchipelagoLayoutResult | null>(null)
+  const [archLoading, setArchLoading] = useState(false)
+  const archLayoutRunsRef = useRef<Run[] | null>(null)
+  // 計算中フラグは ref で持つ。state にすると依存に入れた effect が自身を
+  // キャンセルして二度と rAF が走らなくなる。
+  const archInFlightRef = useRef(false)
+
+  // runs 参照が変わったら layout を破棄。
+  useEffect(() => {
+    if (archLayoutRunsRef.current !== null && archLayoutRunsRef.current !== runs) {
+      archLayoutRunsRef.current = null
+      setArchLayout(null)
+    }
+  }, [runs])
+
+  useEffect(() => {
+    if (listMode !== 'island') return
+    if (archLayoutRunsRef.current === runs) return
+    if (archInFlightRef.current) return
+    if (runs.length === 0) return
+    archInFlightRef.current = true
+    setArchLoading(true)
+    const target = runs
+    // rAF で 1 フレーム譲ってローディング UI を確実に描画してから計算。
+    const raf = requestAnimationFrame(() => {
+      const result = computeArchipelagoLayout(target)
+      archLayoutRunsRef.current = target
+      archInFlightRef.current = false
+      setArchLayout(result)
+      setArchLoading(false)
+    })
+    return () => {
+      cancelAnimationFrame(raf)
+      archInFlightRef.current = false
+    }
+  }, [listMode, runs])
 
   // 初回ラン完了後にトップへ戻ってきたタイミングで一度だけ案内を出す。
   useEffect(() => {
@@ -427,6 +470,15 @@ export function GalleryPage() {
                 >
                   ISLAND
                 </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={listMode === 'stats'}
+                  className={`list-mode-toggle-btn${listMode === 'stats' ? ' is-active' : ''}`}
+                  onClick={() => setListMode('stats')}
+                >
+                  STATS
+                </button>
               </div>
             </div>
             {runs.length === 0 ? (
@@ -437,9 +489,13 @@ export function GalleryPage() {
                   <RunTile key={run.id} run={run} onDelete={removeRun} onSelect={handleRunSelect} />
                 ))}
               </div>
-            ) : (
+            ) : listMode === 'island' ? (
               <div className="island-view-wrap">
-                <IslandView runs={runs} />
+                <IslandView layout={archLayout} loading={archLoading} />
+              </div>
+            ) : (
+              <div className="stats-view-wrap">
+                <StatsView runs={runs} />
               </div>
             )}
           </>
