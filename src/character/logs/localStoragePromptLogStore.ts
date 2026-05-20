@@ -47,9 +47,10 @@ function matches(row: IndexRow, q: PromptLogQuery): boolean {
 
 /**
  * dev server (vite.config.ts の promptLogPlugin) に追記要求を投げる。
- * 本番 / Capacitor / iOS では 404 になるが void で無視する。
+ * 本番 / Capacitor / iOS にはエンドポイントが無いので dev のみ実行する。
  */
 function teeToDevServer(entry: PromptLogEntry): void {
+  if (!import.meta.env.DEV) return
   if (typeof fetch === 'undefined') return
   void fetch('/__prompt-log', {
     method: 'POST',
