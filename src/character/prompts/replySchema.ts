@@ -33,17 +33,6 @@ export const REPLY_JSON_SCHEMA = {
       },
       required: ['kind'],
     },
-    nameProposal: {
-      type: 'object',
-      description: '「忘れたくないからこの場所に名前をつけたい」と思ったとき(かつ topic が segment か point のとき)だけ入れる。会話スレッドあたり最大1個。',
-      properties: {
-        name: {
-          type: 'string',
-          description: '短く、子供らしい言葉で。例: "おりかえしの坂", "さかみち", "あのまがりかど"',
-        },
-      },
-      required: ['name'],
-    },
   },
   required: ['thought', 'say', 'topic'],
 } as const

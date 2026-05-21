@@ -3786,6 +3786,47 @@
 }
 
 /* ---- First-run intro popup ---- */
+/* NamedPlace タップ時のディスクリプション ポップアップ。 */
+.named-place-popup {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(360px, calc(100vw - 32px));
+  background: rgba(255, 200, 60, 0.96);
+  color: #3a2900;
+  border: 1px solid rgba(60, 40, 0, 0.6);
+  border-radius: 10px;
+  padding: 12px 36px 14px 16px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  font-size: 14px;
+  line-height: 1.55;
+  z-index: 50;
+}
+.named-place-popup-name {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.named-place-popup-desc {
+  white-space: pre-wrap;
+}
+.named-place-popup-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: #3a2900;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.named-place-popup-close:hover { color: #000; }
+
 .first-run-intro {
   position: fixed;
   inset: 0;

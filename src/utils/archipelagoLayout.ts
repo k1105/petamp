@@ -52,6 +52,13 @@ export interface ArchipelagoLayoutResult {
     maxAlt: number
     /** force-directed 前の地理的中心 (lng, lat)。reverse geocode 用。 */
     geographicCenter: { lng: number; lat: number }
+    /**
+     * force-directed で適用された変位 (= group ローカル原点を統合フレームに移すオフセット)。
+     * 外部 (例: NamedPlace) の lng/lat を統合フレームに変換するのに使う:
+     *   x = (lng - geographicCenter.lng) * mPerDegLng_atGroupLat + displacement.x
+     *   y = (lat - geographicCenter.lat) * mPerDegLat                 + displacement.y
+     */
+    displacement: { x: number; y: number }
   }[]
 }
 
@@ -228,6 +235,7 @@ export function computeArchipelagoLayout(
       bbox: { minX: gMinX, minY: gMinY, maxX: gMaxX, maxY: gMaxY },
       maxAlt: gMaxAlt === -Infinity ? 0 : gMaxAlt,
       geographicCenter: groupPreps[gi].geographicCenter,
+      displacement: { x: px, y: py },
     })
   }
 

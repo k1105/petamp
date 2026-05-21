@@ -43,9 +43,14 @@ export interface DialogueService {
   /**
    * スレッドを終了して要約→Episodic化を走らせる。
    * 生成された EpisodicMemory を返す(turn が0件 / LLM失敗時は null)。
-   * runSummary を渡すと、観測事実をもとにより具体的な日記になる。
+   * runSummary と runPoints を渡すと、観測事実をもとにより具体的な日記になり、
+   * かつ命名 (nameProposal) があれば NamedPlace として永続化される。
    */
-  closeThread(threadId: ThreadId, runSummary?: RunSummary): Promise<EpisodicMemory | null>
+  closeThread(
+    threadId: ThreadId,
+    runSummary?: RunSummary,
+    runPoints?: ReadonlyArray<{ lat: number; lng: number }>,
+  ): Promise<EpisodicMemory | null>
   /**
    * スレッドを破棄。turns/promptLog/threadを削除し、関係値を session 開始時の
    * snapshot に巻き戻す。snapshot が null の場合は freshRelational に戻す。

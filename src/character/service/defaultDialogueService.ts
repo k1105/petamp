@@ -17,7 +17,9 @@ import type {
 } from '../logs/promptLog'
 import {
   defaultPromptTemplates,
+  isSummaryStructured,
   type PromptTemplates,
+  type SummaryStructured,
 } from '../prompts'
 import type {
   DialogueResult,
@@ -149,19 +151,16 @@ export class DefaultDialogueService implements DialogueService {
     }
     await this.memory.appendTurn(characterTurn)
 
-    await this.persistNameProposalIfAny({
-      reply: result.reply,
-      characterId: character.id,
-      threadId: thread.id,
-      runSummary: input.runSummary,
-      runPoints: input.runPoints,
-      refs: input.refs,
-      now: result.meta.finishedAt,
-    })
-
+    // nearbyPlaceIds が未計算なら、contextBuilder が計算してくれた結果を thread に
+    // 焼き付ける。次回以降の send はキャッシュ経由で同じ id 列を読む。
+    // 空配列も「計算済みで該当なし」として保存する (= 再計算スキップ)。
+    const computedNearby = built.breakdown.retrievedNamedPlaces.nearby
+    const nearbyPlaceIds =
+      thread.nearbyPlaceIds ?? computedNearby.map(p => p.id)
     const updatedThread: DialogueThread = {
       ...thread,
       lastTurnAt: characterTurn.timestamp,
+      nearbyPlaceIds,
     }
     await this.memory.updateThread(updatedThread)
 
@@ -195,6 +194,7 @@ export class DefaultDialogueService implements DialogueService {
   async closeThread(
     threadId: ThreadId,
     runSummary?: RunSummary,
+    runPoints?: ReadonlyArray<{ lat: number; lng: number }>,
   ): Promise<EpisodicMemory | null> {
     const thread = await this.memory.getThread(threadId)
     if (!thread) return null
@@ -211,9 +211,17 @@ export class DefaultDialogueService implements DialogueService {
       })
       .join('\n')
     const facts = runSummary ? this.templates.formatRunFacts(runSummary) : ''
-    const userContent = facts
-      ? `[観測できた事実]\n${facts}\n\n[今回の対話]\n${transcript}`
-      : `[今回の対話]\n${transcript}`
+    const runSummaryRendered = runSummary ? this.templates.renderRunSummary(runSummary) : ''
+    // refine 判断のため、対話開始時に拾った近接既存名 (current のもの) を summarize の
+    // user content に含める。description も載せて LLM が意味重複を判断しやすくする。
+    const nearbyForSummary = await this.resolveNearbyForSummary(thread)
+    const nearbyText = this.templates.formatNearbyPlaces(nearbyForSummary)
+    const userContentParts: string[] = []
+    if (facts) userContentParts.push(`[観測できた事実]\n${facts}`)
+    if (runSummaryRendered) userContentParts.push(`[Run の構造 (命名候補のため)]\n${runSummaryRendered}`)
+    if (nearbyText) userContentParts.push(nearbyText)
+    userContentParts.push(`[今回の対話]\n${transcript}`)
+    const userContent = userContentParts.join('\n\n')
 
     const messages: LLMMessage[] = [
       {
@@ -225,9 +233,14 @@ export class DefaultDialogueService implements DialogueService {
 
     const promptLogId = newId()
     let summary: string
+    let nameProposal: SummaryStructured['nameProposal'] = null
     try {
-      const result = await this.llm.complete(messages)
-      summary = result.text.trim()
+      const result = await this.llm.completeStructured<SummaryStructured>(messages, {
+        schema: this.templates.summaryJsonSchema,
+        validate: isSummaryStructured,
+      })
+      summary = result.value.summary.trim()
+      nameProposal = result.value.nameProposal ?? null
       await this.promptLog.append({
         id: promptLogId,
         timestamp: result.meta.startedAt,
@@ -254,6 +267,19 @@ export class DefaultDialogueService implements DialogueService {
     }
 
     if (!summary) return null
+
+    // 命名は thread あたり最大1個 (per-turn 永続化は撤去済みだが念のためチェック)
+    if (nameProposal && runSummary && runPoints && runPoints.length > 0) {
+      await this.persistNameProposalFromSummary({
+        proposal: nameProposal,
+        characterId: thread.characterId,
+        threadId,
+        runSummary,
+        runPoints,
+        thread,
+        turns,
+      })
+    }
 
     const refs = collectRefs(turns, thread.origin)
     const memory: EpisodicMemory = {
@@ -299,25 +325,51 @@ export class DefaultDialogueService implements DialogueService {
 
   // --- internals ---
 
-  private async persistNameProposalIfAny(args: {
-    reply: { topic?: { kind: string; segmentIndex?: number; pointIdx?: number }; nameProposal?: { name: string } }
+  /**
+   * 対話開始時に拾った近接既存名 (thread.nearbyPlaceIds) を NamedPlace[] として
+   * 復元する。current でなくなった (= 既に refine された) id は除く。
+   * summarize の user content と命名後の整合性チェックの両方で使う。
+   */
+  private async resolveNearbyForSummary(
+    thread: DialogueThread,
+  ): Promise<NamedPlace[]> {
+    const ids = thread.nearbyPlaceIds
+    if (!ids || ids.length === 0) return []
+    const currentAll = await this.memory.queryNamedPlaces({
+      characterId: thread.characterId,
+      currentOnly: true,
+    })
+    const byId = new Map(currentAll.map(p => [p.id, p]))
+    const out: NamedPlace[] = []
+    for (const id of ids) {
+      const p = byId.get(id)
+      if (p) out.push(p)
+    }
+    return out
+  }
+
+  /**
+   * closeThread の summary レスポンスに乗ってきた命名を NamedPlace として永続化。
+   * - refinesPlaceId が指定されていれば refine: 新しい id の place を作り、
+   *   previousId に元 id を入れる。元 place は触らない (履歴として残す)。
+   *   元 id は thread.nearbyPlaceIds に入っている前提だが、安全のため
+   *   実在チェック + already-refined チェックも行う。
+   * - そうでなければ create: 既存と同じく新規 NamedPlace を作る。
+   * スレッドあたり最大1個 (既存があれば無視) は維持。
+   */
+  private async persistNameProposalFromSummary(args: {
+    proposal: NonNullable<SummaryStructured['nameProposal']>
     characterId: CharacterId
     threadId: ThreadId
-    runSummary?: RunSummary
-    runPoints?: ReadonlyArray<{ lat: number; lng: number }>
-    refs?: TurnRef[]
-    now: number
+    runSummary: RunSummary
+    runPoints: ReadonlyArray<{ lat: number; lng: number }>
+    thread: DialogueThread
+    turns: DialogueTurn[]
   }): Promise<void> {
-    const { reply, characterId, threadId, runSummary, runPoints, refs, now } = args
-    const proposal = reply.nameProposal
-    if (!proposal) return
-    const topic = reply.topic
-    if (!topic || (topic.kind !== 'segment' && topic.kind !== 'point')) return
-    if (!runSummary || !runPoints || runPoints.length === 0) return
-    const runRef = refs?.find(r => r.kind === 'run')
-    if (!runRef) return
+    const { proposal, characterId, threadId, runSummary, runPoints, thread, turns } = args
+    const name = proposal.name.trim()
+    if (name === '') return
 
-    // スレッドあたり最大1個。既存があれば無視。
     const existing = await this.memory.queryNamedPlaces({
       characterId,
       sourceThreadId: threadId,
@@ -325,26 +377,46 @@ export class DefaultDialogueService implements DialogueService {
     })
     if (existing.length > 0) return
 
-    const name = proposal.name.trim()
-    if (name === '') return
+    // run id 解決: thread.origin か turns の refs から拾う
+    const runRef = thread.origin?.kind === 'run'
+      ? thread.origin
+      : turns.flatMap(t => t.refs ?? []).find(r => r.kind === 'run')
+    if (!runRef) return
 
-    const base: Omit<NamedPlace, 'point' | 'polyline' | 'sourcePointIdx' | 'sourceSegmentIndex'> = {
+    // refine 指定があるなら、対象 place の妥当性を確認。
+    let previousId: string | undefined
+    const refinesId = proposal.refinesPlaceId?.trim()
+    if (refinesId) {
+      const allPlaces = await this.memory.queryNamedPlaces({ characterId })
+      const target = allPlaces.find(p => p.id === refinesId)
+      // 対象が存在しない or 既に他 place の previousId に載っている (= current でない)
+      // 場合は refine を諦めて create に倒す (= silently fall back)。
+      const alreadyRefined = allPlaces.some(p => p.previousId === refinesId)
+      if (target && !alreadyRefined) previousId = refinesId
+    }
+
+    const now = Date.now()
+    const description = (proposal.description ?? '').trim()
+    const base = {
       id: newId(),
       characterId,
       name,
+      description,
       sourceRunId: runRef.id,
       sourceThreadId: threadId,
       createdAt: now,
+      updatedAt: now,
+      ...(previousId ? { previousId } : {}),
     }
 
     let place: NamedPlace | null = null
-    if (topic.kind === 'point') {
-      const idx = topic.pointIdx
+    if (proposal.target === 'point') {
+      const idx = proposal.pointIdx
       if (idx === undefined || idx < 0 || idx >= runPoints.length) return
       const pt = runPoints[idx]
       place = { ...base, point: { lat: pt.lat, lng: pt.lng }, sourcePointIdx: idx }
-    } else if (topic.kind === 'segment') {
-      const segIdx = topic.segmentIndex
+    } else if (proposal.target === 'segment') {
+      const segIdx = proposal.segmentIndex
       if (segIdx === undefined) return
       const seg = runSummary.segments[segIdx]
       if (!seg) return

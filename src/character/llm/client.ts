@@ -17,14 +17,6 @@ export interface LLMReplyTopic {
   pointIdx?: number
 }
 
-/**
- * 「忘れたくないので名前をつける」操作。1ターンに高々1個、かつ
- * topic が segment / point を指しているときだけ有効。サービス層で永続化する。
- */
-export interface LLMReplyNameProposal {
-  /** ペタンプがつけた名前。短く、子供らしい言葉で。 */
-  name: string
-}
 
 /**
  * Inner Thought パターン。LLMには structured output で
@@ -40,11 +32,6 @@ export interface LLMReply {
    * 既存データとの互換性のため optional。新規生成では schema 側で必須。
    */
   topic?: LLMReplyTopic
-  /**
-   * 命名提案。topic が segment / point を指しているときのみ意味を持つ。
-   * サービス層が NamedPlace として永続化する。スレッドあたり最大1個。
-   */
-  nameProposal?: LLMReplyNameProposal
 }
 
 export interface LLMOptions {
@@ -83,6 +70,23 @@ export interface LLMTextResult {
 }
 
 /**
+ * 任意の JSON schema で構造化出力を取得する用の結果型。
+ * value はバリデーション済みの型 T。
+ */
+export interface LLMStructuredResult<T> {
+  value: T
+  meta: LLMCallMeta
+  raw?: unknown
+}
+
+export interface LLMStructuredOptions<T> extends LLMOptions {
+  /** Gemini の responseJsonSchema にそのまま渡す。 */
+  schema: object
+  /** parsed JSON が期待型 T に一致するかチェック。失敗したら呼び出し側で投げる。 */
+  validate: (v: unknown) => v is T
+}
+
+/**
  * プロバイダ抽象。GeminiClient / LocalLLMClient が実装する。
  * ロギングはこの層では行わない(呼び出し側のDialogueServiceが担う)。
  */
@@ -91,4 +95,9 @@ export interface LLMClient {
   replyAsCharacter(messages: LLMMessage[], options?: LLMOptions): Promise<LLMReplyResult>
   /** 事実抽出・要約など、自由テキストを返す用途。 */
   complete(messages: LLMMessage[], options?: LLMOptions): Promise<LLMTextResult>
+  /** 任意 schema での構造化出力。closeThread のサマライズ等で使う。 */
+  completeStructured<T>(
+    messages: LLMMessage[],
+    options: LLMStructuredOptions<T>,
+  ): Promise<LLMStructuredResult<T>>
 }

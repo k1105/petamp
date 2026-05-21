@@ -87,6 +87,19 @@ function approxDistanceM(
   return Math.sqrt(dLat * dLat + dLng * dLng) * R
 }
 
+/**
+ * 旧データ互換: description / updatedAt が欠けている古い NamedPlace を読んだとき
+ * デフォルト値で埋める。書き戻しは行わない (必要なら呼び出し側で put し直せばよい)。
+ */
+function hydrateNamedPlace(p: NamedPlace): NamedPlace {
+  if (p.description !== undefined && p.updatedAt !== undefined) return p
+  return {
+    ...p,
+    description: p.description ?? '',
+    updatedAt: p.updatedAt ?? p.createdAt,
+  }
+}
+
 /** NamedPlace の代表点 (point があればそれ、polyline なら最初の点) を返す。 */
 function placeAnchor(p: NamedPlace): { lat: number; lng: number } | null {
   if (p.point) return p.point
@@ -221,8 +234,16 @@ export class IdbMemoryStore implements MemoryStore {
   }
 
   async queryNamedPlaces(query: NamedPlaceQuery): Promise<NamedPlace[]> {
-    const all = await loadByPrefix<NamedPlace>(namedPlacePrefix(query.characterId))
+    const raw = await loadByPrefix<NamedPlace>(namedPlacePrefix(query.characterId))
+    // 旧データには description / updatedAt が無い可能性がある。読出し側で必ず補う。
+    const all = raw.map(hydrateNamedPlace)
     let filtered = all
+    if (query.currentOnly) {
+      // chain の末端 = 自分の id が誰かの previousId として参照されていない place。
+      const referenced = new Set<string>()
+      for (const p of all) if (p.previousId) referenced.add(p.previousId)
+      filtered = filtered.filter(p => !referenced.has(p.id))
+    }
     if (query.sourceThreadId) {
       filtered = filtered.filter(p => p.sourceThreadId === query.sourceThreadId)
     }

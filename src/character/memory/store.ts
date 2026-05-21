@@ -31,6 +31,11 @@ export interface NamedPlaceQuery {
   near?: { lat: number; lng: number; radiusM: number }
   /** 特定 thread で生まれた名前のみ返す。 */
   sourceThreadId?: ThreadId
+  /**
+   * true なら refine の chain の末端 (= 他のどの place の previousId にも
+   * 載っていない place) のみ返す。地図表示や近傍ピックアップで使う。
+   */
+  currentOnly?: boolean
   limit?: number
 }
 

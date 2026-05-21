@@ -7,7 +7,12 @@ export {
   formatDuration,
   pct,
 } from './runSummaryTemplate'
-export { SUMMARY_SYSTEM_PROMPT, formatRunFacts } from './summaryPrompt'
+export { SUMMARY_SYSTEM_PROMPT, formatRunFacts, formatNearbyPlaces } from './summaryPrompt'
+export {
+  SUMMARY_JSON_SCHEMA,
+  isSummaryStructured,
+  type SummaryStructured,
+} from './summarySchema'
 export { REPLY_JSON_SCHEMA } from './replySchema'
 export {
   defaultPromptTemplates,

@@ -7,6 +7,8 @@ import type {
   LLMOptions,
   LLMReply,
   LLMReplyResult,
+  LLMStructuredOptions,
+  LLMStructuredResult,
   LLMTextResult,
 } from './client'
 
@@ -48,11 +50,6 @@ function isLLMReply(value: unknown): value is LLMReply {
     if (typeof v.topic !== 'object' || v.topic === null) return false
     const t = v.topic as Record<string, unknown>
     if (t.kind !== 'whole' && t.kind !== 'segment' && t.kind !== 'point') return false
-  }
-  if (v.nameProposal !== undefined) {
-    if (typeof v.nameProposal !== 'object' || v.nameProposal === null) return false
-    const n = v.nameProposal as Record<string, unknown>
-    if (typeof n.name !== 'string' || n.name.trim() === '') return false
   }
   return true
 }
@@ -133,6 +130,43 @@ export class GeminiClient implements LLMClient {
       meta: this.buildMeta(startedAt, finishedAt, response),
       raw: response,
     }
+  }
+
+  async completeStructured<T>(
+    messages: LLMMessage[],
+    options: LLMStructuredOptions<T>,
+  ): Promise<LLMStructuredResult<T>> {
+    const { systemInstruction, contents } = separate(messages)
+    const startedAt = Date.now()
+    const response = await this.ai.models.generateContent({
+      model: this.model,
+      contents,
+      config: {
+        systemInstruction,
+        temperature: options.temperature,
+        maxOutputTokens: options.maxTokens,
+        responseMimeType: 'application/json',
+        responseJsonSchema: options.schema,
+      },
+    })
+    const finishedAt = Date.now()
+    const meta = this.buildMeta(startedAt, finishedAt, response)
+    const text = response.text ?? ''
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(text)
+    } catch (e) {
+      throw new Error(
+        `Gemini structured response not valid JSON: ${text.slice(0, 200)}`,
+        { cause: e },
+      )
+    }
+    if (!options.validate(parsed)) {
+      throw new Error(
+        `Gemini structured response failed validation: ${JSON.stringify(parsed).slice(0, 200)}`,
+      )
+    }
+    return { value: parsed, meta, raw: response }
   }
 
   private buildMeta(

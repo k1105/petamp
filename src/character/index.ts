@@ -9,6 +9,7 @@ export type {
 } from './domain/dialogue'
 export type {
   EpisodicMemory,
+  NamedPlace,
   RelationalState,
   SemanticMemory,
 } from './domain/memory'

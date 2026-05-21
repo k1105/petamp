@@ -33,4 +33,10 @@ export interface DialogueThread {
   lastTurnAt: number
   /** スレッド終了時に生成される短い要約。Episodicメモリ化される素材。 */
   summary?: string
+  /**
+   * このスレッドの Run 軌跡近く (default 50m) に既にある NamedPlace の id 一覧。
+   * 最初の send で計算してキャッシュし、以降のターンは再利用する。
+   * 命名の重複や refine 判断のために LLM に毎ターン渡される。
+   */
+  nearbyPlaceIds?: string[]
 }

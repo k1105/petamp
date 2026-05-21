@@ -1,7 +1,9 @@
+import type { NamedPlace } from '../domain/memory'
 import type { RunSummary } from '../domain/runSummary'
 import { renderSystemPrompt, type SystemPromptInput } from './systemPrompt'
 import { renderRunSummary } from './runSummaryTemplate'
-import { SUMMARY_SYSTEM_PROMPT, formatRunFacts } from './summaryPrompt'
+import { SUMMARY_SYSTEM_PROMPT, formatRunFacts, formatNearbyPlaces } from './summaryPrompt'
+import { SUMMARY_JSON_SCHEMA } from './summarySchema'
 import { REPLY_JSON_SCHEMA } from './replySchema'
 
 /**
@@ -18,7 +20,9 @@ export interface PromptTemplates {
   renderRunSummary: (s: RunSummary) => string
   summaryPrompt: string
   formatRunFacts: (s: RunSummary) => string
+  formatNearbyPlaces: (places: ReadonlyArray<NamedPlace>) => string
   replyJsonSchema: object
+  summaryJsonSchema: object
 }
 
 export const defaultPromptTemplates: PromptTemplates = {
@@ -27,5 +31,7 @@ export const defaultPromptTemplates: PromptTemplates = {
   renderRunSummary,
   summaryPrompt: SUMMARY_SYSTEM_PROMPT,
   formatRunFacts,
+  formatNearbyPlaces,
   replyJsonSchema: REPLY_JSON_SCHEMA,
+  summaryJsonSchema: SUMMARY_JSON_SCHEMA,
 }

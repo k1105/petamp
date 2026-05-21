@@ -30,12 +30,67 @@ import { useCurrentPosition } from '../hooks/useCurrentPosition'
 import { useHomePhrase } from '../hooks/useHomePhrase'
 import { useMetaballSheet } from '../hooks/useMetaballSheet'
 import { useTransitionStore } from '../store/useTransitionStore'
+import { useNamedPlaces } from '../hooks/useNamedPlaces'
 import type { DotPosition } from '../hooks/useGalleryAnimation'
 import type { Run } from '../types'
+import type { NamedPlace } from '../character/domain/memory'
 
 const MIN_ZOOM = 12.5
 // 現在位置(=自己位置)dotは過去ランの軌跡dotより少し大きく強調する。
 const CURRENT_DOT_SCALE = 1.2
+
+const NAMED_PLACE_COLOR_LINE: [number, number, number, number] = [255, 200, 60, 230]
+const NAMED_PLACE_COLOR_DOT: [number, number, number, number] = [255, 200, 60, 255]
+const NAMED_PLACE_COLOR_DOT_OUTLINE: [number, number, number, number] = [60, 40, 0, 255]
+
+function buildNamedPlaceLayers(
+  places: NamedPlace[],
+  onPick: (place: NamedPlace) => void,
+) {
+  if (places.length === 0) return []
+  const layers = []
+  const segs = places.filter(p => p.polyline && p.polyline.length >= 2)
+  if (segs.length > 0) {
+    layers.push(
+      new PathLayer<NamedPlace>({
+        id: 'gallery-named-place-segment',
+        data: segs,
+        getPath: d => (d.polyline ?? []).map(n => [n.lng, n.lat] as [number, number]),
+        getColor: NAMED_PLACE_COLOR_LINE,
+        getWidth: 6,
+        widthUnits: 'meters',
+        widthMinPixels: 2,
+        capRounded: true,
+        jointRounded: true,
+        pickable: true,
+        onClick: info => { if (info.object) onPick(info.object as NamedPlace) },
+        parameters: { depthCompare: 'always' },
+      }),
+    )
+  }
+  const pts = places.filter(p => p.point)
+  if (pts.length > 0) {
+    layers.push(
+      new ScatterplotLayer<NamedPlace>({
+        id: 'gallery-named-place-point',
+        data: pts,
+        getPosition: d => [d.point!.lng, d.point!.lat],
+        getRadius: 6,
+        radiusUnits: 'meters',
+        radiusMinPixels: 4,
+        getFillColor: NAMED_PLACE_COLOR_DOT,
+        getLineColor: NAMED_PLACE_COLOR_DOT_OUTLINE,
+        getLineWidth: 0.8,
+        lineWidthUnits: 'meters',
+        stroked: true,
+        pickable: true,
+        onClick: info => { if (info.object) onPick(info.object as NamedPlace) },
+        parameters: { depthCompare: 'always' },
+      }),
+    )
+  }
+  return layers
+}
 
 // FAB タップで現在位置に home スケールでフォーカスする (homeGroup が無い
 // = GPS が realGroup 内のケース用)。signal を increment するたびに flyTo。
@@ -54,10 +109,14 @@ function GalleryLayers({
   runs,
   dots,
   currentPosition,
+  namedPlaces,
+  onPickPlace,
 }: {
   runs: Run[]
   dots: DotPosition[]
   currentPosition: [number, number] | null
+  namedPlaces: NamedPlace[]
+  onPickPlace: (place: NamedPlace) => void
 }) {
   const zoom = useMapZoom()
   const navigate = useNavigate()
@@ -126,8 +185,12 @@ function GalleryLayers({
           billboard: true,
         })
       : null
-    return [tubeLayer, dotsLayer, ...(currentPosLayer ? [currentPosLayer] : [])]
-  }, [runPaths, dots, currentPosition, t, dotRadius, tubeWidth, tubeColor, dotColor, currentDotColor, navigate])
+
+    // NamedPlace の point/segment レイヤ。クリックで onPickPlace(place) を呼んで
+    // ポップアップを開く。地形の上に乗せたいので depthCompare 無効化。
+    const placeLayers = buildNamedPlaceLayers(namedPlaces, onPickPlace)
+    return [tubeLayer, dotsLayer, ...(currentPosLayer ? [currentPosLayer] : []), ...placeLayers]
+  }, [runPaths, dots, currentPosition, t, dotRadius, tubeWidth, tubeColor, dotColor, currentDotColor, navigate, namedPlaces, onPickPlace])
 
   return <DeckOverlay layers={layers} />
 }
@@ -172,6 +235,8 @@ export function GalleryPage() {
   const [listMode, setListMode] = useState<'trail' | 'island' | 'stats'>('trail')
   const [armed, setArmed] = useState(false)
   const [focusGPSSignal, setFocusGPSSignal] = useState(0)
+  const { places: namedPlaces } = useNamedPlaces()
+  const [selectedPlace, setSelectedPlace] = useState<NamedPlace | null>(null)
   const [bubblePhrase, setBubblePhrase] = useState<string | null>(null)
   const [showFirstRunIntro, setShowFirstRunIntro] = useState(false)
   // ホーム画面 (Gallery) は通常 1/10 のスローモー: 60 → 6
@@ -460,7 +525,13 @@ export function GalleryPage() {
             initialZoom={HOME_FIXED_ZOOM}
             initialBounds={initialBounds}
           >
-            <GalleryLayers runs={runs} dots={dots} currentPosition={initialCenter ?? null} />
+            <GalleryLayers
+              runs={runs}
+              dots={dots}
+              currentPosition={initialCenter ?? null}
+              namedPlaces={namedPlaces}
+              onPickPlace={setSelectedPlace}
+            />
             <AreaLabel />
             <MapBoundsConstraint
               bbox={currentGroup?.bbox ?? null}
@@ -478,6 +549,12 @@ export function GalleryPage() {
               onTap={setCurrentGroupId}
             />
           </BaseMap>
+        )}
+        {selectedPlace && (
+          <NamedPlacePopup
+            place={selectedPlace}
+            onClose={() => setSelectedPlace(null)}
+          />
         )}
       </div>
 
@@ -618,6 +695,26 @@ export function GalleryPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function NamedPlacePopup({ place, onClose }: { place: NamedPlace; onClose: () => void }) {
+  const desc = (place.description ?? '').trim()
+  return (
+    <div className="named-place-popup" role="dialog" aria-label={`${place.name} の説明`}>
+      <button
+        type="button"
+        className="named-place-popup-close"
+        onClick={onClose}
+        aria-label="閉じる"
+      >
+        ×
+      </button>
+      <div className="named-place-popup-name">{place.name}</div>
+      <div className="named-place-popup-desc">
+        {desc !== '' ? desc : '(まだ言葉になっていない場所)'}
+      </div>
     </div>
   )
 }

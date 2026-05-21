@@ -87,12 +87,43 @@ export interface TerrainBuildOpts {
 }
 
 /**
+ * IDW splatting の重みグリッド + 標高グリッドを外に出したもの。
+ * weights[idx] が大きいほど周辺サンプル点が密 = polyline が何本も通った場所。
+ * 密度パーティクル描画などに使う。
+ */
+export interface DensityGrid {
+  W: number
+  H: number
+  bounds: { minX: number; minY: number; maxX: number; maxY: number }
+  weights: Float32Array
+  altitudes: Float32Array
+  maxWeight: number
+}
+
+export interface TerrainBuildResult {
+  layers: Layer[]
+  density: DensityGrid
+}
+
+const EMPTY_DENSITY = (
+  bounds: { minX: number; minY: number; maxX: number; maxY: number },
+): DensityGrid => ({
+  W: 0,
+  H: 0,
+  bounds,
+  weights: new Float32Array(0),
+  altitudes: new Float32Array(0),
+  maxWeight: 0,
+})
+
+/**
  * 複数 island の polyline サンプルから IDW で 2D 標高フィールドを構築し、
  * メッシュ + 等高線 + 海背景の deck.gl レイヤを返す。
+ * 密度パーティクル等のための重みグリッドも `density` として一緒に返す。
  */
-export function buildTerrainLayers(opts: TerrainBuildOpts): Layer[] {
+export function buildTerrainLayers(opts: TerrainBuildOpts): TerrainBuildResult {
   const { islands, origin, bounds, params, idPrefix } = opts
-  if (islands.length === 0) return []
+  if (islands.length === 0) return { layers: [], density: EMPTY_DENSITY(bounds) }
 
   const R = Math.max(1, params.radius)
   const ds = Math.max(1, R * 0.1)
@@ -116,13 +147,13 @@ export function buildTerrainLayers(opts: TerrainBuildOpts): Layer[] {
     }
     dense.push(island.nodes[island.nodes.length - 1])
   }
-  if (dense.length < 2) return []
+  if (dense.length < 2) return { layers: [], density: EMPTY_DENSITY(bounds) }
 
   const W = Math.max(16, Math.floor(params.gridSize))
   const H = W
   const widthM = bounds.maxX - bounds.minX
   const heightM = bounds.maxY - bounds.minY
-  if (widthM <= 0 || heightM <= 0) return []
+  if (widthM <= 0 || heightM <= 0) return { layers: [], density: EMPTY_DENSITY(bounds) }
   const dxCell = widthM / W
   const dyCell = heightM / H
 
@@ -412,7 +443,18 @@ export function buildTerrainLayers(opts: TerrainBuildOpts): Layer[] {
       }),
     )
   }
-  return layers
+
+  let maxW = 0
+  for (let k = 0; k < wGrid.length; k++) if (wGrid[k] > maxW) maxW = wGrid[k]
+  const density: DensityGrid = {
+    W,
+    H,
+    bounds,
+    weights: wGrid,
+    altitudes: verts,
+    maxWeight: maxW,
+  }
+  return { layers, density }
 }
 
 /** 軌跡点列を距離ベース間引きでメートル座標のノード列にする。 */

@@ -143,5 +143,7 @@ function describeName(n: NamedPlace): string {
     : n.polyline && n.polyline.length > 0
       ? '区間'
       : '場所'
-  return `- 「${n.name}」(${where})`
+  const desc = (n.description ?? '').trim()
+  const descPart = desc === '' ? '' : ` — ${desc}`
+  return `- id=${n.id} | 「${n.name}」(${where})${descPart}`
 }

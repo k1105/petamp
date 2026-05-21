@@ -1,5 +1,7 @@
 import type { FewShotExample } from '../domain/character'
 import type { DialogueTurn } from '../domain/dialogue'
+import type { NamedPlace } from '../domain/memory'
+import { findNearbyPlaces } from '../domain/placeProximity'
 import type { LLMMessage, LLMReply } from '../llm/client'
 import type { MemoryStore } from '../memory/store'
 import {
@@ -11,6 +13,9 @@ import type {
   BuiltContext,
   ContextBuilder,
 } from './builder'
+
+/** Run 軌跡からこの距離 (m) 以内にある NamedPlace を nearby として扱う。 */
+const NEARBY_THRESHOLD_M = 50
 
 export interface DefaultContextBuilderOptions {
   /** 履歴に含める直近ターン数。 */
@@ -101,31 +106,37 @@ export class DefaultContextBuilder implements ContextBuilder {
   private async queryNearbyNames(
     characterId: string,
     input: BuildContextInput,
-  ) {
+  ): Promise<NamedPlace[]> {
+    // 1. thread に既にキャッシュ (nearbyPlaceIds) があればそれを使う。
+    //    chain で refine されて current でなくなった id は弾く必要があるので、
+    //    currentOnly: true で全件読んでから id 一致でフィルタする。
+    const cached = input.thread.nearbyPlaceIds
+    if (cached !== undefined) {
+      if (cached.length === 0) return []
+      const currentAll = await this.memory.queryNamedPlaces({
+        characterId,
+        currentOnly: true,
+      })
+      const byId = new Map(currentAll.map(p => [p.id, p]))
+      const out: NamedPlace[] = []
+      for (const id of cached) {
+        const p = byId.get(id)
+        // current でなくなった (refine された) ものは飛ばす。
+        if (p) out.push(p)
+      }
+      // 現スレッドで生まれた名前は別セクションで出すので除外。
+      return out.filter(p => p.sourceThreadId !== input.thread.id)
+    }
+    // 2. キャッシュ無し: runPoints を起点に findNearbyPlaces で計算。
+    //    send 側で結果を thread に書き戻すので、次回以降は (1) に乗る。
     const pts = input.runPoints
     if (!pts || pts.length === 0) return []
-    // 今のRunの bbox の中央から一定半径を見る。bbox 対角線の半分 + 100m を半径に。
-    let latMin = Infinity, latMax = -Infinity, lngMin = Infinity, lngMax = -Infinity
-    for (const p of pts) {
-      if (p.lat < latMin) latMin = p.lat
-      if (p.lat > latMax) latMax = p.lat
-      if (p.lng < lngMin) lngMin = p.lng
-      if (p.lng > lngMax) lngMax = p.lng
-    }
-    const center = { lat: (latMin + latMax) / 2, lng: (lngMin + lngMax) / 2 }
-    // 1度 ≈ 111km。雑に対角線半分を m 換算。
-    const R = 6371000
-    const dLat = ((latMax - latMin) * Math.PI) / 180
-    const dLng = ((lngMax - lngMin) * Math.PI) / 180 * Math.cos((center.lat * Math.PI) / 180)
-    const diagM = Math.sqrt(dLat * dLat + dLng * dLng) * R
-    const radiusM = diagM / 2 + 100
-    const all = await this.memory.queryNamedPlaces({
+    const currentAll = await this.memory.queryNamedPlaces({
       characterId,
-      near: { lat: center.lat, lng: center.lng, radiusM },
-      limit: 8,
+      currentOnly: true,
     })
-    // 現スレッドで生まれた名前は別セクションで出すので除外。
-    return all.filter(p => p.sourceThreadId !== input.thread.id)
+    const nearby = findNearbyPlaces(currentAll, pts, NEARBY_THRESHOLD_M)
+    return nearby.filter(p => p.sourceThreadId !== input.thread.id)
   }
 }
 
