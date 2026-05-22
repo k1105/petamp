@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import QRCode from 'react-qr-code'
+import { QRCode } from 'react-qr-code'
 import { Icon } from '@iconify/react'
 
 type Props = {
@@ -44,10 +44,6 @@ export function InviteTab({ myUid }: Props) {
 
   return (
     <div className="profile-invite">
-      <p className="profile-invite-lead">
-        このQRコードを相手にスキャンしてもらうか、リンクを送ると<br />
-        互いに友達として登録されます。
-      </p>
       <div className="profile-invite-qr">
         <QRCode
           value={inviteUrl}
@@ -57,7 +53,6 @@ export function InviteTab({ myUid }: Props) {
           level="M"
         />
       </div>
-      <div className="profile-invite-url">{inviteUrl}</div>
       <div className="profile-invite-actions">
         <button
           type="button"
