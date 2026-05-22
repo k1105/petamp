@@ -7,6 +7,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" />
+    <meta name="theme-color" content="#1c975e" />
+    <style>
+      /* React マウント前のブラウザ既定白背景を抑制し、LoadingScreen と同じ
+         アクセントカラーで初期描画させる。index.css が後で読み込まれて
+         body 背景は dark に上書きされる。 */
+      html, body { background: #1c975e; margin: 0; }
+    </style>
     <title>petamp-init</title>
   </head>
   <body>

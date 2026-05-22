@@ -1,3 +1,23 @@
+/* useApplyTheme が天気/時間帯の変化に応じて :root に書き込む CSS 変数を、
+   <color> 型として @property 登録しておくことで、値変更が transition で
+   補間される (1000ms)。consumer 側 (.page など) で transition: background を
+   持つルールはこの補間値を順次受け取って再描画する。 */
+@property --bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #0a0a0a;
+}
+@property --accent {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #1c975e;
+}
+@property --accent-dim {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(28, 151, 94, 0.2);
+}
+
 :root {
   --bg: #0a0a0a;
   --surface: rgba(15, 15, 15, 0.92);
@@ -9,6 +29,10 @@
   --accent-dim: rgba(28, 151, 94, 0.2);
   --radius: 16px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  transition:
+    --bg 1000ms ease,
+    --accent 1000ms ease,
+    --accent-dim 1000ms ease;
 }
 
 /* ---- Layout ---- */
@@ -18,7 +42,7 @@
   height: 100dvh;
   overflow: hidden;
   background: var(--bg);
-  transition: background 600ms ease;
+  transition: background 1000ms ease;
 }
 
 .map-container {
@@ -4234,4 +4258,75 @@
   background: #c44;
   color: #fff;
   border: none;
+}
+
+/* ---- Loading screen (initial app boot) ----
+   Full-screen accent-colored panel with center eyes + "loading..." text.
+   On close, opens an iris-out (a transparent hole at center grows past the
+   viewport), revealing the app behind. The mask pattern mirrors
+   .transition-overlay.phase-iris-finishing. */
+@property --loading-hole-radius {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--accent);
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-screen-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.loading-screen-eyes {
+  width: 88px;
+  height: 88px;
+}
+
+.loading-screen-text {
+  color: #ffffff;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  font-family: ui-monospace, monospace;
+  animation: loading-screen-text-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes loading-screen-text-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.loading-screen.phase-closing {
+  -webkit-mask-image: radial-gradient(
+    circle at 50% 50%,
+    transparent var(--loading-hole-radius),
+    #000 calc(var(--loading-hole-radius) + 1px)
+  );
+  mask-image: radial-gradient(
+    circle at 50% 50%,
+    transparent var(--loading-hole-radius),
+    #000 calc(var(--loading-hole-radius) + 1px)
+  );
+  animation: loading-screen-iris-out 1000ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes loading-screen-iris-out {
+  from {
+    --loading-hole-radius: 0px;
+  }
+  to {
+    --loading-hole-radius: 200vmax;
+  }
 }

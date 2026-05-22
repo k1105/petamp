@@ -1,5 +1,29 @@
 import { useEffect, type RefObject } from 'react'
 
+// '#rrggbb' / 'rgb(r, g, b)' / 'rgba(r, g, b, a)' を [0,1] の RGB に正規化。
+// CSS @property で <color> 型として登録された変数は getComputedStyle が
+// rgb(...) 形式で返すため、hex だけでなく rgb もパースする必要がある。
+function parseCssColor(raw: string): [number, number, number] | null {
+  const s = raw.trim()
+  if (s.startsWith('#') && s.length === 7) {
+    return [
+      parseInt(s.slice(1, 3), 16) / 255,
+      parseInt(s.slice(3, 5), 16) / 255,
+      parseInt(s.slice(5, 7), 16) / 255,
+    ]
+  }
+  const m = s.match(/^rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/)
+  if (m) {
+    const r = parseFloat(m[1])
+    const g = parseFloat(m[2])
+    const b = parseFloat(m[3])
+    if (!Number.isNaN(r) && !Number.isNaN(g) && !Number.isNaN(b)) {
+      return [r / 255, g / 255, b / 255]
+    }
+  }
+  return null
+}
+
 // Hardcoded peak shape exported from /shape-editor (anchors normalised to NORM_R=80).
 const KAPPA = 0.5522847498
 const NORM_R = 80
@@ -209,19 +233,18 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakVe
     gl.uniform1f(uK, k)
 
     // --accent をフレーム間でキャッシュ。テーマ変化があれば uniform を更新。
+    // @property で <color> 型として登録された CSS 変数は getComputedStyle で
+    // rgb(r, g, b) 形式に正規化されるため、hex と rgb の両方をパースする。
+    // また @property の transition 補間中は値が毎フレーム変化するので、その
+    // 度に uniform を更新したい。
     let lastAccentRaw = ''
     let cachedColor: [number, number, number] = [28 / 255, 151 / 255, 94 / 255]
     const refreshAccent = () => {
       const raw = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
       if (raw === lastAccentRaw) return
       lastAccentRaw = raw
-      if (raw.startsWith('#') && raw.length === 7) {
-        cachedColor = [
-          parseInt(raw.slice(1, 3), 16) / 255,
-          parseInt(raw.slice(3, 5), 16) / 255,
-          parseInt(raw.slice(5, 7), 16) / 255,
-        ]
-      }
+      const parsed = parseCssColor(raw)
+      if (parsed) cachedColor = parsed
       gl.uniform3f(uColor, cachedColor[0], cachedColor[1], cachedColor[2])
     }
     refreshAccent()

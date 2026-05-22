@@ -11,9 +11,14 @@ import { CharacterSmokePage } from './pages/CharacterSmokePage'
 import { PromptLogPage } from './pages/PromptLogPage'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { TransitionOverlay } from './components/transition/TransitionOverlay'
+import { LoadingScreen } from './components/LoadingScreen'
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useCharacterMemorySync } from './hooks/useCharacterMemorySync'
 import { useEnsureUserDoc } from './hooks/useEnsureUserDoc'
+import { useCurrentPosition } from './hooks/useCurrentPosition'
+import { useBootStore, useBootReady } from './store/useBootStore'
+import { useRunStore } from './store/useRunStore'
+import { subscribeAuth } from './firebase/auth'
 import { getMemoryStore, petampCharacter } from './character'
 import './App.css'
 
@@ -41,10 +46,52 @@ function HomeRoute() {
   return <GalleryPage />
 }
 
+// ページ起動時の準備状況 (auth / geolocation / 初回データ取得) を BootStore に集約する。
+// useBootReady() が true になった時点で LoadingScreen がアイリスアウトで閉じる。
+// 8 秒のセーフティ: いずれかが応答しないまま残った場合も強制的に ready にして
+// ローディングが永久に出続けるのを防ぐ。
+const BOOT_TIMEOUT_MS = 8000
+
+function useBootSignals(): void {
+  const setAuthReady = useBootStore(s => s.setAuthReady)
+  const setGeoReady = useBootStore(s => s.setGeoReady)
+  const setDataReady = useBootStore(s => s.setDataReady)
+  const position = useCurrentPosition()
+
+  useEffect(() => {
+    let first = true
+    return subscribeAuth(() => {
+      if (!first) return
+      first = false
+      setAuthReady()
+    })
+  }, [setAuthReady])
+
+  useEffect(() => {
+    if (position !== undefined) setGeoReady()
+  }, [position, setGeoReady])
+
+  useEffect(() => {
+    const isDebug = new URLSearchParams(window.location.search).get('debug') === '1'
+    void useRunStore.getState().loadRuns(isDebug).finally(() => setDataReady())
+  }, [setDataReady])
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setAuthReady()
+      setGeoReady()
+      setDataReady()
+    }, BOOT_TIMEOUT_MS)
+    return () => window.clearTimeout(t)
+  }, [setAuthReady, setGeoReady, setDataReady])
+}
+
 function App() {
   useApplyTheme()
   useEnsureUserDoc()
   useCharacterMemorySync()
+  useBootSignals()
+  const bootReady = useBootReady()
   return (
     <BrowserRouter>
       <Routes>
@@ -61,6 +108,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <TransitionOverlay />
+      <LoadingScreen ready={bootReady} />
     </BrowserRouter>
   )
 }
