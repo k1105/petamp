@@ -36,8 +36,13 @@ service cloud.firestore {
     // 相互フレンド関係: doc ID は sorted UID で `${minUid}__${maxUid}`
     // members は同じ 2 つの UID を昇順で並べた配列。これにより A↔B の関係が 1 doc に正規化される。
     match /friends/{friendId} {
-      // 読み取り: フレンド当事者のみ
-      allow read: if isSignedIn()
+      // 単一取得 (isFriendWith など): doc ID から判定するので未存在 doc でも通る
+      allow get: if isSignedIn()
+        && request.auth.uid in friendId.split('__');
+
+      // クエリ (listMyFriends): where('members','array-contains', uid) の制約と整合させるため
+      // resource.data.members を参照する。Firestore が「全結果が条件を満たす」と検証可能になる。
+      allow list: if isSignedIn()
         && request.auth.uid in resource.data.members;
 
       // 作成: 自分が members に含まれ、doc ID が sorted members と一致すること
