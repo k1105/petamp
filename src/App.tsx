@@ -10,6 +10,7 @@ import { NotationChatPage } from './pages/NotationChatPage'
 import { CharacterSmokePage } from './pages/CharacterSmokePage'
 import { PromptLogPage } from './pages/PromptLogPage'
 import { OnboardingPage } from './pages/OnboardingPage'
+import { InvitePage } from './pages/InvitePage'
 import { TransitionOverlay } from './components/transition/TransitionOverlay'
 import { LoadingScreen } from './components/LoadingScreen'
 import { useApplyTheme } from './hooks/useApplyTheme'
@@ -105,6 +106,7 @@ function App() {
         <Route path="/character-smoke" element={<CharacterSmokePage />} />
         <Route path="/prompt-logs" element={<PromptLogPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/invite/:uid" element={<InvitePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <TransitionOverlay />

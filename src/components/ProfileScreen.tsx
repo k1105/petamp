@@ -1,22 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { useAuth } from '../hooks/useAuth'
 import { signInWithGoogle, signOutUser } from '../firebase/auth'
-import { listAllUsers, type PublicUser } from '../firebase/userCloud'
-import {
-  listMyIncoming,
-  listMyOutgoing,
-  type FollowDoc,
-} from '../firebase/follows'
+import { getUserDoc, type PublicUser } from '../firebase/userCloud'
+import { listMyFriends } from '../firebase/friends'
 import { useSocialFeedStore } from '../store/useSocialFeedStore'
-import { DiscoverTab } from './profile/DiscoverTab'
-import { RequestsTab } from './profile/RequestsTab'
+import { InviteTab } from './profile/InviteTab'
+import { FriendsTab } from './profile/FriendsTab'
 
 type Props = {
   onClose: () => void
 }
 
-type TabKey = 'profile' | 'discover' | 'requests'
+type TabKey = 'profile' | 'friends' | 'invite'
 
 function formatError(e: unknown): string {
   if (e instanceof Error) return `${e.name}: ${e.message}`
@@ -34,25 +30,19 @@ export function ProfileScreen({ onClose }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [users, setUsers] = useState<PublicUser[] | null>(null)
-  const [outgoing, setOutgoing] = useState<FollowDoc[]>([])
-  const [incoming, setIncoming] = useState<FollowDoc[]>([])
+  const [friends, setFriends] = useState<PublicUser[] | null>(null)
   const [dataError, setDataError] = useState<string | null>(null)
 
   const uid = user?.uid
   const refresh = useCallback(async () => {
     if (!uid) return
     try {
-      const [u, out, inc] = await Promise.all([
-        listAllUsers(),
-        listMyOutgoing(),
-        listMyIncoming(),
-      ])
-      setUsers(u)
-      setOutgoing(out)
-      setIncoming(inc)
+      const docs = await listMyFriends()
+      const otherUids = docs.map(f => (f.members[0] === uid ? f.members[1] : f.members[0]))
+      const profiles = await Promise.all(otherUids.map(u => getUserDoc(u)))
+      setFriends(profiles.filter((u): u is PublicUser => !!u))
       setDataError(null)
-      // フォロー関係が変わるとフォロー先のランも増減するので feed も更新
+      // フレンドが変わるとフィードに出るランも増減するので feed も更新
       void useSocialFeedStore.getState().refresh()
     } catch (e) {
       console.error('profile data load failed', e)
@@ -65,15 +55,12 @@ export function ProfileScreen({ onClose }: Props) {
     let cancelled = false
     void (async () => {
       try {
-        const [u, out, inc] = await Promise.all([
-          listAllUsers(),
-          listMyOutgoing(),
-          listMyIncoming(),
-        ])
+        const docs = await listMyFriends()
         if (cancelled) return
-        setUsers(u)
-        setOutgoing(out)
-        setIncoming(inc)
+        const otherUids = docs.map(f => (f.members[0] === uid ? f.members[1] : f.members[0]))
+        const profiles = await Promise.all(otherUids.map(u => getUserDoc(u)))
+        if (cancelled) return
+        setFriends(profiles.filter((u): u is PublicUser => !!u))
         setDataError(null)
       } catch (e) {
         if (cancelled) return
@@ -92,26 +79,7 @@ export function ProfileScreen({ onClose }: Props) {
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const userMap = useMemo(() => {
-    const m = new Map<string, PublicUser>()
-    for (const u of users ?? []) m.set(u.uid, u)
-    return m
-  }, [users])
-
-  const incomingPending = useMemo(
-    () => incoming.filter(f => f.status === 'pending'),
-    [incoming],
-  )
-
-  const followingCount = useMemo(
-    () => outgoing.filter(f => f.status === 'accepted').length,
-    [outgoing],
-  )
-
-  const followersCount = useMemo(
-    () => incoming.filter(f => f.status === 'accepted').length,
-    [incoming],
-  )
+  const friendsCount = friends?.length ?? 0
 
   const handleSignIn = async () => {
     setBusy(true)
@@ -173,23 +141,20 @@ export function ProfileScreen({ onClose }: Props) {
               <button
                 type="button"
                 role="tab"
-                aria-selected={tab === 'discover'}
-                className={`profile-screen-tab${tab === 'discover' ? ' is-active' : ''}`}
-                onClick={() => setTab('discover')}
+                aria-selected={tab === 'friends'}
+                className={`profile-screen-tab${tab === 'friends' ? ' is-active' : ''}`}
+                onClick={() => setTab('friends')}
               >
-                探す
+                友達
               </button>
               <button
                 type="button"
                 role="tab"
-                aria-selected={tab === 'requests'}
-                className={`profile-screen-tab${tab === 'requests' ? ' is-active' : ''}`}
-                onClick={() => setTab('requests')}
+                aria-selected={tab === 'invite'}
+                className={`profile-screen-tab${tab === 'invite' ? ' is-active' : ''}`}
+                onClick={() => setTab('invite')}
               >
-                リクエスト
-                {incomingPending.length > 0 && (
-                  <span className="profile-screen-tab-badge">{incomingPending.length}</span>
-                )}
+                招待
               </button>
             </div>
 
@@ -206,12 +171,8 @@ export function ProfileScreen({ onClose }: Props) {
                   <div className="profile-screen-name">{user.displayName ?? 'ゲスト'}</div>
                   <div className="profile-screen-stats">
                     <div className="profile-screen-stat">
-                      <span className="profile-screen-stat-value">{followingCount}</span>
-                      <span className="profile-screen-stat-label">フォロー</span>
-                    </div>
-                    <div className="profile-screen-stat">
-                      <span className="profile-screen-stat-value">{followersCount}</span>
-                      <span className="profile-screen-stat-label">フォロワー</span>
+                      <span className="profile-screen-stat-value">{friendsCount}</span>
+                      <span className="profile-screen-stat-label">友達</span>
                     </div>
                   </div>
                   <button
@@ -225,30 +186,15 @@ export function ProfileScreen({ onClose }: Props) {
                 </div>
               )}
 
-              {tab === 'discover' && (
-                users === null ? (
+              {tab === 'friends' && (
+                friends === null ? (
                   <div className="profile-empty">読み込み中…</div>
                 ) : (
-                  <DiscoverTab
-                    myUid={user.uid}
-                    users={users}
-                    outgoing={outgoing}
-                    onChanged={refresh}
-                  />
+                  <FriendsTab friends={friends} onChanged={refresh} />
                 )
               )}
 
-              {tab === 'requests' && (
-                users === null ? (
-                  <div className="profile-empty">読み込み中…</div>
-                ) : (
-                  <RequestsTab
-                    userMap={userMap}
-                    incomingPending={incomingPending}
-                    onChanged={refresh}
-                  />
-                )
-              )}
+              {tab === 'invite' && <InviteTab myUid={user.uid} />}
 
               {dataError ? <div className="profile-screen-error">{dataError}</div> : null}
               {error ? <div className="profile-screen-error">{error}</div> : null}
@@ -263,11 +209,7 @@ export function ProfileScreen({ onClose }: Props) {
             <div className="profile-screen-stats">
               <div className="profile-screen-stat">
                 <span className="profile-screen-stat-value">0</span>
-                <span className="profile-screen-stat-label">フォロー</span>
-              </div>
-              <div className="profile-screen-stat">
-                <span className="profile-screen-stat-value">0</span>
-                <span className="profile-screen-stat-label">フォロワー</span>
+                <span className="profile-screen-stat-label">友達</span>
               </div>
             </div>
             <button

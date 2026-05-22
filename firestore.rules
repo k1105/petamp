@@ -33,29 +33,27 @@ service cloud.firestore {
       }
     }
 
-    // フォロー関係: doc ID は `${followerUid}__${followeeUid}`
-    match /follows/{followId} {
-      allow read: if isSignedIn();
+    // 相互フレンド関係: doc ID は sorted UID で `${minUid}__${maxUid}`
+    // members は同じ 2 つの UID を昇順で並べた配列。これにより A↔B の関係が 1 doc に正規化される。
+    match /friends/{friendId} {
+      // 読み取り: フレンド当事者のみ
+      allow read: if isSignedIn()
+        && request.auth.uid in resource.data.members;
 
-      // フォローリクエスト送信: 自分が follower で status=pending のみ
+      // 作成: 自分が members に含まれ、doc ID が sorted members と一致すること
       allow create: if isSignedIn()
-        && request.resource.data.followerUid == request.auth.uid
-        && request.resource.data.followeeUid != request.auth.uid
-        && request.resource.data.status == 'pending'
-        && followId == request.resource.data.followerUid + '__' + request.resource.data.followeeUid;
+        && request.resource.data.members is list
+        && request.resource.data.members.size() == 2
+        && request.auth.uid in request.resource.data.members
+        && request.resource.data.members[0] < request.resource.data.members[1]
+        && friendId == request.resource.data.members[0] + '__' + request.resource.data.members[1];
 
-      // 承認: followee 本人のみ、status='accepted' への更新だけ許可
-      allow update: if isSignedIn()
-        && resource.data.followeeUid == request.auth.uid
-        && resource.data.status == 'pending'
-        && request.resource.data.status == 'accepted'
-        && request.resource.data.followerUid == resource.data.followerUid
-        && request.resource.data.followeeUid == resource.data.followeeUid;
+      // 更新: 不要 (members は不変)
+      allow update: if false;
 
-      // 削除: follower (キャンセル/アンフォロー) もしくは followee (拒否/フォロワー削除) 本人のみ
+      // 削除: 当事者のみ
       allow delete: if isSignedIn()
-        && (resource.data.followerUid == request.auth.uid
-            || resource.data.followeeUid == request.auth.uid);
+        && request.auth.uid in resource.data.members;
     }
   }
 }

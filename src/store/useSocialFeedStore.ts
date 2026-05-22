@@ -2,10 +2,11 @@ import { create } from 'zustand'
 import type { Run } from '../types'
 import type { PublicUser } from '../firebase/userCloud'
 import { getUserDoc } from '../firebase/userCloud'
-import { listMyOutgoing } from '../firebase/follows'
+import { listMyFriendUids } from '../firebase/friends'
 import { cloudListRunsOf } from '../firebase/runCloud'
 
 type SocialFeedState = {
+  // 後方互換のためフィールド名は followedXxx を維持する (UI 側はフレンドのランを「フォロー先」と同じ枠で扱う)
   followedUsers: PublicUser[]
   followedRuns: Run[]
   loading: boolean
@@ -24,14 +25,13 @@ export const useSocialFeedStore = create<SocialFeedState>((set, get) => ({
   refresh: async () => {
     set({ loading: true })
     try {
-      const outgoing = await listMyOutgoing()
-      const accepted = outgoing.filter(f => f.status === 'accepted')
+      const friendUids = await listMyFriendUids()
       const [users, runsByUser] = await Promise.all([
-        Promise.all(accepted.map(f => getUserDoc(f.followeeUid))),
+        Promise.all(friendUids.map(uid => getUserDoc(uid))),
         Promise.all(
-          accepted.map(async f => {
-            const runs = await cloudListRunsOf(f.followeeUid)
-            return runs.map(r => ({ ...r, ownerUid: f.followeeUid }))
+          friendUids.map(async uid => {
+            const runs = await cloudListRunsOf(uid)
+            return runs.map(r => ({ ...r, ownerUid: uid }))
           }),
         ),
       ])

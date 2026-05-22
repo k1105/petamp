@@ -1551,6 +1551,110 @@
   word-break: break-all;
 }
 
+/* ---- Invite tab (QR + share link) ---- */
+.profile-invite {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 0;
+}
+.profile-invite-lead {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.6;
+  margin: 0;
+}
+.profile-invite-qr {
+  padding: 12px;
+  background: #ffffff;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.profile-invite-url {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
+  text-align: center;
+  width: 100%;
+}
+.profile-invite-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.profile-invite-actions .profile-screen-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* ---- Invite page (/invite/:uid) ---- */
+.invite-page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--surface);
+}
+.invite-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 20px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  max-width: 360px;
+  width: 100%;
+}
+.invite-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 36px;
+}
+.invite-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.invite-name {
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
+}
+.invite-msg {
+  color: var(--text);
+  font-size: 14px;
+  text-align: center;
+  line-height: 1.6;
+}
+.invite-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.invite-actions .profile-screen-action {
+  flex: 1;
+}
+
 /* ---- Location crosshair (recording, before start) ---- */
 .location-crosshair {
   position: absolute;
