@@ -13,12 +13,12 @@ import { groupRunsByBboxOverlap, makeHomeGroup, findGroupContaining } from '../u
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { useSocialFeedStore } from '../store/useSocialFeedStore'
-import { SettingsPanel } from '../components/gallery/SettingsPanel'
-import { UserMenu } from '../components/UserMenu'
+import { SettingsPopup } from '../components/gallery/SettingsPopup'
+import { ProfileScreen } from '../components/ProfileScreen'
+import { useAuth } from '../hooks/useAuth'
 import { RunTile } from '../components/gallery/RunTile'
 import { EyesIcon } from '../components/gallery/EyesIcon'
 import { IslandView } from '../components/island/IslandView'
-import { StatsView } from '../components/gallery/StatsView'
 import { computeArchipelagoLayout, type ArchipelagoLayoutResult } from '../utils/archipelagoLayout'
 import { buildPathPositions } from '../utils/tubeMesh'
 import { effectiveRadius } from '../utils/effectiveRadius'
@@ -231,8 +231,10 @@ export function GalleryPage() {
     for (const u of followedUsers) m.set(u.uid, u)
     return m
   }, [followedUsers])
-  const [view, setView] = useState<'map' | 'list' | 'settings'>('map')
-  const [listMode, setListMode] = useState<'trail' | 'island' | 'stats'>('trail')
+  const [view, setView] = useState<'map' | 'list' | 'profile'>('map')
+  const [listMode, setListMode] = useState<'trail' | 'island'>('trail')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const { user } = useAuth()
   const [armed, setArmed] = useState(false)
   const [focusGPSSignal, setFocusGPSSignal] = useState(0)
   const { places: namedPlaces } = useNamedPlaces()
@@ -275,7 +277,7 @@ export function GalleryPage() {
   // 遅らせるのを避ける。
   const PANEL_TRANSITION_MS = 350
   const [listMounted, setListMounted] = useState(false)
-  const [settingsMounted, setSettingsMounted] = useState(false)
+  const [profileMounted, setProfileMounted] = useState(false)
   useEffect(() => {
     if (view === 'list') {
       // パネルを開く瞬間に同期マウントする (open class 適用と同フレームで)。
@@ -288,15 +290,15 @@ export function GalleryPage() {
     return () => window.clearTimeout(t)
   }, [view, listMounted])
   useEffect(() => {
-    if (view === 'settings') {
+    if (view === 'profile') {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSettingsMounted(true)
+      setProfileMounted(true)
       return
     }
-    if (!settingsMounted) return
-    const t = window.setTimeout(() => setSettingsMounted(false), PANEL_TRANSITION_MS)
+    if (!profileMounted) return
+    const t = window.setTimeout(() => setProfileMounted(false), PANEL_TRANSITION_MS)
     return () => window.clearTimeout(t)
-  }, [view, settingsMounted])
+  }, [view, profileMounted])
 
   const [runsLoaded, setRunsLoaded] = useState(false)
   useEffect(() => {
@@ -510,14 +512,22 @@ export function GalleryPage() {
     setView('map')
   }
 
-  const toggleView = (target: 'list' | 'settings') => {
+  const toggleView = (target: 'list' | 'profile') => {
     if (armed) return
     setView(current => (current === target ? 'map' : target))
   }
 
   return (
     <div className="page">
-      <UserMenu />
+      <button
+        type="button"
+        className="top-settings-btn"
+        onClick={() => setSettingsOpen(true)}
+        aria-label="設定を開く"
+        title="設定"
+      >
+        <Icon icon="lucide:settings" />
+      </button>
       <div className="map-container">
         {initialCenter !== undefined && runsLoaded && (
           <BaseMap
@@ -581,15 +591,6 @@ export function GalleryPage() {
                 >
                   ISLAND
                 </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={listMode === 'stats'}
-                  className={`list-mode-toggle-btn${listMode === 'stats' ? ' is-active' : ''}`}
-                  onClick={() => setListMode('stats')}
-                >
-                  STATS
-                </button>
               </div>
             </div>
             {socialRuns.length === 0 ? (
@@ -606,7 +607,7 @@ export function GalleryPage() {
                   />
                 ))}
               </div>
-            ) : listMode === 'island' ? (
+            ) : (
               <div className="island-view-wrap">
                 <IslandView
                   layout={archLayout}
@@ -615,18 +616,21 @@ export function GalleryPage() {
                   ownerByUid={ownerByUid}
                 />
               </div>
-            ) : (
-              <div className="stats-view-wrap">
-                <StatsView runs={runs} />
-              </div>
             )}
           </>
         )}
       </div>
 
-      <div className={`gallery-panel gallery-panel-settings${view === 'settings' ? ' open' : ''}`}>
-        {settingsMounted && <SettingsPanel />}
+      <div className={`gallery-panel gallery-panel-profile${view === 'profile' ? ' open' : ''}`}>
+        {profileMounted && (
+          <ProfileScreen
+            runs={runs}
+            onClose={() => { if (!armed) setView('map') }}
+          />
+        )}
       </div>
+
+      {settingsOpen && <SettingsPopup onClose={() => setSettingsOpen(false)} />}
 
       {armed && <div className="armed-backdrop" onClick={() => setArmed(false)} />}
       {activeBubbleText && (
@@ -672,12 +676,21 @@ export function GalleryPage() {
             <Icon icon="lucide:map" />
           </button>
           <button
-            className={`settings-btn${view === 'settings' ? ' is-active' : ''}`}
-            onClick={() => toggleView('settings')}
-            aria-label={view === 'settings' ? '設定を閉じる' : '設定を開く'}
-            title="設定"
+            className={`profile-btn${view === 'profile' ? ' is-active' : ''}`}
+            onClick={() => toggleView('profile')}
+            aria-label={view === 'profile' ? 'プロフィールを閉じる' : 'プロフィールを開く'}
+            title="プロフィール"
           >
-            <Icon icon="lucide:settings" />
+            {user?.photoURL ? (
+              <img
+                src={user.photoURL}
+                alt=""
+                className="profile-btn-avatar"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <Icon icon="lucide:user" />
+            )}
           </button>
         </div>
       </div>

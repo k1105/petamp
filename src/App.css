@@ -103,17 +103,20 @@
 }
 
 /* ---- Bottom sheet (gallery) ---- */
+/* 横幅は 3 ボタン (list-toggle / FAB / profile) のスパンに合わせる。
+   list-toggle 左端 = 50% − 120px, profile-btn 右端 = 50% + 120px なので 240px。
+   中央寄せして、ボタンの absolute 位置 (50% 基準) はそのまま生きる。 */
 .bottom-sheet {
   position: absolute;
   bottom: 0;
-  left: 0;
-  right: 0;
+  left: 50%;
+  width: 240px;
   z-index: 20;
   background: transparent;
   border-radius: var(--radius) var(--radius) 0 0;
   height: 70dvh;
   max-height: 75dvh;
-  transform: translateY(calc(100% - 32px));
+  transform: translate(-50%, calc(100% - 32px));
   transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
   display: flex;
   flex-direction: column;
@@ -134,6 +137,27 @@
   height: 100%;
   pointer-events: none;
   z-index: 12;
+}
+
+/* nav と重なる下端を親パネルの bg にフェードさせ、scroll content が
+   nav に被って見えづらくなるのを軽減する。map-canvas の上下マスクと同じ発想。
+   このマスクが効いた scroll container はそれ自身が透明扱いになるので、親
+   ( .gallery-panel / .profile-slide ) の bg がフェードを通して見える前提。 */
+.gallery-panel-list .run-grid,
+.gallery-panel-list .island-view-wrap,
+.profile-slide .profile-screen-body {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(100% - 96px - var(--safe-bottom)),
+    transparent calc(100% - 12px - var(--safe-bottom))
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(100% - 96px - var(--safe-bottom)),
+    transparent calc(100% - 12px - var(--safe-bottom))
+  );
 }
 
 /* ---- Gallery panels (list / settings) — full-screen, slide over map ---- */
@@ -158,7 +182,7 @@
   color: var(--accent);
 }
 
-.gallery-panel-settings {
+.gallery-panel-profile {
   transform: translateX(100%);
 }
 
@@ -166,12 +190,55 @@
   transform: translateX(0);
 }
 
-.gallery-panel .settings-content {
+.gallery-panel .settings-content,
+.modal-popup-body .settings-content {
   background: transparent;
   border-top: none;
+}
+
+.gallery-panel .settings-content {
   /* Match run-grid: clear FAB row + safe-area at the bottom of the scroll
      content so the last section can fully scroll above the nav. */
   padding-bottom: calc(96px + var(--safe-bottom));
+}
+
+/* ---- Generic modal popup (settings / friends / invite share chrome) ---- */
+.modal-popup-panel {
+  padding: 16px;
+  gap: 12px;
+}
+.modal-popup-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.modal-popup-body .settings-content {
+  padding: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.modal-popup-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.modal-popup-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
 }
 
 .list-mode-header {
@@ -269,6 +336,15 @@
   flex: 1;
   overflow-y: auto;
   padding: 0 16px calc(96px + var(--safe-bottom));
+}
+
+/* ProfileScreen 内では .profile-screen-body 側がスクロールを担うので、
+   ネストした flex+overflow を解除して中身を素直に縦に伸ばす。
+   横 padding と下 padding も親が持っているので 0 に。 */
+.profile-screen-body .stats-view-wrap {
+  flex: 0 0 auto;
+  overflow: visible;
+  padding: 0;
 }
 
 .stats-view {
@@ -491,7 +567,7 @@
 }
 
 .bottom-sheet.open {
-  transform: translateY(0);
+  transform: translateX(-50%);
 }
 
 .bottom-sheet-handle {
@@ -944,14 +1020,14 @@
   will-change: transform;
 }
 
-/* When list/settings tab is open, FAB slides over the corresponding icon.
-   Δx = list-toggle/settings-btn center − FAB center
-       = (50% − 92px) − 50% = −92px (mirror for settings) */
+/* When list/profile tab is open, FAB slides over the corresponding icon.
+   Δx = list-toggle/profile-btn center − FAB center
+       = (50% − 92px) − 50% = −92px (mirror for profile) */
 .fab.fab-sheet.fab-pos-list {
   transform: translateX(-92px);
 }
 
-.fab.fab-sheet.fab-pos-settings {
+.fab.fab-sheet.fab-pos-profile {
   transform: translateX(92px);
 }
 
@@ -1020,7 +1096,7 @@
 }
 
 .list-toggle-btn,
-.settings-btn {
+.profile-btn {
   transition:
     opacity 0.2s,
     color 0.2s,
@@ -1030,10 +1106,13 @@
 /* When this tab is active, FAB sits on top of it — hide the icon glyph
    and let taps fall through to the FAB underneath (which arms recording). */
 .list-toggle-btn.is-active,
-.settings-btn.is-active,
+.profile-btn.is-active,
 .map-btn.is-active {
   color: transparent;
   pointer-events: none;
+}
+.profile-btn.is-active .profile-btn-avatar {
+  visibility: hidden;
 }
 
 /* Extend each nav button's hit area 12px in every direction. The visible
@@ -1043,7 +1122,7 @@
    an .is-active toggle stays untappable. 12px is within the gap to FAB
    on both sides so taps never spill over. */
 .list-toggle-btn::before,
-.settings-btn::before,
+.profile-btn::before,
 .map-btn::before {
   content: '';
   position: absolute;
@@ -1199,8 +1278,8 @@
   transform: translateX(-50%) scale(0.94);
 }
 
-/* ---- User menu (top-right) ---- */
-.user-menu-trigger {
+/* ---- Top-right settings button (gallery) ---- */
+.top-settings-btn {
   position: absolute;
   top: calc(16px + env(safe-area-inset-top, 0px));
   right: 16px;
@@ -1212,119 +1291,48 @@
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.35);
   color: #fff;
-  font-size: 18px;
+  font-size: 20px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  overflow: hidden;
   transition:
     background 0.15s,
     transform 0.15s;
 }
-.user-menu-trigger:hover {
+.top-settings-btn:hover {
   background: rgba(255, 255, 255, 0.22);
 }
-.user-menu-trigger:active {
+.top-settings-btn:active {
   transform: scale(0.94);
 }
 
-.user-menu-avatar {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* ---- Profile screen (center modal) ---- */
-.profile-screen-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-  padding: 24px;
-  animation: profile-screen-fade-in 0.18s ease-out;
-}
-
-@keyframes profile-screen-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.profile-screen-card {
+/* ---- Profile slide-in panel (gallery) ---- */
+/* nav とオーバーラップさせるため、外側 .profile-slide は padding-bottom を持たない。
+   内側のスクロールコンテナ (.profile-screen-body) に bottom-padding を寄せて、
+   最後のセクションが nav 上まで余裕を持ってスクロールできるようにする。 */
+.profile-slide {
   position: relative;
-  width: 100%;
-  max-width: 360px;
-  max-height: 80vh;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 52px 20px 20px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 16px 0;
+  background: var(--surface-raised);
   overflow: hidden;
-}
-
-.profile-screen-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 10px;
-  align-self: stretch;
-}
-
-.profile-screen-tab {
-  flex: 1;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 12px;
-  padding: 8px 6px;
-  border-radius: 7px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  transition: background 0.15s, color 0.15s;
-}
-.profile-screen-tab:hover {
-  color: var(--text);
-}
-.profile-screen-tab.is-active {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text);
-}
-
-.profile-screen-tab-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 8px;
-  background: #e44;
-  color: #fff;
-  font-size: 10px;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
 }
 
 .profile-screen-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding-bottom: calc(96px + var(--safe-bottom));
 }
 
 .profile-tab-self {
@@ -1435,29 +1443,6 @@
   padding: 24px 0;
 }
 
-.profile-screen-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  transition: background 0.15s, color 0.15s;
-  z-index: 1;
-}
-.profile-screen-close:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--text);
-}
-
 .profile-screen-avatar {
   width: 72px;
   height: 72px;
@@ -1488,10 +1473,63 @@
   white-space: nowrap;
 }
 
+.profile-screen-name-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.profile-screen-name-input {
+  font: inherit;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 16px;
+  font-weight: 600;
+  width: 12ch;
+  max-width: 60vw;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.profile-screen-name-input:focus {
+  border-color: var(--accent);
+}
+
+.profile-screen-name-btn {
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.profile-screen-name-btn:hover:not(:disabled) {
+  color: var(--text);
+}
+.profile-screen-name-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.profile-screen-name-btn.is-confirm:hover:not(:disabled) {
+  color: var(--accent);
+}
+
 .profile-screen-stats {
   display: flex;
   justify-content: center;
-  gap: 32px;
+  align-items: center;
+  gap: 12px;
   width: 100%;
   padding: 8px 0 4px;
 }
@@ -1501,6 +1539,19 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
+}
+.profile-screen-stat-btn {
+  background: transparent;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: background 0.15s;
+}
+.profile-screen-stat-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
 }
 .profile-screen-stat-value {
   color: var(--text);
@@ -1512,6 +1563,27 @@
   color: var(--text-muted);
   font-size: 11px;
   letter-spacing: 0.04em;
+}
+
+.profile-screen-stat-add {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.profile-screen-stat-add:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .profile-screen-action {
@@ -2502,7 +2574,7 @@
   z-index: 10;
 }
 
-.settings-btn {
+.profile-btn {
   position: absolute;
   width: 56px;
   height: 56px;
@@ -2525,11 +2597,19 @@
     transform 0.2s;
 }
 
-.settings-btn:active {
+.profile-btn:active {
   opacity: 0.85;
 }
 
-.bottom-sheet.armed .settings-btn {
+.profile-btn-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid var(--accent);
+}
+
+.bottom-sheet.armed .profile-btn {
   opacity: 0;
   pointer-events: none;
 }

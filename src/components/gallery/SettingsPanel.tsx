@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import { useSettingsStore } from '../../store/useSettingsStore'
 import { useActivePalette } from '../../hooks/useActivePalette'
+import { useAuth } from '../../hooks/useAuth'
+import { signOutUser } from '../../firebase/auth'
 import {
   WEATHERS,
   TIMES,
@@ -52,10 +54,24 @@ export function SettingsPanel() {
   const experimental = useSettingsStore(s => s.experimental)
   const setExperimental = useSettingsStore(s => s.setExperimental)
   const { weather, time, palette, autoWeather, autoTime } = useActivePalette()
+  const { user } = useAuth()
 
   const [busy, setBusy] = useState<AsyncActionKey | null>(null)
   const [done, setDone] = useState<AsyncActionKey | null>(null)
   const [copied, setCopied] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
+
+  const handleSignOut = async () => {
+    if (signingOut) return
+    setSigningOut(true)
+    try {
+      await signOutUser()
+    } catch (e) {
+      console.error('signOut failed', e)
+    } finally {
+      setSigningOut(false)
+    }
+  }
 
   const onCopyPalettes = async () => {
     const code = formatPalettesAsTs(theme.overrides)
@@ -279,6 +295,19 @@ export function SettingsPanel() {
           <span>{labelFor('all', busy, done, 'ペタンプをまっさらに戻す')}</span>
         </button>
       </Section>
+
+      {user && (
+        <Section title="アカウント">
+          <button
+            className="settings-btn-secondary"
+            onClick={handleSignOut}
+            disabled={signingOut}
+          >
+            <Icon icon="lucide:log-out" />
+            <span>{signingOut ? 'ログアウト中…' : 'ログアウト'}</span>
+          </button>
+        </Section>
+      )}
     </div>
   )
 }
