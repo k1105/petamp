@@ -13,6 +13,7 @@ import { OnboardingPage } from './pages/OnboardingPage'
 import { InvitePage } from './pages/InvitePage'
 import { TransitionOverlay } from './components/transition/TransitionOverlay'
 import { LoadingScreen } from './components/LoadingScreen'
+import { PostRunLoadingScreen } from './components/PostRunLoadingScreen'
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useCharacterMemorySync } from './hooks/useCharacterMemorySync'
 import { useEnsureUserDoc } from './hooks/useEnsureUserDoc'
@@ -110,6 +111,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <TransitionOverlay />
+      <PostRunLoadingScreen />
       <LoadingScreen ready={bootReady} />
     </BrowserRouter>
   )

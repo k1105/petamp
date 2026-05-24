@@ -11,6 +11,7 @@ import { buildRunSummary } from '../utils/runSummary'
 import { loadRun } from '../db/runRepository'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { useActivePalette } from '../hooks/useActivePalette'
+import { usePostRunLoadingStore } from '../store/usePostRunLoadingStore'
 import {
   getDialogueService,
   getMemoryStore,
@@ -188,6 +189,18 @@ export function RunResultPage() {
     () => dialogue.messages.find(t => t.role === 'character') ?? null,
     [dialogue.messages],
   )
+
+  // ラン終了の post-run loading 画面を抜ける合図。
+  // 第一声が届いた / API キーが無く対話自体不可 / 15秒のセーフティ — のいずれかで ready。
+  const setPostRunLoadingReady = usePostRunLoadingStore(s => s.setReady)
+  useEffect(() => {
+    if (!service || firstPetampTurn) {
+      setPostRunLoadingReady()
+      return
+    }
+    const t = window.setTimeout(setPostRunLoadingReady, 15000)
+    return () => window.clearTimeout(t)
+  }, [service, firstPetampTurn, setPostRunLoadingReady])
 
   const eyesGroupRef = useRef<SVGGElement>(null)
   const bubbleRef = useRef<HTMLDivElement>(null)

@@ -271,33 +271,23 @@ export function GalleryPage() {
     setBlinkSignal(s => s + 1)
   }, [view, armed])
 
-  // パネル中身は active のときだけ mount。閉じてもスライドアウト中は残し、
-  // トランジション完了後 (350ms) に unmount する。これで GalleryPage 初回
-  // マウント時に run-tile 全件や SettingsPanel が同期描画されてマップ表示を
-  // 遅らせるのを避ける。
-  const PANEL_TRANSITION_MS = 350
+  // パネル中身は初めて開かれるまで mount しない (初回マウント時に run-tile 全件や
+  // SettingsPanel が同期描画されてマップ表示が遅れるのを避ける lazy mount)。
+  // 一度 mount したら閉じてもアンマウントしない: IslandView (deck.gl Deck / area
+  // name fetch / circular avatar 生成) の高コストな再構築を避ける。パネル本体は
+  // CSS の transform でオフスクリーンに退避しているので、mount したままでも
+  // 視覚的には隠れ、deck.gl は on-demand 描画なのでアイドル時のコストは無視できる。
   const [listMounted, setListMounted] = useState(false)
   const [profileMounted, setProfileMounted] = useState(false)
   useEffect(() => {
-    if (view === 'list') {
-      // パネルを開く瞬間に同期マウントする (open class 適用と同フレームで)。
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setListMounted(true)
-      return
-    }
-    if (!listMounted) return
-    const t = window.setTimeout(() => setListMounted(false), PANEL_TRANSITION_MS)
-    return () => window.clearTimeout(t)
+    if (view !== 'list' || listMounted) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setListMounted(true)
   }, [view, listMounted])
   useEffect(() => {
-    if (view === 'profile') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setProfileMounted(true)
-      return
-    }
-    if (!profileMounted) return
-    const t = window.setTimeout(() => setProfileMounted(false), PANEL_TRANSITION_MS)
-    return () => window.clearTimeout(t)
+    if (view !== 'profile' || profileMounted) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setProfileMounted(true)
   }, [view, profileMounted])
 
   const [runsLoaded, setRunsLoaded] = useState(false)

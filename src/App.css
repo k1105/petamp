@@ -281,10 +281,12 @@
   overflow: hidden;
 }
 
-/* 親 (.list-mode-header) で既にノッチ分のパディングを消費しているので、
-   この中の orbit-toggle は env(safe-area-inset-top) を加算しない。 */
-.island-view-wrap .orbit-toggle {
-  top: 12px;
+/* island ビューでは orbit-toggle を下端中央に置く (BaseMap と同じ運用)。
+   .orbit-toggle-bottom の既定 bottom は .page 直下を想定した 140px だが、
+   ここでは .island-view-wrap が padding-bottom: 96px + safe で既に nav 分の
+   余白を確保しているので、その content-area の上端 16px に詰める。 */
+.island-view-wrap .orbit-toggle.orbit-toggle-bottom {
+  bottom: 16px;
 }
 
 .island-loading {
@@ -4512,5 +4514,101 @@
   }
   to {
     --loading-hole-radius: 200vmax;
+  }
+}
+
+/* ---- Post-run loading screen (FINISH → 対話準備完了) ----
+   ラン終了直後、FINISH を起点に緑のディスクが広がり画面を覆い (entering)、
+   ローディング画面 (loading) を挟んで、中央から透明な穴が広がり背後の
+   RunResultPage を露わにする (closing)。 entering は transition-overlay の
+   phase-expanding と、closing は loading-screen の phase-closing と同パターン。 */
+@property --post-run-disc-radius {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --post-run-hole-radius {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+.post-run-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--accent);
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  --origin-x: 50vw;
+  --origin-y: 50vh;
+}
+
+.post-run-loading-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.post-run-loading-eyes {
+  width: 88px;
+  height: 88px;
+}
+
+.post-run-loading-text {
+  color: #ffffff;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  font-family: ui-monospace, monospace;
+  animation: loading-screen-text-pulse 1.4s ease-in-out infinite;
+}
+
+.post-run-loading.phase-entering {
+  -webkit-mask-image: radial-gradient(
+    circle at var(--origin-x) var(--origin-y),
+    #000 var(--post-run-disc-radius),
+    transparent calc(var(--post-run-disc-radius) + 1px)
+  );
+  mask-image: radial-gradient(
+    circle at var(--origin-x) var(--origin-y),
+    #000 var(--post-run-disc-radius),
+    transparent calc(var(--post-run-disc-radius) + 1px)
+  );
+  animation: post-run-loading-enter 400ms cubic-bezier(0.4, 0, 0.6, 1) forwards;
+}
+
+@keyframes post-run-loading-enter {
+  from {
+    --post-run-disc-radius: 32px;
+  }
+  to {
+    --post-run-disc-radius: 200vmax;
+  }
+}
+
+.post-run-loading.phase-closing {
+  -webkit-mask-image: radial-gradient(
+    circle at 50% 50%,
+    transparent var(--post-run-hole-radius),
+    #000 calc(var(--post-run-hole-radius) + 1px)
+  );
+  mask-image: radial-gradient(
+    circle at 50% 50%,
+    transparent var(--post-run-hole-radius),
+    #000 calc(var(--post-run-hole-radius) + 1px)
+  );
+  animation: post-run-loading-close 1000ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes post-run-loading-close {
+  from {
+    --post-run-hole-radius: 0px;
+  }
+  to {
+    --post-run-hole-radius: 200vmax;
   }
 }

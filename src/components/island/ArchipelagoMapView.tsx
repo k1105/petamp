@@ -237,7 +237,9 @@ export function ArchipelagoMapView({ layers, fitBbox, background = 'rgb(30, 110,
         maxLng: cLng + lngHalf * (1 + pad),
         minLat: cLat - latHalf * (1 + pad),
         maxLat: cLat + latHalf * (1 + pad),
-        minZoom: Math.max(0, fitted.zoom - 2),
+        // fitBounds 時点で padding:80 を含めて島全体が収まっている。これより
+        // 引くと島が小さく沈んでしまうので、fit zoom を最小値とする。
+        minZoom: fitted.zoom,
         maxZoom: Math.min(22, fitted.zoom + 4),
       }
       viewStateRef.current = next
@@ -269,7 +271,7 @@ export function ArchipelagoMapView({ layers, fitBbox, background = 'rgb(30, 110,
       />
       <button
         type="button"
-        className={`orbit-toggle ${orbit ? 'orbit-toggle-active' : ''}`}
+        className={`orbit-toggle orbit-toggle-bottom ${orbit ? 'orbit-toggle-active' : ''}`}
         onClick={() => setOrbit((v) => !v)}
         title={orbit ? 'パンモード' : '回転モード'}
         aria-label={orbit ? 'パンモード' : '回転モード'}

@@ -16,6 +16,7 @@ import {hexToRgb} from "../utils/themePalettes";
 import {useRunStore} from "../store/useRunStore";
 import {useSettingsStore, type Radii} from "../store/useSettingsStore";
 import {useTransitionStore} from "../store/useTransitionStore";
+import {usePostRunLoadingStore} from "../store/usePostRunLoadingStore";
 import {effectiveRadius} from "../utils/effectiveRadius";
 import {acceptedPoints, accuracyGate, warmupGate, minDistanceGate, maxSpeedGate} from "../utils/recordingFilters";
 import {fetchAreaName} from "../hooks/useReverseGeocode";
@@ -308,6 +309,9 @@ export function RecordingPage() {
   );
   const {isRecording, trackPoints, error, consecutiveRejections, lastMahalanobis2, start, stop} = useGpsRecorder(filters, kalmanConfig);
   const {addRun} = useRunStore();
+  const finishBtnRef = useRef<HTMLButtonElement>(null);
+  const startPostRunLoading = usePostRunLoadingStore(s => s.start);
+  const resetPostRunLoading = usePostRunLoadingStore(s => s.reset);
   const [recordingDebugOpen, setRecordingDebugOpen] = useState(false);
   const [showRawTube, setShowRawTube] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("follow");
@@ -358,11 +362,21 @@ export function RecordingPage() {
   }, [isPermissionDenied]);
 
   const handleFinish = async () => {
+    // FINISH を起点に iris-out → ローディング画面で覆い、対話準備完了で iris-in で抜ける。
+    // origin は FINISH ボタン中心。取得できなければ画面下端中央にフォールバック。
+    const rect = finishBtnRef.current?.getBoundingClientRect();
+    const origin = rect
+      ? {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2}
+      : {x: window.innerWidth / 2, y: window.innerHeight - 80};
+    startPostRunLoading(origin);
+
     let points = trackPoints;
     if (isRecording) {
       points = await stop();
     }
     if (points.length === 0) {
+      // 記録が空のときは対話画面に進まないので loading を解除して戻す。
+      resetPostRunLoading();
       navigate("/");
       return;
     }
@@ -455,7 +469,7 @@ export function RecordingPage() {
           >
             <Icon icon={isRecording ? "lucide:pause" : "lucide:play"} />
           </button>
-          <button className="finish-btn" onClick={handleFinish}>
+          <button ref={finishBtnRef} className="finish-btn" onClick={handleFinish}>
             <span>FINISH</span>
           </button>
         </div>
