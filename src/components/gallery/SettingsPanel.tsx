@@ -125,34 +125,6 @@ export function SettingsPanel() {
 
   return (
     <div className="settings-content">
-      <Section title="記録ボタン (目玉)">
-        <SliderRow
-          label="アイコンサイズ"
-          value={ui.fabIconSize}
-          min={28} max={64} step={1} unit="px"
-          onChange={v => setUi({ fabIconSize: v })}
-        />
-        <SliderRow
-          label="目の縦位置"
-          hint="− 上 / + 下"
-          value={ui.eyeYOffset}
-          min={-12} max={12} step={1} unit=""
-          onChange={v => setUi({ eyeYOffset: v })}
-        />
-        <SliderRow
-          label="白目サイズ倍率"
-          value={ui.eyeSizeScale}
-          min={0.6} max={1.6} step={0.05} unit="x"
-          onChange={v => setUi({ eyeSizeScale: v })}
-        />
-        <SliderRow
-          label="瞳サイズ倍率"
-          value={ui.pupilSizeScale}
-          min={0.6} max={1.6} step={0.05} unit="x"
-          onChange={v => setUi({ pupilSizeScale: v })}
-        />
-      </Section>
-
       <Section title="マップ">
         <SliderRow
           label="軌跡周辺の余白"

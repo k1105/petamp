@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { Icon } from '@iconify/react'
 import { useOrbitMode } from '../../hooks/useOrbitMode'
 import { useActivePalette } from '../../hooks/useActivePalette'
 import { DebugPanel } from './DebugPanel'
 import { MapContext } from './MapContext'
+import { MapJoystick } from './MapJoystick'
+
+const JOYSTICK_PAN_SPEED = 0.05
+const JOYSTICK_BEARING_SPEED = 0.03
+const JOYSTICK_PITCH_SPEED = 0.02
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
 
@@ -46,6 +50,18 @@ export function BaseMap({
   const { palette } = useActivePalette()
 
   useOrbitMode(map, interactive && (lockTarget || orbitMode))
+
+  const handleJoystickFrame = (dx: number, dy: number, orbitNow: boolean) => {
+    if (!map) return
+    if (orbitNow) {
+      map.setBearing(map.getBearing() - dx * JOYSTICK_BEARING_SPEED)
+      const maxPitch = map.getMaxPitch()
+      // pitch は drag 下方向 = カメラ上向き (look up) になるように + dy。
+      map.setPitch(Math.max(0, Math.min(maxPitch, map.getPitch() + dy * JOYSTICK_PITCH_SPEED)))
+    } else {
+      map.panBy([dx * JOYSTICK_PAN_SPEED, dy * JOYSTICK_PAN_SPEED], { animate: false })
+    }
+  }
 
   useEffect(() => {
     if (!map) return
@@ -134,14 +150,11 @@ export function BaseMap({
         style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.4s' }}
       />
       {!lockTarget && interactive && (
-        <button
-          className={`orbit-toggle orbit-toggle-bottom ${orbitMode ? 'orbit-toggle-active' : ''}`}
-          onClick={() => setOrbitMode(v => !v)}
-          title={orbitMode ? 'パンモード' : '回転モード'}
-          aria-label={orbitMode ? 'パンモード' : '回転モード'}
-        >
-          <Icon icon={orbitMode ? 'lucide:rotate-3d' : 'lucide:move'} />
-        </button>
+        <MapJoystick
+          orbit={orbitMode}
+          onToggleOrbit={() => setOrbitMode(v => !v)}
+          onJoystickFrame={handleJoystickFrame}
+        />
       )}
       {map && <><DebugPanel />{children}</>}
     </MapContext.Provider>

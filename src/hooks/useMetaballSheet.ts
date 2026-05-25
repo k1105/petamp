@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 
 // '#rrggbb' / 'rgb(r, g, b)' / 'rgba(r, g, b, a)' を [0,1] の RGB に正規化。
 // CSS @property で <color> 型として登録された変数は getComputedStyle が
@@ -109,6 +109,10 @@ uniform vec4 u_radii;
 uniform vec2 u_blob[N];
 uniform vec3 u_color;
 uniform float u_k;
+// joystick の center / handle 円。xyz = (cx, cy, radius)、w = visible flag (0/1)。
+// w=0 のときは smin の対象外。WebGL に統合して SVG filter 由来の env 依存を排除。
+uniform vec4 u_jCenter;
+uniform vec4 u_jHandle;
 
 float sdRoundedBox(vec2 p, vec2 b, vec4 r) {
   vec2 rx = (p.x > 0.0) ? r.xy : r.zw;
@@ -134,9 +138,19 @@ float sdPolygon(vec2 p) {
   return s * sqrt(dSq);
 }
 
+float sdCircle(vec2 p, vec2 c, float r) {
+  return length(p - c) - r;
+}
+
 float smin(float a, float b, float k) {
   float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
   return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+// w (visibility) が 0 なら d を非常に大きくして smin の影響をゼロにする。
+float sdMaybeCircle(vec2 p, vec4 c) {
+  float d = sdCircle(p, c.xy, c.z);
+  return mix(1e6, d, step(0.5, c.w));
 }
 
 void main() {
@@ -145,12 +159,23 @@ void main() {
   vec2 rh = u_rect.zw * 0.5;
   float dRect = sdRoundedBox(p - rc, rh, u_radii);
   float dBlob = sdPolygon(p);
+  float dJC = sdMaybeCircle(p, u_jCenter);
+  float dJH = sdMaybeCircle(p, u_jHandle);
   float d = smin(dRect, dBlob, u_k);
+  d = smin(d, dJC, u_k);
+  d = smin(d, dJH, u_k);
   float alpha = 1.0 - smoothstep(-1.0, 1.0, d);
   if (alpha <= 0.0) discard;
   gl_FragColor = vec4(u_color, alpha);
 }
 `
+
+/** Right-leaning peak anchors in editor-normalised coords (R = 80). */
+export interface PeakAnchorTuple {
+  pos: [number, number]
+  handleIn: [number, number]
+  handleOut: [number, number]
+}
 
 interface Options {
   canvasRef: RefObject<HTMLCanvasElement | null>
@@ -158,7 +183,19 @@ interface Options {
   sheetRef: RefObject<HTMLElement | null>
   /** Live ref to armed flag — when true, blob stays a perfect rest circle and only follows FAB scale. */
   armedRef: RefObject<boolean>
+  /** Live ref to "joystick armed" flag. When true, the FAB peak smoothly
+   *  shrinks away (scale → 0) so the joystick handle visually takes over the
+   *  petamp circle. */
+  peakHiddenRef?: RefObject<boolean>
+  /** Live ref to a stored FAB rect (= arm 時点の元位置)。設定されている間は
+   *  peak を live の FAB 位置ではなくこの固定位置に描画する。disarm 中の
+   *  FAB slide-up と independent に peak を元位置に出して handle の
+   *  flyback target と揃えるための仕組み。 */
+  peakRectOverrideRef?: RefObject<DOMRect | null>
   peakVelocity?: number
+  /** Right-leaning peak override (shape-editor のリアルタイムプレビュー用)。
+   *  渡されなければ PEAK_RIGHT デフォルトを使う。length 4 を前提。 */
+  peakAnchors?: readonly PeakAnchorTuple[]
 }
 
 function compile(gl: WebGLRenderingContext, type: number, src: string) {
@@ -174,7 +211,19 @@ function compile(gl: WebGLRenderingContext, type: number, src: string) {
   return shader
 }
 
-export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakVelocity = 6 }: Options) {
+export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakHiddenRef, peakRectOverrideRef, peakVelocity = 6, peakAnchors }: Options) {
+  // peakAnchors を hook 内部の Pt 形式に変換し、ref 経由で draw に渡す。
+  // ref 化することで peakAnchors が変わっても useEffect (WebGL 初期化) を
+  // 再実行せず、次フレームから新しい peak で描画される。
+  const peakOverrideRef = useRef<Anchor[] | null>(null)
+  // eslint-disable-next-line react-hooks/refs
+  peakOverrideRef.current = peakAnchors && peakAnchors.length === 4
+    ? peakAnchors.map(a => ({
+        pos: { x: a.pos[0], y: a.pos[1] },
+        handleIn: { x: a.handleIn[0], y: a.handleIn[1] },
+        handleOut: { x: a.handleOut[0], y: a.handleOut[1] },
+      }))
+    : null
   useEffect(() => {
     const canvas = canvasRef.current
     const fab = fabRef.current
@@ -209,6 +258,8 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakVe
     const uBlob = gl.getUniformLocation(program, 'u_blob[0]')
     const uColor = gl.getUniformLocation(program, 'u_color')
     const uK = gl.getUniformLocation(program, 'u_k')
+    const uJCenter = gl.getUniformLocation(program, 'u_jCenter')
+    const uJHandle = gl.getUniformLocation(program, 'u_jHandle')
 
     const buf = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, buf)
@@ -258,6 +309,11 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakVe
       deform: 0,
       direction: 1 as 1 | -1,
       initialised: false,
+      // peakHiddenRef を反映する 0..1 のスムージング値。joystick armed 中は
+      // 0 に向かって縮み、解除されると 1 に戻る。
+      peakScale: 1,
+      // debug frame counter
+      dbgFrame: 0,
     }
 
     let rafId: number | null = null
@@ -276,11 +332,34 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakVe
       }
 
       const sRect = sheet.getBoundingClientRect()
-      const fRect = fab.getBoundingClientRect()
+      // peak rect の決定:
+      //   1. peakRectOverrideRef が設定されていれば固定位置 (joystick disarm 中の旧仕様)
+      //   2. それ以外で、MapJoystick の handle 要素が可視中 (opacity > 0) なら
+      //      handle の rect を使う → peak が常に handle と同位置・同サイズで
+      //      重なり、disarm 中ずっと「ひとつの円」のように見える
+      //   3. fallback: live の FAB 位置
+      let fRect: DOMRect
+      const peakOverride = peakRectOverrideRef?.current
+      if (peakOverride) {
+        fRect = peakOverride
+      } else {
+        const handleEl = document.querySelector('.map-joystick-handle')
+        if (handleEl instanceof HTMLElement &&
+            parseFloat(getComputedStyle(handleEl).opacity) > 0.001) {
+          fRect = handleEl.getBoundingClientRect()
+        } else {
+          fRect = fab.getBoundingClientRect()
+        }
+      }
       const cx = fRect.left + fRect.width / 2
       const cy = fRect.top + fRect.height / 2
       const fabRadius = Math.min(fRect.width, fRect.height) / 2
-      const scale = fabRadius / NORM_R
+      // peak の表示倍率: joystick armed 中は 0、idle で 1。lerp すると
+      // petamp の fly-in 中 に peak がまだ縮みきってなくて二重に見えるので
+      // snap (即座に切り替え)。joystick handle 側で scale animation するので
+      // この snap は連続した「ひとつの円が動く」演出にとっての要。
+      st.peakScale = peakHiddenRef?.current ? 0 : 1
+      const scale = (fabRadius / NORM_R) * st.peakScale
 
       // Velocity (px/frame). Low-pass to suppress single-frame jitter.
       let v = 0
@@ -307,7 +386,21 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakVe
       const easeK = targetDeform > st.deform ? 0.35 : 0.18
       st.deform += (targetDeform - st.deform) * easeK
 
-      const peak = st.direction > 0 ? PEAK_RIGHT : PEAK_LEFT
+      // peakOverride があれば優先 (shape-editor のライブプレビュー用)。
+      // 左右 mirror をその場で生成する (毎フレームの追加コストは小さい)。
+      const override = peakOverrideRef.current
+      const baseRight: Anchor[] = override ?? PEAK_RIGHT
+      const baseLeft: Anchor[] = override
+        ? [0, 3, 2, 1].map(i => {
+            const a = baseRight[i]
+            return {
+              pos: { x: -a.pos.x, y: a.pos.y },
+              handleIn: { x: -a.handleOut.x, y: a.handleOut.y },
+              handleOut: { x: -a.handleIn.x, y: a.handleIn.y },
+            }
+          })
+        : PEAK_LEFT
+      const peak = st.direction > 0 ? baseRight : baseLeft
       const blob = REST.map((r, i) => lerpAnchor(r, peak[i], st.deform))
       tessellate(blob, cx, cy, scale, blobBuf)
 
@@ -340,6 +433,10 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakVe
       gl.uniform1f(uDpr, dpr)
       gl.uniform4f(uRect, sRect.left, sRect.top, sRect.width, sRect.height + 4)
       gl.uniform2fv(uBlob, blobBuf)
+      // joystick circle uniforms は per-joystick canvas に移行したので
+      // ここでは無効化 (0, 0, 0, 0) のまま。
+      gl.uniform4f(uJCenter, 0, 0, 0, 0)
+      gl.uniform4f(uJHandle, 0, 0, 0, 0)
 
       gl.drawArrays(gl.TRIANGLES, 0, 6)
     }
@@ -367,5 +464,5 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakVe
       gl.deleteShader(fs)
       gl.deleteBuffer(buf)
     }
-  }, [canvasRef, fabRef, sheetRef, armedRef, peakVelocity])
+  }, [canvasRef, fabRef, sheetRef, armedRef, peakHiddenRef, peakRectOverrideRef, peakVelocity])
 }

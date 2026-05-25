@@ -5,6 +5,7 @@ import { RecordingPage } from './pages/RecordingPage'
 import { RunDetailPage } from './pages/RunDetailPage'
 import { RunResultPage } from './pages/RunResultPage'
 import { ShapeEditorPage } from './pages/ShapeEditorPage'
+import { JoystickEditorPage } from './pages/JoystickEditorPage'
 import { RunChatPage } from './pages/RunChatPage'
 import { NotationChatPage } from './pages/NotationChatPage'
 import { CharacterSmokePage } from './pages/CharacterSmokePage'
@@ -104,6 +105,7 @@ function App() {
         <Route path="/run/:id/chat" element={<RunChatPage />} />
         <Route path="/run/:id/notation" element={<NotationChatPage />} />
         <Route path="/shape-editor" element={<ShapeEditorPage />} />
+        <Route path="/joystick-editor" element={<JoystickEditorPage />} />
         <Route path="/character-smoke" element={<CharacterSmokePage />} />
         <Route path="/prompt-logs" element={<PromptLogPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />

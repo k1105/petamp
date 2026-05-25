@@ -1,4 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Icon } from '@iconify/react'
+import { EyesIcon } from '../components/gallery/EyesIcon'
+import { ModalPopup } from '../components/ModalPopup'
+import { useMetaballSheet, type PeakAnchorTuple } from '../hooks/useMetaballSheet'
+import { useEyeParams } from '../hooks/useEyeParams'
+import {
+  useSettingsStore,
+  NAV_STATES,
+  NAV_STATE_LABEL,
+  type EyeParams,
+  type NavState,
+} from '../store/useSettingsStore'
+import { useTransitionStore } from '../store/useTransitionStore'
 
 // 4-anchor cubic-bezier blob editor for designing the "moving FAB" silhouette.
 // Anchors are stored in local coords centred at (0,0). The peak shape is what
@@ -22,24 +35,14 @@ const REST_ANCHORS: [Anchor, Anchor, Anchor, Anchor] = [
   { pos: [-R, 0], handleIn: [0, R * KAPPA],  handleOut: [0, -R * KAPPA] },  // left
 ]
 
-// Default peak: leaning RIGHT (motion direction = right). Apex pulled forward,
-// trailing (left) side stretched outward into a long slope.
+// useMetaballSheet で実際に使われている PEAK_RIGHT と一致させる初期値。
+// 編集を開いた時点で本番と同じ形が出るので、その上から差分を入れていける。
 const DEFAULT_PEAK_ANCHORS: [Anchor, Anchor, Anchor, Anchor] = [
-  { pos: [30, -85], handleIn: [-50, -10], handleOut: [50, 0] },
-  { pos: [R, 0],    handleIn: [0, -R * KAPPA], handleOut: [0, R * KAPPA] },
-  { pos: [0, R],    handleIn: [R * KAPPA, 0], handleOut: [-R * KAPPA, 0] },
-  { pos: [-60, 0],  handleIn: [-5, 50], handleOut: [10, -55] },
+  { pos: [45.8, -89.79], handleIn: [-58.46, -0.14], handleOut: [50, 0] },
+  { pos: [68.77, 28.19], handleIn: [51.1, -37.04], handleOut: [-41.43, 32.52] },
+  { pos: [-72.67, 66.83], handleIn: [44.18, 0], handleOut: [-44.18, 0] },
+  { pos: [-85.8, -0.41], handleIn: [-52.48, -1.13], handleOut: [46.62, 1.42] },
 ]
-
-function lerp(a: number, b: number, t: number) { return a + (b - a) * t }
-function lerpPt(a: Pt, b: Pt, t: number): Pt { return [lerp(a[0], b[0], t), lerp(a[1], b[1], t)] }
-function lerpAnchor(a: Anchor, b: Anchor, t: number): Anchor {
-  return {
-    pos: lerpPt(a.pos, b.pos, t),
-    handleIn: lerpPt(a.handleIn, b.handleIn, t),
-    handleOut: lerpPt(a.handleOut, b.handleOut, t),
-  }
-}
 
 function buildPath(anchors: Anchor[], cx: number, cy: number): string {
   const tx = (p: Pt) => p[0] + cx
@@ -60,25 +63,74 @@ const EDITOR_W = 480
 const EDITOR_H = 360
 const EDITOR_CX = EDITOR_W / 2
 const EDITOR_CY = EDITOR_H / 2
+// 編集用 SVG 上で目玉を描く scale。EyesIcon の viewBox (0..64) を peak の
+// 半径 R=80 に揃えるため 80/32 = 2.5 を採用する。
+const EDITOR_EYE_SCALE = 2.5
 
 type DragKind = 'pos' | 'in' | 'out'
 interface DragState { anchorIdx: number; kind: DragKind }
+
+// 各アンカーのハンドル制約モード。
+//  - 'free': handleIn / handleOut を完全独立に操作
+//  - 'aligned': handleIn と handleOut はアンカーを通る直線上に拘束。長さは独立。
+//    ハンドルをドラッグすると共有直線が回転し、もう一方は反対側の射線上で
+//    既存の長さを保ったまま向きだけ追従する。
+type HandleMode = 'free' | 'aligned'
+type ModesTuple = [HandleMode, HandleMode, HandleMode, HandleMode]
+
+// クリック判定の閾値 (px / ms)。ポインター移動量と時間がこの範囲なら
+// アンカー click として扱い、ドラッグではなくモードトグルに振り分ける。
+const CLICK_MAX_DIST = 5
+const CLICK_MAX_TIME_MS = 350
 
 const ANCHOR_LABELS = ['top', 'right', 'bottom', 'left'] as const
 
 export function ShapeEditorPage() {
   const [peak, setPeak] = useState<[Anchor, Anchor, Anchor, Anchor]>(DEFAULT_PEAK_ANCHORS)
+  const [modes, setModes] = useState<ModesTuple>(['free', 'free', 'free', 'free'])
   const [drag, setDrag] = useState<DragState | null>(null)
+  const [exportOpen, setExportOpen] = useState(false)
   const editorRef = useRef<SVGSVGElement>(null)
+  // click vs drag 判定用。anchor pos の pointerdown 時に start を記録し、
+  // pointermove で最大移動量を更新、pointerup でしきい値判定する。
+  const pointerStartRef = useRef({ x: 0, y: 0, time: 0 })
+  const pointerMaxDistRef = useRef(0)
+
+  // 2 つの独立した state:
+  //  - editKeyframe: サイドバー & エディタ SVG が表示・編集中のキーフレーム
+  //  - navState: プレビューカード (本物 nav) の runtime 状態
+  // プレビューで遷移を試しても編集中のキーフレームは切り替わらないように分離。
+  // 編集対象の切替はキーフレームオーバービューの行クリックで行う。
+  const [editKeyframe, setEditKeyframe] = useState<NavState>('map')
+  const [navState, setNavState] = useState<NavState>('map')
+
+  const eyeKeyframes = useSettingsStore(s => s.ui.eyeKeyframes)
+  const setEyeKeyframe = useSettingsStore(s => s.setEyeKeyframe)
+  // エディタ SVG 内の目玉は編集中のキーフレームを反映 (スライダー編集の
+  // リアルタイムプレビュー)。eyeXOffset は bell ピーク値そのものを表示。
+  const editorEye = eyeKeyframes[editKeyframe]
 
   const restPath = useMemo(() => buildPath(REST_ANCHORS, EDITOR_CX, EDITOR_CY), [])
   const peakPath = useMemo(() => buildPath(peak, EDITOR_CX, EDITOR_CY), [peak])
+
+  // useMetaballSheet に渡す tuple 形式の peak。peak state が更新されると次フレームから反映。
+  const peakTuple = useMemo<PeakAnchorTuple[]>(
+    () => peak.map(a => ({ pos: a.pos, handleIn: a.handleIn, handleOut: a.handleOut })),
+    [peak],
+  )
 
   useEffect(() => {
     if (!drag) return
     const onMove = (e: PointerEvent) => {
       const svg = editorRef.current
       if (!svg) return
+      // pos drag を click と区別するためのポインター総移動量を更新する。
+      const dist = Math.hypot(
+        e.clientX - pointerStartRef.current.x,
+        e.clientY - pointerStartRef.current.y,
+      )
+      if (dist > pointerMaxDistRef.current) pointerMaxDistRef.current = dist
+
       const rect = svg.getBoundingClientRect()
       // SVG renders at CSS size but coords are in viewBox units → scale.
       const scaleX = EDITOR_W / rect.width
@@ -88,21 +140,79 @@ export function ShapeEditorPage() {
       setPeak(prev => {
         const next = prev.slice() as [Anchor, Anchor, Anchor, Anchor]
         const a = { ...next[drag.anchorIdx] }
-        if (drag.kind === 'pos') a.pos = [sx, sy]
-        else if (drag.kind === 'in') a.handleIn = [sx - a.pos[0], sy - a.pos[1]]
-        else a.handleOut = [sx - a.pos[0], sy - a.pos[1]]
+        const aligned = modes[drag.anchorIdx] === 'aligned'
+
+        if (drag.kind === 'pos') {
+          a.pos = [sx, sy]
+        } else {
+          const newOff: Pt = [sx - a.pos[0], sy - a.pos[1]]
+          if (drag.kind === 'in') a.handleIn = newOff
+          else a.handleOut = newOff
+          if (aligned) {
+            // 反対側のハンドルを既存長さを保って反対方向に再配置。
+            const other: Pt = drag.kind === 'in' ? a.handleOut : a.handleIn
+            const otherLen = Math.hypot(other[0], other[1])
+            const newLen = Math.hypot(newOff[0], newOff[1])
+            if (newLen > 1e-6) {
+              const dirX = -newOff[0] / newLen
+              const dirY = -newOff[1] / newLen
+              const mirrored: Pt = [dirX * otherLen, dirY * otherLen]
+              if (drag.kind === 'in') a.handleOut = mirrored
+              else a.handleIn = mirrored
+            }
+          }
+        }
         next[drag.anchorIdx] = a
         return next
       })
     }
-    const onUp = () => setDrag(null)
+    const onUp = () => {
+      // anchor 本体を pos ドラッグしてほぼ動いていない場合は click と見なし、
+      // 該当アンカーのモードをトグルする。free → aligned に入る瞬間は
+      // handleIn を handleOut の反対側に snap して直線を整える。
+      if (drag.kind === 'pos') {
+        const moved = pointerMaxDistRef.current
+        const elapsed = Date.now() - pointerStartRef.current.time
+        if (moved < CLICK_MAX_DIST && elapsed < CLICK_MAX_TIME_MS) {
+          const idx = drag.anchorIdx
+          const wasFree = modes[idx] === 'free'
+          setModes(prev => {
+            const next = prev.slice() as ModesTuple
+            next[idx] = next[idx] === 'free' ? 'aligned' : 'free'
+            return next
+          })
+          if (wasFree) {
+            // free → aligned: handleOut の向きを基準に handleIn を反対側へ整える。
+            // handleOut が 0 長なら handleIn の向きを基準にする。
+            setPeak(prev => {
+              const np = prev.slice() as [Anchor, Anchor, Anchor, Anchor]
+              const a = { ...np[idx] }
+              const outLen = Math.hypot(a.handleOut[0], a.handleOut[1])
+              const inLen = Math.hypot(a.handleIn[0], a.handleIn[1])
+              if (outLen > 1e-6) {
+                const dx = -a.handleOut[0] / outLen
+                const dy = -a.handleOut[1] / outLen
+                a.handleIn = [dx * inLen, dy * inLen]
+              } else if (inLen > 1e-6) {
+                const dx = -a.handleIn[0] / inLen
+                const dy = -a.handleIn[1] / inLen
+                a.handleOut = [dx * outLen, dy * outLen]
+              }
+              np[idx] = a
+              return np
+            })
+          }
+        }
+      }
+      setDrag(null)
+    }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
     return () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
-  }, [drag])
+  }, [drag, modes])
 
   const updateField = (i: number, kind: DragKind, axis: 0 | 1, val: number) => {
     setPeak(prev => {
@@ -147,6 +257,7 @@ export function ShapeEditorPage() {
         >
           <path d={restPath} fill="none" stroke="rgba(255,255,255,0.18)" strokeDasharray="4 4" />
           <path d={peakPath} fill="rgba(28,151,94,0.85)" stroke="rgba(28,151,94,1)" />
+          <EditorEyes eye={editorEye} />
           {peak.map((a, i) => {
             const ax = a.pos[0] + EDITOR_CX
             const ay = a.pos[1] + EDITOR_CY
@@ -164,43 +275,124 @@ export function ShapeEditorPage() {
                 <circle cx={outX} cy={outY} r={5} fill="#fff"
                   onPointerDown={(e) => { e.stopPropagation(); setDrag({ anchorIdx: i, kind: 'out' }) }}
                   style={{ cursor: 'grab' }} />
-                <circle cx={ax} cy={ay} r={6} fill="#1c975e" stroke="#fff" strokeWidth={2}
-                  onPointerDown={(e) => { e.stopPropagation(); setDrag({ anchorIdx: i, kind: 'pos' }) }}
+                <circle cx={ax} cy={ay} r={7}
+                  fill={modes[i] === 'aligned' ? '#ffffff' : '#1c975e'}
+                  stroke={modes[i] === 'aligned' ? '#1c975e' : '#ffffff'}
+                  strokeWidth={2}
+                  onPointerDown={(e) => {
+                    e.stopPropagation()
+                    pointerStartRef.current = { x: e.clientX, y: e.clientY, time: Date.now() }
+                    pointerMaxDistRef.current = 0
+                    setDrag({ anchorIdx: i, kind: 'pos' })
+                  }}
                   style={{ cursor: 'grab' }} />
-                <text x={ax + 10} y={ay - 10} fill="#fff" fontSize={11}>{ANCHOR_LABELS[i]}</text>
+                <text x={ax + 12} y={ay - 10} fill="#fff" fontSize={11}>
+                  {ANCHOR_LABELS[i]}{modes[i] === 'aligned' ? ' ·aligned' : ''}
+                </text>
               </g>
             )
           })}
         </svg>
 
-        <NumericPanel peak={peak} onChange={updateField} onReset={() => setPeak(DEFAULT_PEAK_ANCHORS)} />
+        <NumericPanel
+          peak={peak}
+          onChange={updateField}
+          onReset={() => setPeak(DEFAULT_PEAK_ANCHORS)}
+          editKeyframe={editKeyframe}
+          onEditKeyframeChange={setEditKeyframe}
+          eyeKeyframes={eyeKeyframes}
+          onEyeKeyframeChange={(state, patch) => setEyeKeyframe(state, patch)}
+        />
       </section>
 
-      <PreviewSection peak={peak} />
+      <NavPreviewSection
+        peakTuple={peakTuple}
+        navState={navState}
+        onNavStateChange={setNavState}
+      />
 
       <section className="shape-editor-export">
-        <h2>Export</h2>
-        <pre>{exportCode}</pre>
-        <button
-          className="btn-ghost"
-          onClick={() => navigator.clipboard?.writeText(exportCode)}
-        >
-          Copy JSON
+        <button className="btn-ghost" onClick={() => setExportOpen(true)}>
+          JSON を表示 / コピー
         </button>
       </section>
+
+      {exportOpen && (
+        <ModalPopup title="Export JSON" onClose={() => setExportOpen(false)}>
+          <ExportPopupBody code={exportCode} />
+        </ModalPopup>
+      )}
     </div>
   )
 }
+
+function ExportPopupBody({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard?.writeText(code)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* noop */
+    }
+  }
+  return (
+    <div className="shape-editor-export-popup">
+      <div className="shape-editor-export-actions">
+        <button className="btn-ghost" onClick={handleCopy}>
+          {copied ? 'コピーしました' : 'Copy JSON'}
+        </button>
+      </div>
+      <pre className="shape-editor-export-pre">{code}</pre>
+    </div>
+  )
+}
+
+// ===== Editor SVG: 目玉オーバーレイ =====
+
+function EditorEyes({ eye }: { eye: EyeParams }) {
+  // EyesIcon 内部の eye 座標 (viewBox 0..64) を editor 座標に EDITOR_EYE_SCALE で拡大。
+  // 22, 42 → 左右の眼の中心 X (viewBox 単位)。
+  // 32 + eyeYOffset → 眼の中心 Y (viewBox 単位)
+  // eyeXOffset は runtime では遷移中だけ効くが、エディタ側ではスライダー値の
+  // 視覚フィードバックとして bell の peak (= 設定値) を直接適用して表示する。
+  const leftX = EDITOR_CX + (22 - 32 + eye.eyeXOffset) * EDITOR_EYE_SCALE
+  const rightX = EDITOR_CX + (42 - 32 + eye.eyeXOffset) * EDITOR_EYE_SCALE
+  const cy = EDITOR_CY + eye.eyeYOffset * EDITOR_EYE_SCALE
+  const rx = 8 * eye.eyeSizeScale * EDITOR_EYE_SCALE
+  const ry = 11 * eye.eyeSizeScale * EDITOR_EYE_SCALE
+  const pR = 6 * eye.pupilSizeScale * EDITOR_EYE_SCALE
+  return (
+    <g pointerEvents="none">
+      <ellipse cx={leftX} cy={cy} rx={rx} ry={ry} fill="#ffffff" />
+      <ellipse cx={rightX} cy={cy} rx={rx} ry={ry} fill="#ffffff" />
+      <circle cx={leftX} cy={cy} r={pR} fill="#0a0a0a" />
+      <circle cx={rightX} cy={cy} r={pR} fill="#0a0a0a" />
+    </g>
+  )
+}
+
+// ===== Numeric / sliders panel (anchor sliders + eye keyframe sliders) =====
 
 interface NumericPanelProps {
   peak: [Anchor, Anchor, Anchor, Anchor]
   onChange: (i: number, kind: DragKind, axis: 0 | 1, val: number) => void
   onReset: () => void
+  editKeyframe: NavState
+  onEditKeyframeChange: (s: NavState) => void
+  eyeKeyframes: Record<NavState, EyeParams>
+  onEyeKeyframeChange: (state: NavState, patch: Partial<EyeParams>) => void
 }
 
-function NumericPanel({ peak, onChange, onReset }: NumericPanelProps) {
+function NumericPanel({
+  peak, onChange, onReset,
+  editKeyframe, onEditKeyframeChange,
+  eyeKeyframes, onEyeKeyframeChange,
+}: NumericPanelProps) {
   return (
     <div className="shape-editor-numeric">
+      <h3 className="shape-editor-section-h">Peak アンカー</h3>
       {peak.map((a, i) => (
         <div key={i} className="anchor-block">
           <h3>{ANCHOR_LABELS[i]}</h3>
@@ -210,6 +402,27 @@ function NumericPanel({ peak, onChange, onReset }: NumericPanelProps) {
         </div>
       ))}
       <button className="btn-ghost" onClick={onReset}>Reset peak</button>
+
+      <hr className="shape-editor-divider" />
+
+      <h3 className="shape-editor-section-h">
+        目玉キーフレーム: {NAV_STATE_LABEL[editKeyframe]}
+      </h3>
+      <p className="shape-editor-kf-hint">
+        編集対象は下の表の行をタップで切替。プレビュー操作とは独立。
+      </p>
+
+      <KeyframeEditor
+        state={editKeyframe}
+        params={eyeKeyframes[editKeyframe]}
+        onChange={patch => onEyeKeyframeChange(editKeyframe, patch)}
+      />
+
+      <KeyframeOverview
+        keyframes={eyeKeyframes}
+        active={editKeyframe}
+        onSelect={onEditKeyframeChange}
+      />
     </div>
   )
 }
@@ -226,73 +439,252 @@ function NumRow({ label, v, onChange }: { label: string; v: Pt; onChange: (axis:
   )
 }
 
-const PREVIEW_W = 600
-const PREVIEW_H = 220
-const DURATION = 1200 // ms one-way
+interface KeyframeEditorProps {
+  state: NavState
+  params: EyeParams
+  onChange: (patch: Partial<EyeParams>) => void
+}
 
-function PreviewSection({ peak }: { peak: [Anchor, Anchor, Anchor, Anchor] }) {
-  const [t, setT] = useState(0) // 0..1, full cycle (0 → 1 → 0 over 2*DURATION)
-  const startRef = useRef(0)
-  const rafRef = useRef<number | null>(null)
-  const [playing, setPlaying] = useState(true)
+function KeyframeEditor({ state, params, onChange }: KeyframeEditorProps) {
+  return (
+    <div className="shape-editor-keyframe-fields" key={state}>
+      <KFSlider
+        label="アイコンサイズ"
+        unit="px"
+        min={28} max={96} step={1}
+        value={params.fabIconSize}
+        onChange={v => onChange({ fabIconSize: v })}
+      />
+      <KFSlider
+        label="目の縦位置"
+        hint="− 上 / + 下"
+        unit=""
+        min={-12} max={12} step={1}
+        value={params.eyeYOffset}
+        onChange={v => onChange({ eyeYOffset: v })}
+      />
+      <KFSlider
+        label="目の横位置 (遷移中のみ)"
+        hint="移動中に bell shape で適用 / − 左 / + 右"
+        unit=""
+        min={-12} max={12} step={1}
+        value={params.eyeXOffset}
+        onChange={v => onChange({ eyeXOffset: v })}
+      />
+      <KFSlider
+        label="白目サイズ倍率"
+        unit="x"
+        min={0.6} max={1.6} step={0.05}
+        value={params.eyeSizeScale}
+        onChange={v => onChange({ eyeSizeScale: v })}
+      />
+      <KFSlider
+        label="瞳サイズ倍率"
+        unit="x"
+        min={0.6} max={1.6} step={0.05}
+        value={params.pupilSizeScale}
+        onChange={v => onChange({ pupilSizeScale: v })}
+      />
+    </div>
+  )
+}
 
+function KFSlider({
+  label, hint, unit, min, max, step, value, onChange,
+}: {
+  label: string; hint?: string; unit: string;
+  min: number; max: number; step: number;
+  value: number; onChange: (v: number) => void;
+}) {
+  const decimals = step < 1 ? 2 : 0
+  return (
+    <label className="shape-editor-kf-slider">
+      <span className="shape-editor-kf-head">
+        <span className="shape-editor-kf-label">{label}</span>
+        <span className="shape-editor-kf-value">{value.toFixed(decimals)}{unit}</span>
+      </span>
+      {hint && <span className="shape-editor-kf-hint">{hint}</span>}
+      <input
+        type="range"
+        min={min} max={max} step={step}
+        value={value}
+        onChange={e => onChange(Number(e.currentTarget.value))}
+      />
+    </label>
+  )
+}
+
+function KeyframeOverview({
+  keyframes, active, onSelect,
+}: {
+  keyframes: Record<NavState, EyeParams>
+  active: NavState
+  onSelect?: (s: NavState) => void
+}) {
+  return (
+    <div className="shape-editor-kf-overview">
+      <div className="shape-editor-kf-overview-head">
+        <span>state</span>
+        <span>icon</span>
+        <span>eyeX</span>
+        <span>eyeY</span>
+        <span>scale</span>
+        <span>pupil</span>
+      </div>
+      {NAV_STATES.map(s => {
+        const p = keyframes[s]
+        const isActive = active === s
+        const className = `shape-editor-kf-overview-row${isActive ? ' is-active' : ''}${onSelect ? ' is-selectable' : ''}`
+        return (
+          <div
+            key={s}
+            role={onSelect ? 'button' : undefined}
+            tabIndex={onSelect ? 0 : undefined}
+            aria-pressed={onSelect ? isActive : undefined}
+            className={className}
+            onClick={onSelect ? () => onSelect(s) : undefined}
+            onKeyDown={onSelect ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(s) }
+            } : undefined}
+          >
+            <span>{NAV_STATE_LABEL[s]}</span>
+            <span>{p.fabIconSize.toFixed(0)}</span>
+            <span>{p.eyeXOffset.toFixed(0)}</span>
+            <span>{p.eyeYOffset.toFixed(0)}</span>
+            <span>{p.eyeSizeScale.toFixed(2)}</span>
+            <span>{p.pupilSizeScale.toFixed(2)}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ===== Nav preview (旧 PreviewSection の置き換え): 実際の bottom-sheet + FAB + 目玉 =====
+
+interface NavPreviewProps {
+  peakTuple: PeakAnchorTuple[]
+  navState: NavState
+  onNavStateChange: (s: NavState) => void
+}
+
+function NavPreviewSection({ peakTuple, navState, onNavStateChange }: NavPreviewProps) {
+  const view: 'map' | 'list' | 'profile' = navState === 'armed' ? 'map' : navState
+  const armed = navState === 'armed'
+
+  const cardRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const fabRef = useRef<HTMLButtonElement>(null)
+  const armedRef = useRef(armed)
+  // useMetaballSheet が armedRef.current を毎フレーム読む。state 反映に追従させる。
+  // eslint-disable-next-line react-hooks/refs
+  armedRef.current = armed
+  useMetaballSheet({ canvasRef, sheetRef, fabRef, armedRef, peakAnchors: peakTuple })
+
+  const liveEye = useEyeParams(navState)
+
+  // navState 変化時にまばたき。
+  const [blinkSignal, setBlinkSignal] = useState(0)
+  const didMountRef = useRef(false)
   useEffect(() => {
-    if (!playing) return
-    const tick = (ts: number) => {
-      if (!startRef.current) startRef.current = ts
-      const elapsed = (ts - startRef.current) % (DURATION * 2)
-      setT(elapsed / (DURATION * 2)) // 0..1
-      rafRef.current = requestAnimationFrame(tick)
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      return
     }
-    rafRef.current = requestAnimationFrame(tick)
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
-  }, [playing])
+    setBlinkSignal(s => s + 1)
+  }, [navState])
 
-  // Position: triangle wave 0 → 1 → 0
-  const pos = t < 0.5 ? t * 2 : 2 - t * 2
-  const goingRight = t < 0.5
+  const handleFab = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!armed) {
+      onNavStateChange('armed')
+      return
+    }
+    // 本物と同じく armed → /record へ遷移 (TransitionOverlay の iris 演出)。
+    const fab = fabRef.current
+    if (!fab) return
+    const rect = fab.getBoundingClientRect()
+    const origin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+    useTransitionStore.getState().startRecord(origin, null)
+  }
 
-  // Deformation: bell at midpoints of each leg (0.25 and 0.75)
-  const deform = Math.abs(Math.sin(t * Math.PI * 2)) // peaks at 0.25 and 0.75
-
-  const interpolated = useMemo<[Anchor, Anchor, Anchor, Anchor]>(() => [
-    lerpAnchor(REST_ANCHORS[0], peak[0], deform),
-    lerpAnchor(REST_ANCHORS[1], peak[1], deform),
-    lerpAnchor(REST_ANCHORS[2], peak[2], deform),
-    lerpAnchor(REST_ANCHORS[3], peak[3], deform),
-  ], [deform, peak])
-
-  const margin = 100
-  const cx = lerp(margin, PREVIEW_W - margin, pos)
-  const cy = PREVIEW_H / 2
-  const path = useMemo(() => buildPath(interpolated, cx, cy), [interpolated, cx, cy])
+  const handleListClick = () => {
+    if (armed) return
+    onNavStateChange(navState === 'list' ? 'map' : 'list')
+  }
+  const handleProfileClick = () => {
+    if (armed) return
+    onNavStateChange(navState === 'profile' ? 'map' : 'profile')
+  }
+  const handleMapClick = () => {
+    if (armed) return
+    onNavStateChange('map')
+  }
 
   return (
     <section className="shape-editor-preview">
       <div className="preview-controls">
         <h2>Preview</h2>
-        <button className="btn-ghost" onClick={() => setPlaying(p => !p)}>
-          {playing ? 'Pause' : 'Play'}
-        </button>
         <span className="preview-phase">
-          t: {t.toFixed(2)} | deform: {deform.toFixed(2)} | dir: {goingRight ? '→' : '←'}
+          state: {NAV_STATE_LABEL[navState]}
         </span>
       </div>
-      <svg
-        viewBox={`0 0 ${PREVIEW_W} ${PREVIEW_H}`}
-        width={PREVIEW_W}
-        height={PREVIEW_H}
-        className="preview-svg"
-      >
-        <line x1={0} y1={cy} x2={PREVIEW_W} y2={cy} stroke="rgba(255,255,255,0.1)" />
-        {/* mirror the shape on the return leg so the lean follows motion */}
-        <g transform={goingRight ? '' : `translate(${2 * cx} 0) scale(-1 1)`}>
-          <path d={path} fill="rgba(28,151,94,0.85)" />
-        </g>
-      </svg>
+
+      <div ref={cardRef} className="shape-editor-nav-card">
+        {/* armed 時のバックドロップはカード内だけを暗くする (ページ全体は塞がない)。 */}
+        {armed && (
+          <div className="shape-editor-nav-backdrop" onClick={() => onNavStateChange('map')} />
+        )}
+
+        {/* metaball-canvas は fullscreen-fixed のまま (FAB の screen-coord 周りに描画)。
+            カードに含めても fixed なので位置は viewport 基準。 */}
+        <canvas ref={canvasRef} className="metaball-canvas" />
+
+        <div ref={sheetRef} className={`bottom-sheet ${armed ? 'armed' : ''}`}>
+          <div className="bottom-sheet-shape">
+            <button
+              className={`list-toggle-btn${view === 'list' ? ' is-active' : ''}`}
+              onClick={handleListClick}
+              aria-label={view === 'list' ? 'ラン一覧を閉じる' : 'ラン一覧を開く'}
+            >
+              <Icon icon="lucide:layout-list" />
+            </button>
+            <button
+              ref={fabRef}
+              className={`fab fab-sheet${view !== 'map' && !armed ? ` fab-pos-${view}` : ''}`}
+              onClick={handleFab}
+              aria-label={armed ? 'TAP TO START' : '記録開始'}
+            >
+              <span
+                className="fab-icon"
+                style={{ width: liveEye.fabIconSize, height: liveEye.fabIconSize }}
+              >
+                <EyesIcon blinkSignal={blinkSignal} params={liveEye} />
+              </span>
+            </button>
+            <button
+              className={`map-btn${view === 'map' ? ' is-active' : ''}`}
+              onClick={handleMapClick}
+              aria-label="マップに戻る"
+              title="マップ"
+            >
+              <Icon icon="lucide:map" />
+            </button>
+            <button
+              className={`profile-btn${view === 'profile' ? ' is-active' : ''}`}
+              onClick={handleProfileClick}
+              aria-label={view === 'profile' ? 'プロフィールを閉じる' : 'プロフィールを開く'}
+              title="プロフィール"
+            >
+              <Icon icon="lucide:user" />
+            </button>
+          </div>
+        </div>
+      </div>
+
       <p className="preview-note">
-        Default peak leans RIGHT (= forward when motion direction is →).
-        Return trip mirrors horizontally so apex always leads the bump.
+        右パネルのタブまたはカード内ボタンで状態を切り替え。armed で FAB タップ = /record へ遷移。
       </p>
     </section>
   )

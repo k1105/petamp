@@ -36,6 +36,8 @@ import type {
   RunSummary,
   ThreadId,
 } from '../character'
+import { useAuth } from '../hooks/useAuth'
+import { ReportSheet } from '../components/report/ReportSheet'
 import type { Run } from '../types'
 
 const MAX_PETAMP_TURNS = 5
@@ -99,7 +101,9 @@ export function RunChatPage() {
   const [runsLoaded, setRunsLoaded] = useState(false)
   const [input, setInput] = useState('')
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
   const [newEpisodic, setNewEpisodic] = useState<EpisodicMemory | null>(null)
+  const { user } = useAuth()
   // 最終ペタンプ発話をユーザが読んでから ending 画面に遷移するためのフラグ。
   // sessionEnded だけで遷移すると CLOSING_NOTE 込みの最終発話を見せる前に画面が消える。
   const [endingDismissed, setEndingDismissed] = useState(false)
@@ -398,6 +402,14 @@ export function RunChatPage() {
             </footer>
           ) : (
             <footer className="chat-finish-area">
+              {user && (
+                <button
+                  className="chat-report-btn"
+                  onClick={() => setReportOpen(true)}
+                >
+                  報告する
+                </button>
+              )}
               <button
                 className="chat-ending-btn"
                 onClick={() => setEndingDismissed(true)}
@@ -407,6 +419,17 @@ export function RunChatPage() {
             </footer>
           )}
         </>
+      )}
+
+      {user && reportOpen && (
+        <ReportSheet
+          onClose={() => setReportOpen(false)}
+          uid={user.uid}
+          characterId={petampCharacter.id}
+          threadId={dialogue.threadId}
+          turns={dialogue.messages}
+          locationPath={location.pathname}
+        />
       )}
 
       {sessionEnded && endingDismissed && (

@@ -7,7 +7,11 @@ import {
   WebMercatorViewport,
   type Layer,
 } from '@deck.gl/core'
-import { Icon } from '@iconify/react'
+import { MapJoystick } from '../map/MapJoystick'
+
+const JOYSTICK_PAN_SPEED = 0.05
+const JOYSTICK_BEARING_SPEED = 0.03
+const JOYSTICK_PITCH_SPEED = 0.02
 
 // マットな表現にするため単一の環境光のみ。deck.gl デフォルトの
 // directional ライトだと頂点色とズレるため上書き。
@@ -81,6 +85,50 @@ export function ArchipelagoMapView({ layers, fitBbox, background = 'rgb(30, 110,
   const lastFitKeyRef = useRef<string | null>(null)
   // 回転モード: 1 本指ドラッグを pan / rotate のどちらに割り当てるか。
   const [orbit, setOrbit] = useState(false)
+
+  const handleJoystickFrame = (dx: number, dy: number, orbitNow: boolean) => {
+    const deck = deckRef.current
+    const container = containerRef.current
+    if (!deck || !container) return
+    const vs = viewStateRef.current
+    let next: ViewState
+    if (orbitNow) {
+      next = {
+        ...vs,
+        bearing: vs.bearing - dx * JOYSTICK_BEARING_SPEED,
+        // pitch は drag 下方向 = カメラ上向き (look up) になるように + dy。
+        pitch: Math.max(0, Math.min(85, vs.pitch + dy * JOYSTICK_PITCH_SPEED)),
+      }
+    } else {
+      const w = container.clientWidth
+      const h = container.clientHeight
+      if (w === 0 || h === 0) return
+      try {
+        const vp = new WebMercatorViewport({
+          width: w,
+          height: h,
+          longitude: vs.longitude,
+          latitude: vs.latitude,
+          zoom: vs.zoom,
+        })
+        const [lng, lat] = vp.unproject([
+          w / 2 + dx * JOYSTICK_PAN_SPEED,
+          h / 2 + dy * JOYSTICK_PAN_SPEED,
+        ])
+        const b = panBoundsRef.current
+        next = {
+          ...vs,
+          longitude: b ? clamp(lng, b.minLng, b.maxLng) : lng,
+          latitude: b ? clamp(lat, b.minLat, b.maxLat) : lat,
+        }
+      } catch {
+        return
+      }
+    }
+    viewStateRef.current = next
+    deck.setProps({ initialViewState: next })
+    forceTick(t => t + 1)
+  }
 
   useEffect(() => {
     if (!canvasRef.current) return
@@ -257,9 +305,11 @@ export function ArchipelagoMapView({ layers, fitBbox, background = 'rgb(30, 110,
       ref={containerRef}
       onContextMenu={(e) => e.preventDefault()}
       style={{
-        position: 'relative',
-        width: '100%',
-        height: '100%',
+        // absolute + inset:0 で親 .island-view-wrap の padding box 全体を覆う
+        // (height: 100% だと wrap の content area = padding を除いた範囲しか
+        // 覆えず、内部の MapJoystick が wrap padding-bottom 分上にずれてしまう)。
+        position: 'absolute',
+        inset: 0,
         background,
         overflow: 'hidden',
       }}
@@ -269,15 +319,11 @@ export function ArchipelagoMapView({ layers, fitBbox, background = 'rgb(30, 110,
         onContextMenu={(e) => e.preventDefault()}
         style={{ position: 'absolute', inset: 0, display: 'block', width: '100%', height: '100%' }}
       />
-      <button
-        type="button"
-        className={`orbit-toggle orbit-toggle-bottom ${orbit ? 'orbit-toggle-active' : ''}`}
-        onClick={() => setOrbit((v) => !v)}
-        title={orbit ? 'パンモード' : '回転モード'}
-        aria-label={orbit ? 'パンモード' : '回転モード'}
-      >
-        <Icon icon={orbit ? 'lucide:rotate-3d' : 'lucide:move'} />
-      </button>
+      <MapJoystick
+        orbit={orbit}
+        onToggleOrbit={() => setOrbit(v => !v)}
+        onJoystickFrame={handleJoystickFrame}
+      />
     </div>
   )
 }

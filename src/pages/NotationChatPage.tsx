@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
@@ -31,6 +31,8 @@ import {
   buildNotationSystemNote,
   renderPhonemes,
 } from '../notation'
+import { useAuth } from '../hooks/useAuth'
+import { ReportSheet } from '../components/report/ReportSheet'
 import type { Run } from '../types'
 
 const MAX_PETAMP_TURNS = 5
@@ -48,6 +50,7 @@ const MAX_PETAMP_TURNS = 5
 export function NotationChatPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const enabled = useSettingsStore(s => s.experimental.notation)
 
   const { runs, loadRuns } = useRunStore()
@@ -55,8 +58,10 @@ export function NotationChatPage() {
   const [runsLoaded, setRunsLoaded] = useState(false)
   const [input, setInput] = useState('')
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
   const [newEpisodic, setNewEpisodic] = useState<EpisodicMemory | null>(null)
   const [endingDismissed, setEndingDismissed] = useState(false)
+  const { user } = useAuth()
   const relationalSnapshotRef = useRef<RelationalState | null>(null)
   const discardedRef = useRef(false)
   const closedRef = useRef(false)
@@ -341,6 +346,14 @@ export function NotationChatPage() {
             </footer>
           ) : (
             <footer className="notation-finish-area">
+              {user && (
+                <button
+                  className="notation-report-btn"
+                  onClick={() => setReportOpen(true)}
+                >
+                  報告する
+                </button>
+              )}
               <button
                 className="notation-ending-btn"
                 onClick={() => setEndingDismissed(true)}
@@ -350,6 +363,17 @@ export function NotationChatPage() {
             </footer>
           )}
         </>
+      )}
+
+      {user && reportOpen && (
+        <ReportSheet
+          onClose={() => setReportOpen(false)}
+          uid={user.uid}
+          characterId={petampCharacter.id}
+          threadId={dialogue.threadId}
+          turns={dialogue.messages}
+          locationPath={location.pathname}
+        />
       )}
 
       {sessionEnded && endingDismissed && (

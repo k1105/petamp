@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useSettingsStore } from '../../store/useSettingsStore'
+import type { EyeParams, NavState } from '../../store/useSettingsStore'
+import { useEyeParams } from '../../hooks/useEyeParams'
 
 const VIEW = 64
 const EYE_LEFT_X = 22
@@ -37,8 +38,18 @@ function computeOffset(
   }
 }
 
-export function EyesIcon({ blinkSignal }: { blinkSignal?: number } = {}) {
-  const ui = useSettingsStore(s => s.ui)
+interface EyesIconProps {
+  blinkSignal?: number
+  /** 指定すると useEyeParams で nav 状態に応じた値を補間して使う。 */
+  navState?: NavState
+  /** props 経由で直接 EyeParams を渡したい時用 (shape-editor のプレビュー用)。 */
+  params?: EyeParams
+}
+
+export function EyesIcon({ blinkSignal, navState, params }: EyesIconProps = {}) {
+  // 優先順位: props.params > navState (補間) > 'map' (補間) — 後方互換用 default。
+  const interpolated = useEyeParams(navState ?? 'map')
+  const eye: EyeParams = params ?? interpolated
   const svgRef = useRef<SVGSVGElement>(null)
   const [target, setTarget] = useState<{ x: number; y: number } | null>(null)
   const [blink, setBlink] = useState(false)
@@ -105,10 +116,13 @@ export function EyesIcon({ blinkSignal }: { blinkSignal?: number } = {}) {
     }
   }, [])
 
-  const eyeY = EYE_Y_BASE + ui.eyeYOffset
-  const scleraRx = SCLERA_RX_BASE * ui.eyeSizeScale
-  const scleraRy = SCLERA_RY_BASE * ui.eyeSizeScale
-  const pupilR = PUPIL_R_BASE * ui.pupilSizeScale
+  const eyeY = EYE_Y_BASE + eye.eyeYOffset
+  // eyeXOffset は両目を同方向に平行移動 (-側で左, +側で右)。
+  const eyeLeftX = EYE_LEFT_X + eye.eyeXOffset
+  const eyeRightX = EYE_RIGHT_X + eye.eyeXOffset
+  const scleraRx = SCLERA_RX_BASE * eye.eyeSizeScale
+  const scleraRy = SCLERA_RY_BASE * eye.eyeSizeScale
+  const pupilR = PUPIL_R_BASE * eye.pupilSizeScale
   // 瞳が白目から飛び出さない最大移動量
   const maxOffset = Math.max(0, scleraRx - pupilR - 0.5)
 
@@ -120,10 +134,10 @@ export function EyesIcon({ blinkSignal }: { blinkSignal?: number } = {}) {
     // eslint-disable-next-line react-hooks/refs
     const rect = svgRef.current.getBoundingClientRect()
     return [
-      computeOffset(rect, EYE_LEFT_X, eyeY, target, maxOffset),
-      computeOffset(rect, EYE_RIGHT_X, eyeY, target, maxOffset),
+      computeOffset(rect, eyeLeftX, eyeY, target, maxOffset),
+      computeOffset(rect, eyeRightX, eyeY, target, maxOffset),
     ]
-  }, [target, eyeY, maxOffset])
+  }, [target, eyeY, eyeLeftX, eyeRightX, maxOffset])
 
   const pupilStyle = (off: Offset): React.CSSProperties => ({
     transform: `translate(${off.x}px, ${off.y}px)`,
@@ -154,7 +168,7 @@ export function EyesIcon({ blinkSignal }: { blinkSignal?: number } = {}) {
       <defs>
         <clipPath id={clipIdL} clipPathUnits="userSpaceOnUse">
           <rect
-            x={EYE_LEFT_X - scleraRx}
+            x={eyeLeftX - scleraRx}
             y={blink ? lidTopClosed : lidTopOpen}
             width={scleraRx * 2}
             height={blink ? lidHeightClosed : lidHeightOpen}
@@ -163,7 +177,7 @@ export function EyesIcon({ blinkSignal }: { blinkSignal?: number } = {}) {
         </clipPath>
         <clipPath id={clipIdR} clipPathUnits="userSpaceOnUse">
           <rect
-            x={EYE_RIGHT_X - scleraRx}
+            x={eyeRightX - scleraRx}
             y={blink ? lidTopClosed : lidTopOpen}
             width={scleraRx * 2}
             height={blink ? lidHeightClosed : lidHeightOpen}
@@ -172,9 +186,9 @@ export function EyesIcon({ blinkSignal }: { blinkSignal?: number } = {}) {
         </clipPath>
       </defs>
       <g clipPath={`url(#${clipIdL})`}>
-        <ellipse cx={EYE_LEFT_X} cy={eyeY} rx={scleraRx} ry={scleraRy} fill="#ffffff" />
+        <ellipse cx={eyeLeftX} cy={eyeY} rx={scleraRx} ry={scleraRy} fill="#ffffff" />
         <circle
-          cx={EYE_LEFT_X}
+          cx={eyeLeftX}
           cy={eyeY}
           r={pupilR}
           fill="#0a0a0a"
@@ -182,9 +196,9 @@ export function EyesIcon({ blinkSignal }: { blinkSignal?: number } = {}) {
         />
       </g>
       <g clipPath={`url(#${clipIdR})`}>
-        <ellipse cx={EYE_RIGHT_X} cy={eyeY} rx={scleraRx} ry={scleraRy} fill="#ffffff" />
+        <ellipse cx={eyeRightX} cy={eyeY} rx={scleraRx} ry={scleraRy} fill="#ffffff" />
         <circle
-          cx={EYE_RIGHT_X}
+          cx={eyeRightX}
           cy={eyeY}
           r={pupilR}
           fill="#0a0a0a"

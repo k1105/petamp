@@ -40,3 +40,9 @@ body:has(.shape-editor) {
   height: auto;
   overflow: visible;
 }
+
+/* Joystick editor also uses full window width. */
+#root:has(.joystick-editor) {
+  max-width: none;
+  overflow: visible;
+}

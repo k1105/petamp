@@ -33,6 +33,13 @@ service cloud.firestore {
       }
     }
 
+    // 問題報告: ユーザーからの不具合/品質報告。本人のみ作成可、読み書きはコンソール経由。
+    match /reports/{reportId} {
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid;
+      allow read, update, delete: if false;
+    }
+
     // 相互フレンド関係: doc ID は sorted UID で `${minUid}__${maxUid}`
     // members は同じ 2 つの UID を昇順で並べた配列。これにより A↔B の関係が 1 doc に正規化される。
     match /friends/{friendId} {

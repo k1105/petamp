@@ -89,6 +89,8 @@ export function RunResultPage() {
   const navigate = useNavigate()
   const [run, setRun] = useState<Run | null>(null)
   const ui = useSettingsStore(s => s.ui)
+  // 結果画面に固定描画される目玉は gallery の 'map' (idle) キーフレームを採用。
+  const eyeParams = ui.eyeKeyframes.map
   const { palette } = useActivePalette()
   const { runs, loadRuns, updateRun } = useRunStore()
   const [runsLoaded, setRunsLoaded] = useState(false)
@@ -450,30 +452,31 @@ export function RunResultPage() {
             fill="transparent"
           />
           <g transform={`translate(${EYES_X} ${EYES_Y}) scale(${EYES_SCALE})`}>
+            {/* X offset は遷移中だけ効く仕様なので、静止描画である Result では 0 固定。 */}
             <ellipse
               cx={22}
-              cy={32 + ui.eyeYOffset}
-              rx={8 * ui.eyeSizeScale}
-              ry={11 * ui.eyeSizeScale}
+              cy={32 + eyeParams.eyeYOffset}
+              rx={8 * eyeParams.eyeSizeScale}
+              ry={11 * eyeParams.eyeSizeScale}
               fill="#ffffff"
             />
             <ellipse
               cx={42}
-              cy={32 + ui.eyeYOffset}
-              rx={8 * ui.eyeSizeScale}
-              ry={11 * ui.eyeSizeScale}
+              cy={32 + eyeParams.eyeYOffset}
+              rx={8 * eyeParams.eyeSizeScale}
+              ry={11 * eyeParams.eyeSizeScale}
               fill="#ffffff"
             />
             <circle
               cx={22}
-              cy={32 + ui.eyeYOffset}
-              r={6 * ui.pupilSizeScale}
+              cy={32 + eyeParams.eyeYOffset}
+              r={6 * eyeParams.pupilSizeScale}
               fill="#0a0a0a"
             />
             <circle
               cx={42}
-              cy={32 + ui.eyeYOffset}
-              r={6 * ui.pupilSizeScale}
+              cy={32 + eyeParams.eyeYOffset}
+              r={6 * eyeParams.pupilSizeScale}
               fill="#0a0a0a"
             />
           </g>

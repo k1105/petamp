@@ -18,6 +18,7 @@ import { ProfileScreen } from '../components/ProfileScreen'
 import { useAuth } from '../hooks/useAuth'
 import { RunTile } from '../components/gallery/RunTile'
 import { EyesIcon } from '../components/gallery/EyesIcon'
+import { useEyeParams } from '../hooks/useEyeParams'
 import { IslandView } from '../components/island/IslandView'
 import { computeArchipelagoLayout, type ArchipelagoLayoutResult } from '../utils/archipelagoLayout'
 import { buildPathPositions } from '../utils/tubeMesh'
@@ -29,6 +30,7 @@ import { useActivePalette } from '../hooks/useActivePalette'
 import { useCurrentPosition } from '../hooks/useCurrentPosition'
 import { useHomePhrase } from '../hooks/useHomePhrase'
 import { useMetaballSheet } from '../hooks/useMetaballSheet'
+import { useJoystickStore } from '../store/useJoystickStore'
 import { useTransitionStore } from '../store/useTransitionStore'
 import { useNamedPlaces } from '../hooks/useNamedPlaces'
 import type { DotPosition } from '../hooks/useGalleryAnimation'
@@ -236,6 +238,9 @@ export function GalleryPage() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { user } = useAuth()
   const [armed, setArmed] = useState(false)
+  // 4キーフレーム (map / list / profile / armed)。armed > view を優先。
+  const navState = armed ? 'armed' : view
+  const eyeParams = useEyeParams(navState)
   const [focusGPSSignal, setFocusGPSSignal] = useState(0)
   const { places: namedPlaces } = useNamedPlaces()
   const [selectedPlace, setSelectedPlace] = useState<NamedPlace | null>(null)
@@ -256,7 +261,19 @@ export function GalleryPage() {
   // armed の最新値を sheet 描画ループから参照するため ref に同期する。
   // eslint-disable-next-line react-hooks/refs
   armedRef.current = armed
-  useMetaballSheet({ canvasRef, sheetRef, fabRef, armedRef })
+  // joystick armed (= petamp が MapJoystick 側に飛び移っている) 中は global
+  // canvas の peak を消す。
+  const joystickArmed = useJoystickStore(s => s.armed)
+  const peakHiddenRef = useRef(joystickArmed)
+  // eslint-disable-next-line react-hooks/refs
+  peakHiddenRef.current = joystickArmed
+  // disarm 中は FAB 自体が slide-up 移動中で live rect が動くため、arm 時点
+  // の元位置 rect を store から取って peak position 固定用に渡す。
+  const storedFabRect = useJoystickStore(s => s.storedFabRect)
+  const peakRectOverrideRef = useRef(storedFabRect)
+  // eslint-disable-next-line react-hooks/refs
+  peakRectOverrideRef.current = storedFabRect
+  useMetaballSheet({ canvasRef, sheetRef, fabRef, armedRef, peakHiddenRef, peakRectOverrideRef })
 
   // view / armed が変わる (= FAB が動く) たびに 1 回まばたき。初回マウントは
   // スキップ。signal は単調増加 (number) で EyesIcon に渡し、値の変化を検出
@@ -655,7 +672,7 @@ export function GalleryPage() {
             onClick={handleFabClick}
             aria-label={armed ? 'TAP TO START' : '記録開始'}
           >
-            <span className="fab-icon" style={{ width: ui.fabIconSize, height: ui.fabIconSize }}><EyesIcon blinkSignal={blinkSignal} /></span>
+            <span className="fab-icon" style={{ width: eyeParams.fabIconSize, height: eyeParams.fabIconSize }}><EyesIcon blinkSignal={blinkSignal} params={eyeParams} /></span>
           </button>
           <button
             className={`map-btn${view === 'map' ? ' is-active' : ''}`}

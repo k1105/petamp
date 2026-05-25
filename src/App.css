@@ -161,7 +161,7 @@
 }
 
 /* ---- Gallery panels (list / settings) — full-screen, slide over map ---- */
-/* z:11 so the panel covers map-only UI (orbit-toggle z:10, group-edge z:9,
+/* z:11 so the panel covers map-only UI (map-joystick z:10, group-edge z:9,
    area-label z:5). metaball-canvas z:12 stays on top so the face is visible.
    Panel bg fills viewport edge-to-edge; nav clearance is provided by the
    inner scroll container's own bottom padding so content can scroll past
@@ -281,13 +281,9 @@
   overflow: hidden;
 }
 
-/* island ビューでは orbit-toggle を下端中央に置く (BaseMap と同じ運用)。
-   .orbit-toggle-bottom の既定 bottom は .page 直下を想定した 140px だが、
-   ここでは .island-view-wrap が padding-bottom: 96px + safe で既に nav 分の
-   余白を確保しているので、その content-area の上端 16px に詰める。 */
-.island-view-wrap .orbit-toggle.orbit-toggle-bottom {
-  bottom: 16px;
-}
+/* island ビューでも MapJoystick は map view と同じ位置 (.map-joystick default
+   bottom: 40px) に置く。.island-view-wrap は position:relative かつ
+   panel 全体をカバーするので、screen-bottom 基準で同じ位置に揃う。 */
 
 .island-loading {
   position: absolute;
@@ -1040,8 +1036,12 @@
 
 .fab.fab-sheet .fab-icon {
   /* 親の0.45sスケール遷移に合わせて子も同じイージングで反スケールする。
-     transitionが無いと親だけ補間されて見かけサイズが一瞬ジャンプする。 */
-  transition: transform 0.45s cubic-bezier(0.32, 0.72, 0, 1);
+     transitionが無いと親だけ補間されて見かけサイズが一瞬ジャンプする。
+     opacity 0.2s は MapJoystick disarm 完了時の FAB 顔 fade-in 用 (body
+     class が外されたタイミングで 0 → 1)。 */
+  transition:
+    transform 0.45s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.2s ease-out;
 }
 
 .bottom-sheet.armed .fab.fab-sheet .fab-icon {
@@ -1231,53 +1231,228 @@
 }
 
 /* ---- Orbit toggle ---- */
-.orbit-toggle {
+/* ---- MapJoystick (BaseMap / ArchipelagoMapView) ----
+   button = hit area。中央 (button の anchor) に center dot / icon / handle /
+   petamp を全部重ねて配置する正統派ジョイスティック。
+   - --jx / --jy: useJoystickButton が設定するドラッグ delta (radial ±60)
+   - center dot と icon は anchor 固定、handle と petamp が delta で四方に動く
+   button center が anchor (= drag pivot = icon の円の中心)。
+   button bottom: 40 + safe → anchor は screen-bottom + 130 (FAB のすぐ上)。 */
+/* button center を screen-bottom + 150 に固定 (`translate(-50%, 50%)` で
+   bottom 値の地点を center に置く)。size を idle/armed で切り替えても
+   center が動かないので、内部要素 (top:50%/left:50%) の位置が変わらない。
+   - idle: 48×48 (小さな dot 周辺のみが hit area)
+   - armed: 240×220 (drag 用の広い hit area) */
+.map-joystick {
+  --jx: 0px;
+  --jy: 0px;
   position: absolute;
-  top: calc(16px + env(safe-area-inset-top, 0px));
-  right: 16px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  color: #fff;
-  font-size: 18px;
+  z-index: 10;
+  bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  transform: translate(-50%, 50%);
   cursor: pointer;
+  touch-action: none;
+  overflow: visible;
+}
+/* armed + disarming 中は button サイズを拡張。disarming も含めることで、
+   phase1 (T=320) で .is-armed が外れても per-joystick canvas (button inset
+   -60) が FAB 位置をカバーし続け、peak が一瞬消える現象を防ぐ。 */
+.map-joystick.is-armed,
+.map-joystick.is-disarming {
+  width: 240px;
+  height: 220px;
+}
+.map-joystick.is-armed {
+  cursor: grab;
+}
+.map-joystick.is-joysticking {
+  cursor: grabbing;
+}
+
+/* SVG <defs> はレイアウトに乗せないため隠す */
+.map-joystick-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* blob は子要素 (center / handle) の positioning context。inset:0 で button と
+   一致。実際の緑円描画は per-joystick canvas (useJoystickMetaball) が DOM 位置
+   を読んで行うので、ここでは SVG filter 不要。center/handle 要素自体は透明
+   position tracker として残る。 */
+.map-joystick-blob {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* per-joystick metaball canvas. button の中で blob が button 外に extend
+   (handle drag や fly) してもクリップされないよう inset:-60px で余白を取る。
+   z-index 0 = button 内 stacking で face/icon (z:2/3) より下に来る。 */
+.map-joystick-metaball-canvas {
+  position: absolute;
+  inset: -60px;
+  width: calc(100% + 120px);
+  height: calc(100% + 120px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* 全要素を button 中央 (= joystick anchor) に top:50%/left:50% で配置。 */
+.map-joystick-center,
+.map-joystick-handle,
+.map-joystick-icon,
+.map-joystick-petamp {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+}
+
+/* center / handle は透明 (WebGL metaball が背景色を描画)。border-radius は
+   念のため残しておく (background が出る環境でも円として見える)。 */
+.map-joystick-center,
+.map-joystick-handle {
+  border-radius: 50%;
+  background: transparent;
+}
+
+/* center dot: anchor 固定。idle で scale 0.25 (≈18px)、armed で full 72×72。 */
+.map-joystick-center {
+  width: 72px;
+  height: 72px;
+  transform: translate(-50%, -50%) scale(0.25);
+  transform-origin: center;
+  transition: transform 0.3s ease-out;
+}
+/* disarm 開始時 (is-disarming on) には scale を 0.25 に戻して FAB 戻り
+   アニメと同タイミングで center が縮むようにする。armed かつ disarming で
+   ない時だけ scale 1。 */
+.map-joystick.is-armed:not(.is-disarming) .map-joystick-center {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* handle: 88×88。rest = anchor (center 上に重なる)。
+   jx/jy ドラッグで anchor から四方に visual offset。fly 中は inline style で
+   FAB 位置 + scale 0.727 (= FAB peak サイズ) に変化 → transition で着地。
+   default に明示的に scale(1) を付けて、fly inline (scale 0.727) との function
+   list を揃える → CSS transition が translate と scale を独立に function-by-
+   function で補間し、両方の動きが完全に同時に始まる/進む。 */
+.map-joystick-handle {
+  width: 88px;
+  height: 88px;
+  opacity: 0;
+  transform: translate(calc(-50% + var(--jx)), calc(-50% + var(--jy))) scale(1);
+  transition:
+    transform 0.32s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.2s ease-out;
+}
+.map-joystick.is-armed .map-joystick-handle {
+  opacity: 1;
+}
+.map-joystick.is-flying .map-joystick-handle {
+  transition: opacity 0.2s ease-out;
+}
+.map-joystick.is-joysticking .map-joystick-handle {
+  transition: opacity 0.2s ease-out;
+}
+/* disarm 開始時: handle/petamp/icon の opacity transition を 0s にして、
+   phase1 (T=320 = 顔が FAB に着地した瞬間) で instant hide。FAB 顔の
+   instant 切替 (= arm 時と対称) と組み合わせて「顔が連続して場所を変えた」
+   ように見せる。transform transition は維持して flyback の動きを保つ。 */
+.map-joystick.is-disarming .map-joystick-handle {
+  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1), opacity 0s;
+}
+
+/* mode icon: armed のときだけ表示。anchor 固定 (ドラッグで動かない)。 */
+.map-joystick-icon {
+  width: 56px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-size: 18px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+  z-index: 2;
+}
+.map-joystick-icon svg {
+  font-size: 18px;
+}
+.map-joystick.is-armed .map-joystick-icon {
+  opacity: 1;
+}
+.map-joystick.is-disarming .map-joystick-icon {
+  transition: opacity 0s;
+}
+
+/* petamp の顔: handle と同じ位置で同じ delta で動く。handle が大きくなっても
+   目のサイズを変えたくないので、container は元の 52 のまま (overflow: visible
+   なので目が container 外に出ても handle 内に収まれば問題なし)。 */
+.map-joystick-petamp {
+  width: 52px;
+  height: 52px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(calc(-50% + var(--jx)), calc(-50% + var(--jy)));
   transition:
-    background 0.15s,
-    color 0.15s,
-    border-color 0.15s,
-    transform 0.15s;
+    transform 0.32s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.2s ease-out;
+  z-index: 3;
+}
+/* 目の SVG transform: pivot 中心の円周上に乗せる。
+   - rest (drag なし): --eye-x/--eye-y 未設定 → default の (0, -20px) で
+     face center から真上 20px (= 角度 90°、半径 R_BASE)。
+   - drag 中: MapJoystick が JS で --eye-x = R_BASE * dx/d, --eye-y =
+     R_BASE * dy/d をセット (drag 方向に R_BASE px 顔の先)。
+   - drag 終了: MapJoystick が CSS 変数を削除 → default 値に transition で戻る。
+   .is-joysticking 中は transition off で drag に即追従。 */
+.map-joystick-petamp svg {
+  overflow: visible;
+  transform: translate(var(--eye-x, 0px), var(--eye-y, -24px));
+  transition: transform 0.2s ease-out;
+}
+.map-joystick.is-joysticking .map-joystick-petamp svg {
+  transition: none;
+}
+.map-joystick.is-armed .map-joystick-petamp {
+  opacity: 1;
+}
+.map-joystick.is-flying .map-joystick-petamp {
+  transition: opacity 0.2s ease-out;
+}
+.map-joystick.is-joysticking .map-joystick-petamp {
+  transition: opacity 0.2s ease-out;
+}
+.map-joystick.is-disarming .map-joystick-petamp {
+  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1), opacity 0s;
 }
 
-.orbit-toggle:hover {
-  background: rgba(255, 255, 255, 0.22);
+/* MapJoystick armed 中は Gallery FAB の petamp 顔を隠す
+   (petamp が物理的に joystick 側へ飛んでいる演出)。FAB peak 自体は
+   useMetaballSheet 側で peakHiddenRef を使って同期的に snap。
+   disarm 時の cross-fade を成立させるため body の class を 2 系統に分ける:
+   - `.map-joystick-armed`: 顔の hide (petamp 顔の fade-out と cross-fade)
+   - `.map-joystick-fab-out`: bottom-sheet の slide-out (FAB ごと画面外へ) */
+body.map-joystick-armed .fab.fab-sheet .fab-icon {
+  opacity: 0;
+  /* arm 時 (body class が付いた瞬間) は instant hide。joystick 顔と二重に
+     見えないように。fade-in は body class を外す時に default の opacity 0.2s
+     transition で発火する。 */
+  transition: opacity 0s;
 }
-.orbit-toggle:active {
-  transform: scale(0.94);
-}
-
-.orbit-toggle.orbit-toggle-active {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-/* BaseMap で使う variant: 画面下端中央 (bottom-sheet の上)。
-   bottom-sheet 折りたたみ時 32px + FAB が peek するので、十分上方に置く。 */
-.orbit-toggle.orbit-toggle-bottom {
-  top: auto;
-  right: auto;
-  bottom: calc(140px + env(safe-area-inset-bottom, 0px));
-  left: 50%;
-  transform: translateX(-50%);
-}
-.orbit-toggle.orbit-toggle-bottom:active {
-  transform: translateX(-50%) scale(0.94);
+body.map-joystick-fab-out .bottom-sheet {
+  transform: translate(-50%, calc(100% + 100px));
 }
 
 /* ---- Top-right settings button (gallery) ---- */
@@ -1288,23 +1463,16 @@
   z-index: 10;
   width: 40px;
   height: 40px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  color: #fff;
+  background: transparent;
+  border: none;
+  color: var(--accent);
   font-size: 20px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition:
-    background 0.15s,
-    transform 0.15s;
-}
-.top-settings-btn:hover {
-  background: rgba(255, 255, 255, 0.22);
+  transition: transform 0.15s;
 }
 .top-settings-btn:active {
   transform: scale(0.94);
@@ -2374,7 +2542,6 @@
 .locate-btn {
   position: absolute;
   top: calc(16px + env(safe-area-inset-top, 0px));
-  /* orbit-toggle (right:16) の隣に並べる: 16 + 40 + 8 = 64 */
   right: 64px;
   width: 40px;
   height: 40px;
@@ -2891,7 +3058,6 @@
   font-size: 18px;
 }
 
-.orbit-toggle svg,
 .map-toggle-btn svg,
 .back-btn svg,
 .debug-btn svg {
@@ -3056,6 +3222,209 @@
   color: var(--text-muted);
   overflow: auto;
   margin: 0;
+}
+
+.shape-editor-export-popup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.shape-editor-export-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.shape-editor-export-pre {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  color: var(--text-muted);
+  overflow: auto;
+  margin: 0;
+  max-height: 60dvh;
+}
+
+/* ---- Shape editor: 目玉キーフレーム + nav preview card ----
+   旧 PreviewSection (bouncing blob) を実際の bottom-sheet / FAB プレビューに置換。
+   bottom-sheet は .shape-editor-nav-card 内に閉じ、ページ下端には固定しない。 */
+.shape-editor-section-h {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shape-editor-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 6px 0;
+}
+
+.shape-editor-keyframe-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  align-self: flex-start;
+}
+
+.shape-editor-keyframe-tab {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.shape-editor-keyframe-tab.is-active {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.shape-editor-keyframe-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.shape-editor-kf-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.shape-editor-kf-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.shape-editor-kf-label {
+  color: var(--text);
+}
+
+.shape-editor-kf-value {
+  font-family: ui-monospace, monospace;
+  color: var(--accent);
+}
+
+.shape-editor-kf-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.shape-editor-kf-overview {
+  display: grid;
+  grid-template-columns: 1.4fr repeat(5, minmax(0, 1fr));
+  gap: 4px 6px;
+  font-size: 10px;
+  font-family: ui-monospace, monospace;
+  color: var(--text-muted);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.shape-editor-kf-overview > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* nav preview card: 旧 PreviewSection の置換。bottom-sheet をカード内に閉じる。 */
+.shape-editor-nav-card {
+  position: relative;
+  min-height: 420px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(ellipse at 50% 110%, color-mix(in srgb, var(--accent) 18%, transparent) 0%, transparent 60%),
+    rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+
+/* カードに閉じた armed バックドロップ。ページ全体は遮らない。 */
+.shape-editor-nav-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.32);
+  z-index: 15;
+  cursor: pointer;
+}
+
+/* armed 時の FAB は本来 -30dvh 上に飛ぶが、プレビューカード内に収まるよう
+   固定 px に短縮する。 */
+.shape-editor-nav-card .bottom-sheet.armed .fab.fab-sheet {
+  transform: translateY(-180px) scale(1.8);
+}
+
+/* metaball-shader は sheet の getBoundingClientRect を rounded box として描く。
+   .bottom-sheet は 70dvh tall で、本来ページ最下端に居ることで bulk が viewport
+   外に隠れる前提のレイアウト。プレビューカード内では bulk がカードの下に長い
+   緑のしっぽとして可視化されるので、ここでは高さを 32px (見える sliver) に圧縮
+   して shader が描く矩形を画面内の sliver だけに留める。FAB/ボタンは全て
+   absolute; top: -38px で sheet 上端に anchor しているので高さ縮小の影響は無い。 */
+.shape-editor-nav-card .bottom-sheet {
+  height: 32px;
+  max-height: 32px;
+}
+
+.shape-editor-kf-overview-head {
+  display: contents;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.shape-editor-kf-overview-head > span {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.shape-editor-kf-overview-row {
+  display: contents;
+}
+
+.shape-editor-kf-overview-row.is-active > span {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Clickable row affordance — grid cells live in `display:contents` so we add
+   a faux row indicator via the first child's left bar. */
+.shape-editor-kf-overview-row.is-selectable > span {
+  cursor: pointer;
+}
+.shape-editor-kf-overview-row.is-selectable > span:first-child {
+  border-left: 2px solid transparent;
+  padding-left: 6px;
+  margin-left: -8px;
+}
+.shape-editor-kf-overview-row.is-selectable.is-active > span:first-child {
+  border-left-color: var(--accent);
+}
+.shape-editor-kf-overview-row.is-selectable:hover > span {
+  color: var(--text);
 }
 
 /* ---- Iris transition (gallery → /record) ----
@@ -3660,6 +4029,7 @@
   z-index: 30;
   display: flex;
   justify-content: center;
+  gap: 12px;
 }
 
 .chat-input {
@@ -4348,6 +4718,7 @@
 .notation-finish-area {
   display: flex;
   justify-content: center;
+  gap: 12px;
   padding: 16px;
   padding-bottom: calc(env(safe-area-inset-bottom) + 16px);
   background: rgba(0, 0, 0, 0.18);
@@ -4611,4 +4982,468 @@
   to {
     --post-run-hole-radius: 200vmax;
   }
+}
+
+/* ---- Report (問題を報告) ---- */
+
+/* finish-area に並べる「報告する」ボタン。
+   ending-btn より控えめに、透明寄りの背景。 */
+.chat-report-btn {
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+.chat-report-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+.chat-report-btn:active {
+  transform: scale(0.96);
+}
+
+.notation-report-btn {
+  padding: 12px 24px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  font-family: inherit;
+  cursor: pointer;
+}
+.notation-report-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.notation-report-btn:active {
+  transform: scale(0.96);
+}
+
+.report-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: report-backdrop-in 180ms ease-out both;
+}
+
+@keyframes report-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.report-sheet {
+  background: #fff;
+  color: #0a0a0a;
+  width: 100%;
+  max-width: 560px;
+  max-height: 86vh;
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.3);
+  padding: 16px 16px calc(16px + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: report-sheet-in 240ms cubic-bezier(0.34, 1.2, 0.64, 1) both;
+}
+
+@keyframes report-sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.report-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.report-sheet-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.report-sheet-close {
+  background: transparent;
+  border: none;
+  color: #555;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.report-sheet-close:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.report-sheet-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.report-sheet-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 2px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.report-sheet-empty {
+  padding: 24px 12px;
+  text-align: center;
+  font-size: 13px;
+  color: #888;
+}
+
+.report-turn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.report-turn.report-turn-user {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.report-turn.report-turn-petamp:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.report-turn.is-checked {
+  background: rgba(28, 184, 112, 0.1);
+}
+
+.report-turn-check {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.report-turn-check-spacer {
+  display: inline-block;
+}
+
+.report-turn-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.report-turn-role {
+  font-size: 11px;
+  font-weight: 700;
+  color: #888;
+  margin-bottom: 2px;
+}
+
+.report-turn-petamp .report-turn-role {
+  color: var(--accent);
+}
+
+.report-turn-content {
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.report-sheet-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 88px;
+  max-height: 200px;
+  font-size: 14px;
+  font-family: inherit;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  background: #fff;
+  color: #0a0a0a;
+  line-height: 1.5;
+}
+.report-sheet-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.report-sheet-error {
+  font-size: 12px;
+  color: #c44;
+  line-height: 1.4;
+}
+
+.report-sheet-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.report-sheet-btn {
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.report-sheet-btn-cancel {
+  background: transparent;
+  border-color: rgba(0, 0, 0, 0.2);
+  color: #555;
+}
+
+.report-sheet-btn-submit {
+  background: var(--accent);
+  color: #fff;
+}
+.report-sheet-btn-submit:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.report-sheet-done {
+  padding: 48px 12px;
+  text-align: center;
+  font-size: 15px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ---- JoystickEditorPage (debug) ---- */
+.joystick-editor {
+  display: flex;
+  width: 100vw;
+  height: 100dvh;
+  background: #1a1a1a;
+  color: #ddd;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+.joystick-editor *,
+.joystick-editor *::before,
+.joystick-editor *::after {
+  box-sizing: border-box;
+}
+
+.joystick-editor-controls {
+  width: 320px;
+  flex-shrink: 0;
+  padding: 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: #222;
+  border-right: 1px solid #333;
+}
+.joystick-editor-controls h2 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  color: var(--accent);
+}
+.joystick-editor-controls h3 {
+  margin: 20px 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #888;
+}
+.joystick-editor-controls section {
+  margin-bottom: 16px;
+}
+
+.joystick-editor-state-radio {
+  display: flex;
+  gap: 8px;
+  padding: 6px 4px;
+  cursor: pointer;
+  align-items: flex-start;
+}
+.joystick-editor-state-radio input {
+  margin-top: 4px;
+}
+.joystick-editor-state-radio strong {
+  display: block;
+  font-size: 13px;
+  color: #fff;
+}
+.joystick-editor-state-desc {
+  display: block;
+  font-size: 11px;
+  color: #aaa;
+  margin-top: 2px;
+}
+
+.joystick-editor-slider {
+  margin-bottom: 10px;
+}
+.joystick-editor-slider-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.joystick-editor-slider label {
+  font-size: 11px;
+  color: #bbb;
+}
+.joystick-editor-slider input[type="number"] {
+  width: 60px;
+  background: #333;
+  border: 1px solid #555;
+  color: #fff;
+  padding: 2px 4px;
+  font-size: 11px;
+  text-align: right;
+}
+.joystick-editor-slider input[type="range"] {
+  width: 100%;
+}
+
+.joystick-editor-output {
+  background: #111;
+  border: 1px solid #333;
+  padding: 8px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #ccc;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.joystick-editor-controls button {
+  background: #333;
+  border: 1px solid #555;
+  color: #fff;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-top: 6px;
+}
+
+/* Stage = preview area */
+.joystick-editor-stage {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0d0d0d;
+  padding: 16px;
+  overflow: auto;
+}
+
+.joystick-editor-screen {
+  position: relative;
+  /* viewport の縦に収まる範囲で 1:2 比率を保つ */
+  height: min(720px, calc(100dvh - 32px));
+  aspect-ratio: 1 / 2;
+  max-width: 100%;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 32px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.joystick-editor-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* FAB blob: sheet + peak をまとめて SVG metaball filter で merge する
+   (real の useMetaballSheet と同じ smin 風効果)。 */
+.joystick-editor-fab-blob {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  filter: url(#map-joystick-metaball);
+}
+
+/* Bottom-sheet 矩形 (blob の子) */
+.joystick-editor-sheet {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 240px;
+  height: 40px;
+  transform: translateX(-50%);
+  background: var(--accent);
+  border-radius: 16px 16px 0 0;
+}
+
+/* FAB peak (緑円、blob の子)。bottom は inline style から。 */
+.joystick-editor-fab-peak {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* FAB face (目、blob の外でフィルタかけない)。bottom は inline style から。 */
+.joystick-editor-fab-face {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+/* preview 内の joystick は transition を切って frozen にする */
+.joystick-editor-joystick,
+.joystick-editor-joystick * {
+  transition: none !important;
+}
+
+.joystick-editor-anchor-mark {
+  position: absolute;
+  left: 8px;
+  font-size: 10px;
+  color: #fff;
+  background: rgba(255, 0, 0, 0.5);
+  padding: 2px 6px;
+  pointer-events: none;
+}
+.joystick-editor-anchor-mark::before {
+  content: '— ';
+}
+.joystick-editor-anchor-mark-fab {
+  background: rgba(0, 100, 255, 0.5);
 }
