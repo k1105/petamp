@@ -10,6 +10,7 @@ import { RunChatPage } from './pages/RunChatPage'
 import { NotationChatPage } from './pages/NotationChatPage'
 import { CharacterSmokePage } from './pages/CharacterSmokePage'
 import { PromptLogPage } from './pages/PromptLogPage'
+import { NamedPlacesDebugPage } from './pages/NamedPlacesDebugPage'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { InvitePage } from './pages/InvitePage'
 import { TransitionOverlay } from './components/transition/TransitionOverlay'
@@ -108,6 +109,7 @@ function App() {
         <Route path="/joystick-editor" element={<JoystickEditorPage />} />
         <Route path="/character-smoke" element={<CharacterSmokePage />} />
         <Route path="/prompt-logs" element={<PromptLogPage />} />
+        <Route path="/named-places" element={<NamedPlacesDebugPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/invite/:uid" element={<InvitePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

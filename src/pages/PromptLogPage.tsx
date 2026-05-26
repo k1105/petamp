@@ -65,6 +65,15 @@ export function PromptLogPage() {
           <Icon icon="lucide:arrow-left" />
         </button>
         <h1 className="prompt-log-title">Prompt Log</h1>
+        <button
+          className="btn-ghost"
+          onClick={() => navigate('/named-places')}
+          aria-label="NamedPlaces"
+          style={{ marginLeft: 'auto' }}
+        >
+          <Icon icon="lucide:map-pin" />
+          <span>Places</span>
+        </button>
       </header>
 
       <div className="prompt-log-controls">
@@ -156,6 +165,16 @@ function PromptLogRow({ entry, expanded, onToggle }: RowProps) {
             </>
           )}
           {entry.text && <Field label="text">{entry.text}</Field>}
+          {entry.nameProposal !== undefined && (
+            <Field label="nameProposal">
+              <pre className="prompt-log-json">{JSON.stringify(entry.nameProposal, null, 2)}</pre>
+            </Field>
+          )}
+          {entry.persistResult && (
+            <Field label="persistResult">
+              <pre className="prompt-log-json">{JSON.stringify(entry.persistResult, null, 2)}</pre>
+            </Field>
+          )}
           {entry.error && (
             <Field label="error">
               <div>{entry.error.message}</div>

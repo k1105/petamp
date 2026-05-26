@@ -11,6 +11,7 @@ import type { ContextBuilder } from '../context/builder'
 import type { LLMClient, LLMMessage } from '../llm/client'
 import type { MemoryStore } from '../memory/store'
 import type {
+  PersistNameProposalResult,
   PromptLogEntry,
   PromptLogId,
   PromptLogStore,
@@ -233,7 +234,8 @@ export class DefaultDialogueService implements DialogueService {
 
     const promptLogId = newId()
     let summary: string
-    let nameProposal: SummaryStructured['nameProposal'] = null
+    let nameProposal: SummaryStructured['nameProposal']
+    let summarizeMeta: { startedAt: number; meta: PromptLogEntry['meta'] }
     try {
       const result = await this.llm.completeStructured<SummaryStructured>(messages, {
         schema: this.templates.summaryJsonSchema,
@@ -241,18 +243,7 @@ export class DefaultDialogueService implements DialogueService {
       })
       summary = result.value.summary.trim()
       nameProposal = result.value.nameProposal ?? null
-      await this.promptLog.append({
-        id: promptLogId,
-        timestamp: result.meta.startedAt,
-        characterId: thread.characterId,
-        threadId,
-        purpose: 'summarize_thread',
-        messages,
-        retrieval: { fewShotCount: 0, recentTurnCount: turns.length, episodic: [], semantic: [] },
-        text: summary,
-        meta: result.meta,
-        templatesVersion: this.templates.version,
-      })
+      summarizeMeta = { startedAt: result.meta.startedAt, meta: result.meta }
     } catch (error) {
       await this.appendErrorLog({
         id: promptLogId,
@@ -266,20 +257,42 @@ export class DefaultDialogueService implements DialogueService {
       return null
     }
 
-    if (!summary) return null
-
     // 命名は thread あたり最大1個 (per-turn 永続化は撤去済みだが念のためチェック)
-    if (nameProposal && runSummary && runPoints && runPoints.length > 0) {
-      await this.persistNameProposalFromSummary({
-        proposal: nameProposal,
-        characterId: thread.characterId,
-        threadId,
-        runSummary,
-        runPoints,
-        thread,
-        turns,
-      })
+    let persistResult: PersistNameProposalResult = { outcome: 'none' }
+    if (nameProposal) {
+      if (!runSummary) {
+        persistResult = { outcome: 'skipped', reason: 'no_run_summary' }
+      } else if (!runPoints || runPoints.length === 0) {
+        persistResult = { outcome: 'skipped', reason: 'no_run_ref' }
+      } else {
+        persistResult = await this.persistNameProposalFromSummary({
+          proposal: nameProposal,
+          characterId: thread.characterId,
+          threadId,
+          runSummary,
+          runPoints,
+          thread,
+          turns,
+        })
+      }
     }
+
+    await this.promptLog.append({
+      id: promptLogId,
+      timestamp: summarizeMeta.startedAt,
+      characterId: thread.characterId,
+      threadId,
+      purpose: 'summarize_thread',
+      messages,
+      retrieval: { fewShotCount: 0, recentTurnCount: turns.length, episodic: [], semantic: [] },
+      text: summary,
+      nameProposal,
+      persistResult,
+      meta: summarizeMeta.meta,
+      templatesVersion: this.templates.version,
+    })
+
+    if (!summary) return null
 
     const refs = collectRefs(turns, thread.origin)
     const memory: EpisodicMemory = {
@@ -365,23 +378,23 @@ export class DefaultDialogueService implements DialogueService {
     runPoints: ReadonlyArray<{ lat: number; lng: number }>
     thread: DialogueThread
     turns: DialogueTurn[]
-  }): Promise<void> {
+  }): Promise<PersistNameProposalResult> {
     const { proposal, characterId, threadId, runSummary, runPoints, thread, turns } = args
     const name = proposal.name.trim()
-    if (name === '') return
+    if (name === '') return { outcome: 'skipped', reason: 'empty_name' }
 
     const existing = await this.memory.queryNamedPlaces({
       characterId,
       sourceThreadId: threadId,
       limit: 1,
     })
-    if (existing.length > 0) return
+    if (existing.length > 0) return { outcome: 'skipped', reason: 'existing_thread_place' }
 
     // run id 解決: thread.origin か turns の refs から拾う
     const runRef = thread.origin?.kind === 'run'
       ? thread.origin
       : turns.flatMap(t => t.refs ?? []).find(r => r.kind === 'run')
-    if (!runRef) return
+    if (!runRef) return { outcome: 'skipped', reason: 'no_run_ref' }
 
     // refine 指定があるなら、対象 place の妥当性を確認。
     let previousId: string | undefined
@@ -409,28 +422,35 @@ export class DefaultDialogueService implements DialogueService {
       ...(previousId ? { previousId } : {}),
     }
 
-    let place: NamedPlace | null = null
+    let place: NamedPlace
     if (proposal.target === 'point') {
       const idx = proposal.pointIdx
-      if (idx === undefined || idx < 0 || idx >= runPoints.length) return
+      if (idx === undefined || idx < 0 || idx >= runPoints.length) {
+        return { outcome: 'skipped', reason: 'invalid_point_idx' }
+      }
       const pt = runPoints[idx]
       place = { ...base, point: { lat: pt.lat, lng: pt.lng }, sourcePointIdx: idx }
     } else if (proposal.target === 'segment') {
       const segIdx = proposal.segmentIndex
-      if (segIdx === undefined) return
+      if (segIdx === undefined) return { outcome: 'skipped', reason: 'invalid_segment_index' }
       const seg = runSummary.segments[segIdx]
-      if (!seg) return
+      if (!seg) return { outcome: 'skipped', reason: 'invalid_segment_index' }
       const start = Math.max(0, Math.min(seg.startPointIdx, runPoints.length - 1))
       const end = Math.max(0, Math.min(seg.endPointIdx, runPoints.length - 1))
-      if (end < start) return
+      if (end < start) return { outcome: 'skipped', reason: 'invalid_segment_bounds' }
       const polyline = []
       for (let i = start; i <= end; i++) {
         polyline.push({ lat: runPoints[i].lat, lng: runPoints[i].lng })
       }
       place = { ...base, polyline, sourceSegmentIndex: segIdx }
+    } else {
+      return { outcome: 'skipped', reason: 'unknown_target' }
     }
 
-    if (place) await this.memory.putNamedPlace(place)
+    await this.memory.putNamedPlace(place)
+    return previousId
+      ? { outcome: 'refined', placeId: place.id, previousId }
+      : { outcome: 'created', placeId: place.id }
   }
 
   private async resolveThread(

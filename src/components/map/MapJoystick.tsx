@@ -77,7 +77,6 @@ export function MapJoystick({ orbit, onToggleOrbit, onJoystickFrame }: Props) {
   const [flyOffset, setFlyOffset] = useState<{ x: number; y: number } | null>(null)
   const setStoreArmed = useJoystickStore(s => s.setArmed)
   const setStoredFabRect = useJoystickStore(s => s.setStoredFabRect)
-  const storedFabRect = useJoystickStore(s => s.storedFabRect)
 
   // 各 joystick 専用の WebGL canvas で center/handle を smin merge して描画。
   // canvas は button 内に配置されるので、face/icon (z:2/3 within button stacking)

@@ -6,6 +6,29 @@ import type { LLMCallMeta, LLMMessage, LLMReply } from '../llm/client'
 export type PromptLogId = string
 
 /**
+ * persistNameProposalFromSummary の結果。
+ * - created: 新規 NamedPlace を作って書いた。
+ * - refined: 既存 place を refine (新 id で書き、previousId で過去を指す) した。
+ * - skipped: 各種ガードに引っかかり何もしなかった。reason はガード名。
+ * - none: nameProposal 自体が null/省略で呼び出されなかった。
+ */
+export type PersistNameProposalResult =
+  | { outcome: 'created'; placeId: string }
+  | { outcome: 'refined'; placeId: string; previousId: string }
+  | { outcome: 'skipped'; reason: PersistSkipReason }
+  | { outcome: 'none' }
+
+export type PersistSkipReason =
+  | 'empty_name'
+  | 'existing_thread_place'
+  | 'no_run_ref'
+  | 'no_run_summary'
+  | 'invalid_point_idx'
+  | 'invalid_segment_index'
+  | 'invalid_segment_bounds'
+  | 'unknown_target'
+
+/**
  * 1回のLLM呼び出しの完全な記録。何を渡して何が返ったか、
  * どのメモリが効いたかまで含めて後から再現できるようにする。
  */
@@ -39,6 +62,19 @@ export interface PromptLogEntry {
   reply?: LLMReply
   /** complete呼び出しのとき。 */
   text?: string
+
+  /**
+   * summarize_thread のとき、構造化レスポンスに乗ってきた nameProposal の生 JSON。
+   * LLM が返したか / 何を返したかをログから直接見るためのデバッグ用フィールド。
+   * 命名がなかったとき (null/省略) は null で残す。
+   */
+  nameProposal?: unknown
+  /**
+   * summarize_thread のとき、nameProposal を NamedPlace として永続化しようとした結果。
+   * outcome=created/refined のときは placeId 入り、skipped のときは reason 入り。
+   * SP 環境では console を見られないので、結果はここに集約する。
+   */
+  persistResult?: PersistNameProposalResult
 
   meta: LLMCallMeta
   error?: { message: string; stack?: string }
