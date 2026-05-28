@@ -21,6 +21,8 @@ import {
   resetOnboarding,
   resetPromptLog,
 } from '../../character'
+import { useSpotifyStore } from '../../store/useSpotifyStore'
+import { startLogin } from '../../spotify/auth'
 
 type AsyncActionKey = 'onboarding' | 'log' | 'all'
 
@@ -60,6 +62,22 @@ export function SettingsPanel() {
   const [done, setDone] = useState<AsyncActionKey | null>(null)
   const [copied, setCopied] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+
+  const spotifyAuth = useSpotifyStore(s => s.auth)
+  const spotifyCurrent = useSpotifyStore(s => s.current)
+  const disconnectSpotify = useSpotifyStore(s => s.disconnect)
+  const [connectingSpotify, setConnectingSpotify] = useState(false)
+
+  const onConnectSpotify = async () => {
+    if (connectingSpotify) return
+    setConnectingSpotify(true)
+    try {
+      await startLogin()
+    } catch (e) {
+      console.error('spotify connect failed', e)
+      setConnectingSpotify(false)
+    }
+  }
 
   const handleSignOut = async () => {
     if (signingOut) return
@@ -280,6 +298,31 @@ export function SettingsPanel() {
           </button>
         </Section>
       )}
+
+      <Section title="Spotify連携">
+        {spotifyAuth ? (
+          <>
+            <p className="settings-credit" style={{ margin: 0 }}>
+              {spotifyCurrent
+                ? `${spotifyCurrent.isPlaying ? '再生中' : '一時停止'}: ${spotifyCurrent.name} — ${spotifyCurrent.artists.join(', ')}`
+                : '接続中（再生中の曲なし）'}
+            </p>
+            <button className="settings-btn-secondary" onClick={disconnectSpotify}>
+              <Icon icon="lucide:unplug" />
+              <span>解除</span>
+            </button>
+          </>
+        ) : (
+          <button
+            className="settings-btn-secondary"
+            onClick={onConnectSpotify}
+            disabled={connectingSpotify}
+          >
+            <Icon icon="lucide:music" />
+            <span>{connectingSpotify ? '接続中…' : 'Spotifyに接続'}</span>
+          </button>
+        )}
+      </Section>
 
       <Section title="クレジット">
         <p className="settings-credit">

@@ -6,6 +6,8 @@ import { BaseMap } from '../components/map/BaseMap'
 import { useMap, useMapZoom } from '../components/map/MapContext'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AreaLabel } from '../components/map/AreaLabel'
+import { NowPlayingLabel } from '../components/map/NowPlayingLabel'
+import { useBpmDotScale } from '../hooks/useBpmDotScale'
 import { MapBoundsConstraint } from '../components/map/MapBoundsConstraint'
 import { GroupEdgeIndicator } from '../components/map/GroupEdgeIndicator'
 import { expandBboxByMeters } from '../utils/runBbox'
@@ -136,6 +138,7 @@ function GalleryLayers({
 
   const dotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
   const tubeWidth = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius) * 2
+  const bpmDotScale = useBpmDotScale()
 
   const runPaths = useMemo(
     () =>
@@ -181,7 +184,7 @@ function GalleryLayers({
           id: 'gallery-current-pos',
           data: [{ position: currentPosition }],
           getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0],
-          getRadius: dotRadius * CURRENT_DOT_SCALE,
+          getRadius: dotRadius * CURRENT_DOT_SCALE * bpmDotScale,
           radiusUnits: 'meters',
           getFillColor: currentDotColor,
           billboard: true,
@@ -192,7 +195,7 @@ function GalleryLayers({
     // ポップアップを開く。地形の上に乗せたいので depthCompare 無効化。
     const placeLayers = buildNamedPlaceLayers(namedPlaces, onPickPlace)
     return [tubeLayer, dotsLayer, ...(currentPosLayer ? [currentPosLayer] : []), ...placeLayers]
-  }, [runPaths, dots, currentPosition, t, dotRadius, tubeWidth, tubeColor, dotColor, currentDotColor, navigate, namedPlaces, onPickPlace])
+  }, [runPaths, dots, currentPosition, t, dotRadius, tubeWidth, tubeColor, dotColor, currentDotColor, navigate, namedPlaces, onPickPlace, bpmDotScale])
 
   return <DeckOverlay layers={layers} />
 }
@@ -550,6 +553,7 @@ export function GalleryPage() {
               onPickPlace={setSelectedPlace}
             />
             <AreaLabel />
+            <NowPlayingLabel />
             <MapBoundsConstraint
               bbox={currentGroup?.bbox ?? null}
               paddingMeters={ui.mapPaddingMeters}

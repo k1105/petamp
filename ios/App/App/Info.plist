@@ -64,6 +64,16 @@
 				<string>com.googleusercontent.apps.780004234359-b8h06oho6gq4umsdkrjrb6e43v2p9nln</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.rennur.petamp.spotify</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.rennur.petamp</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

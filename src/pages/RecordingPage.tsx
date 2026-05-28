@@ -8,6 +8,7 @@ import {BaseMap} from "../components/map/BaseMap";
 import {useMap, useMapZoom} from "../components/map/MapContext";
 import {DeckOverlay} from "../components/map/DeckOverlay";
 import {AreaLabel} from "../components/map/AreaLabel";
+import {NowPlayingLabel} from "../components/map/NowPlayingLabel";
 import {LiveStats} from "../components/recording/LiveStats";
 import {useGpsRecorder} from "../hooks/useGpsRecorder";
 import {useCurrentPosition} from "../hooks/useCurrentPosition";
@@ -18,6 +19,7 @@ import {useSettingsStore, type Radii} from "../store/useSettingsStore";
 import {useTransitionStore} from "../store/useTransitionStore";
 import {usePostRunLoadingStore} from "../store/usePostRunLoadingStore";
 import {effectiveRadius} from "../utils/effectiveRadius";
+import {useBpmDotScale} from "../hooks/useBpmDotScale";
 import {acceptedPoints, accuracyGate, warmupGate, minDistanceGate, maxSpeedGate} from "../utils/recordingFilters";
 import {fetchAreaName} from "../hooks/useReverseGeocode";
 import {fetchWeatherForCoords} from "../utils/fetchWeather";
@@ -199,6 +201,7 @@ function RecordingLayers({
   const rawTubeWidth = effectiveRadius(zoom, radii.zoomThreshold, radii.rawTubeRadius) * 2;
   const baseDotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius);
   const dotRadius = baseDotRadius * CURRENT_DOT_SCALE;
+  const bpmDotScale = useBpmDotScale();
 
   const acceptedPath = useMemo(
     () => acceptedTrackPoints.map(p => [p.lng, p.lat, 0] as [number, number, number]),
@@ -265,7 +268,7 @@ function RecordingLayers({
       id: "live-dot",
       data: dotData,
       getPosition: (d: {position: [number, number]}) => [d.position[0], d.position[1], 0],
-      getRadius: dotRadius,
+      getRadius: dotRadius * bpmDotScale,
       radiusUnits: "meters",
       getFillColor: dotColor,
       billboard: true,
@@ -276,7 +279,7 @@ function RecordingLayers({
       ...(liveTubeLayer ? [liveTubeLayer] : []),
       dotLayer,
     ];
-  }, [acceptedPath, rawPath, dotData, t, tubeWidth, rawTubeWidth, dotRadius, tubeColor, rawTubeColor, dotColor, showRawTube]);
+  }, [acceptedPath, rawPath, dotData, t, tubeWidth, rawTubeWidth, dotRadius, tubeColor, rawTubeColor, dotColor, showRawTube, bpmDotScale]);
 
   return <DeckOverlay layers={layers} />;
 }
@@ -429,6 +432,7 @@ export function RecordingPage() {
               showRawTube={showRawTube}
             />
             <AreaLabel />
+            <NowPlayingLabel />
           </BaseMap>
         )}
       </div>

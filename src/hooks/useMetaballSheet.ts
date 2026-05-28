@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react'
+import { headBobOffsetRef, headPulseScaleRef } from './useBpmSyncedBob'
 
 // '#rrggbb' / 'rgb(r, g, b)' / 'rgba(r, g, b, a)' を [0,1] の RGB に正規化。
 // CSS @property で <color> 型として登録された変数は getComputedStyle が
@@ -352,14 +353,17 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakHi
         }
       }
       const cx = fRect.left + fRect.width / 2
-      const cy = fRect.top + fRect.height / 2
+      // BPM-synced head bob: useBpmSyncedBob writes a small vertical offset
+      // here every frame while Spotify is playing. 0 otherwise.
+      const cy = fRect.top + fRect.height / 2 + headBobOffsetRef.current
       const fabRadius = Math.min(fRect.width, fRect.height) / 2
       // peak の表示倍率: joystick armed 中は 0、idle で 1。lerp すると
       // petamp の fly-in 中 に peak がまだ縮みきってなくて二重に見えるので
       // snap (即座に切り替え)。joystick handle 側で scale animation するので
       // この snap は連続した「ひとつの円が動く」演出にとっての要。
       st.peakScale = peakHiddenRef?.current ? 0 : 1
-      const scale = (fabRadius / NORM_R) * st.peakScale
+      // BPM-synced pulse: 1.0 when Spotify idle, slightly >1 on each beat.
+      const scale = (fabRadius / NORM_R) * st.peakScale * headPulseScaleRef.current
 
       // Velocity (px/frame). Low-pass to suppress single-frame jitter.
       let v = 0

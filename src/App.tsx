@@ -14,6 +14,10 @@ import { NamedPlacesDebugPage } from './pages/NamedPlacesDebugPage'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { InvitePage } from './pages/InvitePage'
 import { CreditsPage } from './pages/CreditsPage'
+import { SpotifyCallbackPage } from './pages/SpotifyCallbackPage'
+import { useSpotifyPlaybackPoller } from './hooks/useSpotifyPlayback'
+import { useBpmSyncedBob } from './hooks/useBpmSyncedBob'
+import { useSpotifyDeepLink } from './hooks/useSpotifyDeepLink'
 import { TransitionOverlay } from './components/transition/TransitionOverlay'
 import { LoadingScreen } from './components/LoadingScreen'
 import { PostRunLoadingScreen } from './components/PostRunLoadingScreen'
@@ -96,6 +100,9 @@ function App() {
   useEnsureUserDoc()
   useCharacterMemorySync()
   useBootSignals()
+  useSpotifyPlaybackPoller()
+  useBpmSyncedBob()
+  useSpotifyDeepLink()
   const bootReady = useBootReady()
   return (
     <BrowserRouter>
@@ -114,6 +121,7 @@ function App() {
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/invite/:uid" element={<InvitePage />} />
         <Route path="/credits" element={<CreditsPage />} />
+        <Route path="/spotify-callback" element={<SpotifyCallbackPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <TransitionOverlay />

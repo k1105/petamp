@@ -1126,6 +1126,12 @@
   animation: petamp-idle-bob 2.6s ease-in-out infinite;
 }
 
+/* useBpmSyncedBob (Spotify connected + playing) takes over the bob via inline
+   transform; suppress the CSS keyframe so they don't fight. */
+body.bpm-bob-active .fab.fab-sheet.fab-idle .fab-icon {
+  animation: none;
+}
+
 @keyframes petamp-idle-bob {
   0% {
     transform: translateY(0);
@@ -2785,6 +2791,46 @@ body.map-joystick-fab-out .bottom-sheet {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+/* AreaLabel の真下に Spotify 再生中の曲を出す。area-label の縦中心が
+   top:36px なので、その下に余白 14px 程度開けて配置。 */
+.now-playing-label {
+  position: absolute;
+  top: calc(58px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translate(-50%, 0);
+  z-index: 5;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: min(80vw, 320px);
+  text-align: center;
+}
+
+.now-playing-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.now-playing-artist {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--accent);
+  opacity: 0.7;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .debug-area {

@@ -44,4 +44,6 @@ function promptLogPlugin(): Plugin {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), promptLogPlugin()],
+  // Spotify OAuth requires 127.0.0.1 (not "localhost") for dev redirect URIs.
+  server: { host: '127.0.0.1' },
 })
