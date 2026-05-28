@@ -13,6 +13,7 @@ import { PromptLogPage } from './pages/PromptLogPage'
 import { NamedPlacesDebugPage } from './pages/NamedPlacesDebugPage'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { InvitePage } from './pages/InvitePage'
+import { CreditsPage } from './pages/CreditsPage'
 import { TransitionOverlay } from './components/transition/TransitionOverlay'
 import { LoadingScreen } from './components/LoadingScreen'
 import { PostRunLoadingScreen } from './components/PostRunLoadingScreen'
@@ -112,6 +113,7 @@ function App() {
         <Route path="/named-places" element={<NamedPlacesDebugPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/invite/:uid" element={<InvitePage />} />
+        <Route path="/credits" element={<CreditsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <TransitionOverlay />

@@ -280,6 +280,20 @@ export function SettingsPanel() {
           </button>
         </Section>
       )}
+
+      <Section title="クレジット">
+        <p className="settings-credit">
+          BPM data provided by{' '}
+          <a
+            className="settings-credit-link"
+            href="https://getsongbpm.com"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GetSongBPM
+          </a>
+        </p>
+      </Section>
     </div>
   )
 }
