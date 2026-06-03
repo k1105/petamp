@@ -1350,6 +1350,13 @@ body.bpm-bob-active .fab.fab-sheet.fab-idle .fab-icon {
 .map-joystick.is-joysticking {
   cursor: grabbing;
 }
+/* armed 中 (TAP TO START / 友達と走る 表示中) は nav アイコンと同様に隠す。
+   armed-backdrop が透明なので、消さないと map 上に取り残されて見えてしまう。 */
+body.gallery-armed .map-joystick {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
 
 /* SVG <defs> はレイアウトに乗せないため隠す */
 .map-joystick-defs {
@@ -1400,11 +1407,12 @@ body.bpm-bob-active .fab.fab-sheet.fab-idle .fab-icon {
   background: transparent;
 }
 
-/* center dot: anchor 固定。idle で scale 0.25 (≈18px)、armed で full 72×72。 */
+/* center dot: anchor 固定。idle で scale 0.4 (≈29px、常時表示アイコンの背景として
+   少し大きめ)、armed で full 72×72。 */
 .map-joystick-center {
   width: 72px;
   height: 72px;
-  transform: translate(-50%, -50%) scale(0.25);
+  transform: translate(-50%, -50%) scale(0.4);
   transform-origin: center;
   transition: transform 0.3s ease-out;
 }
@@ -1447,7 +1455,8 @@ body.bpm-bob-active .fab.fab-sheet.fab-idle .fab-icon {
   transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1), opacity 0s;
 }
 
-/* mode icon: armed のときだけ表示。anchor 固定 (ドラッグで動かない)。 */
+/* mode icon: translate/rotate を示すアイコンは常時表示 (idle でも見せる)。
+   anchor 固定 (ドラッグで動かない)。 */
 .map-joystick-icon {
   width: 56px;
   height: 56px;
@@ -1458,7 +1467,7 @@ body.bpm-bob-active .fab.fab-sheet.fab-idle .fab-icon {
   color: #fff;
   font-size: 18px;
   pointer-events: none;
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.2s ease-out;
   z-index: 2;
 }
@@ -5544,23 +5553,42 @@ body.map-joystick-fab-out .bottom-sheet {
 
 /* ---- 一緒に走るモード (co-run) ---- */
 
-/* ギャラリー armed 時の「友達と走る」導線 */
+/* ギャラリー armed 時の「友達と走る」導線。
+   ペタンプの顔(FAB)の右隣に配置 (left/top は GalleryPage の rAF が毎フレーム設定)。 */
 .co-run-entry-btn {
   position: fixed;
-  left: 50%;
-  bottom: 22vh;
-  transform: translateX(-50%);
+  left: 0;
+  top: 0;
   z-index: 40;
-  padding: 8px 18px;
-  border-radius: 999px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+.co-run-entry-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
   border: 1px solid var(--accent);
   background: var(--accent-dim);
   color: var(--text);
-  font-size: 13px;
-  letter-spacing: 0.04em;
-  cursor: pointer;
+  font-size: 20px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+.co-run-entry-label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 
 /* 共通ボタン */

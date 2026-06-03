@@ -7,7 +7,6 @@ import { useMap, useMapZoom } from '../components/map/MapContext'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AreaLabel } from '../components/map/AreaLabel'
 import { NowPlayingLabel } from '../components/map/NowPlayingLabel'
-import { useBpmDotScale } from '../hooks/useBpmDotScale'
 import { MapBoundsConstraint } from '../components/map/MapBoundsConstraint'
 import { GroupEdgeIndicator } from '../components/map/GroupEdgeIndicator'
 import { expandBboxByMeters } from '../utils/runBbox'
@@ -41,8 +40,6 @@ import type { Run } from '../types'
 import type { NamedPlace } from '../character/domain/memory'
 
 const MIN_ZOOM = 12.5
-// 現在位置(=自己位置)dotは過去ランの軌跡dotより少し大きく強調する。
-const CURRENT_DOT_SCALE = 1.2
 
 const NAMED_PLACE_COLOR_LINE: [number, number, number, number] = [255, 200, 60, 230]
 const NAMED_PLACE_COLOR_DOT: [number, number, number, number] = [255, 200, 60, 255]
@@ -99,27 +96,39 @@ function buildNamedPlaceLayers(
 
 // FAB タップで現在位置に home スケールでフォーカスする (homeGroup が無い
 // = GPS が realGroup 内のケース用)。signal を increment するたびに flyTo。
-function FocusGPS({ signal, center, zoom }: { signal: number; center: [number, number] | null; zoom: number }) {
+type Padding = { top: number; bottom: number; left: number; right: number }
+
+function FocusGPS({
+  signal,
+  center,
+  zoom,
+  padding,
+}: {
+  signal: number
+  center: [number, number] | null
+  zoom: number
+  // 現在位置を画面中心ではなく petamp の顔(FAB)の位置に表示するための padding。
+  // padding は viewport を縮めて光学的中心をずらすため、maxBounds 下でも focal point を寄せられる。
+  padding: Padding
+}) {
   const { map } = useMap()
   const lastRef = useRef(0)
   useEffect(() => {
     if (!map || !center || signal === 0 || signal === lastRef.current) return
     lastRef.current = signal
-    map.flyTo({ center, zoom, duration: 700 })
-  }, [signal, map, center, zoom])
+    map.flyTo({ center, zoom, padding, duration: 700 })
+  }, [signal, map, center, zoom, padding])
   return null
 }
 
 function GalleryLayers({
   runs,
   dots,
-  currentPosition,
   namedPlaces,
   onPickPlace,
 }: {
   runs: Run[]
   dots: DotPosition[]
-  currentPosition: [number, number] | null
   namedPlaces: NamedPlace[]
   onPickPlace: (place: NamedPlace) => void
 }) {
@@ -135,11 +144,9 @@ function GalleryLayers({
   )
   const tubeColor: [number, number, number, number] = [...accentRgb, Math.round(128 * t)]
   const dotColor: [number, number, number, number] = [...accentRgb, Math.round(255 * t)]
-  const currentDotColor: [number, number, number, number] = [...accentRgb, 255]
 
   const dotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
   const tubeWidth = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius) * 2
-  const bpmDotScale = useBpmDotScale()
 
   const runPaths = useMemo(
     () =>
@@ -180,23 +187,11 @@ function GalleryLayers({
       billboard: true,
       updateTriggers: { getFillColor: dotColor },
     })
-    const currentPosLayer = currentPosition
-      ? new ScatterplotLayer({
-          id: 'gallery-current-pos',
-          data: [{ position: currentPosition }],
-          getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0],
-          getRadius: dotRadius * CURRENT_DOT_SCALE * bpmDotScale,
-          radiusUnits: 'meters',
-          getFillColor: currentDotColor,
-          billboard: true,
-        })
-      : null
-
     // NamedPlace の point/segment レイヤ。クリックで onPickPlace(place) を呼んで
     // ポップアップを開く。地形の上に乗せたいので depthCompare 無効化。
     const placeLayers = buildNamedPlaceLayers(namedPlaces, onPickPlace)
-    return [tubeLayer, dotsLayer, ...(currentPosLayer ? [currentPosLayer] : []), ...placeLayers]
-  }, [runPaths, dots, currentPosition, t, dotRadius, tubeWidth, tubeColor, dotColor, currentDotColor, navigate, namedPlaces, onPickPlace, bpmDotScale])
+    return [tubeLayer, dotsLayer, ...placeLayers]
+  }, [runPaths, dots, t, dotRadius, tubeWidth, tubeColor, dotColor, navigate, namedPlaces, onPickPlace])
 
   return <DeckOverlay layers={layers} />
 }
@@ -246,6 +241,13 @@ export function GalleryPage() {
   const navState = armed ? 'armed' : view
   const eyeParams = useEyeParams(navState)
   const [focusGPSSignal, setFocusGPSSignal] = useState(0)
+  // GPS フォーカス時、現在位置を画面中心ではなく FAB(顔) の位置に置くための flyTo padding。
+  const [gpsFocusPadding, setGpsFocusPadding] = useState<Padding>({
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+  })
   const { places: namedPlaces } = useNamedPlaces()
   const [selectedPlace, setSelectedPlace] = useState<NamedPlace | null>(null)
   const [bubblePhrase, setBubblePhrase] = useState<string | null>(null)
@@ -261,6 +263,7 @@ export function GalleryPage() {
   const fabRef = useRef<HTMLButtonElement>(null)
   const speechBubbleRef = useRef<HTMLButtonElement>(null)
   const startLabelRef = useRef<HTMLDivElement>(null)
+  const coRunEntryRef = useRef<HTMLButtonElement>(null)
   const armedRef = useRef(armed)
   // armed の最新値を sheet 描画ループから参照するため ref に同期する。
   // eslint-disable-next-line react-hooks/refs
@@ -291,6 +294,14 @@ export function GalleryPage() {
     }
     setBlinkSignal(s => s + 1)
   }, [view, armed])
+
+  // armed 中は nav アイコン (list/map/profile) が隠れるのに合わせ、map 上に居残る
+  // MapJoystick (translate/rotate 切替の円) も隠す。armed-backdrop が透明なため
+  // CSS で明示的に消さないと取り残されて見えてしまう。
+  useEffect(() => {
+    document.body.classList.toggle('gallery-armed', armed)
+    return () => document.body.classList.remove('gallery-armed')
+  }, [armed])
 
   // パネル中身は初めて開かれるまで mount しない (初回マウント時に run-tile 全件や
   // SettingsPanel が同期描画されてマップ表示が遅れるのを避ける lazy mount)。
@@ -459,7 +470,7 @@ export function GalleryPage() {
   // Position the speech bubble + start label relative to the FAB's actual
   // bounding rect each frame. armed 時は start-label も追従。
   useEffect(() => {
-    if (!activeBubbleText) return
+    if (!activeBubbleText && !armed) return
     let raf = 0
     const tick = () => {
       const fab = fabRef.current
@@ -476,6 +487,12 @@ export function GalleryPage() {
           if (label) {
             label.style.left = `${cx - label.offsetWidth / 2}px`
             label.style.top = `${r.bottom + 18}px`
+          }
+          // ペタンプの顔(FAB)の右隣に「友達と走る」アイコン+ラベルを縦中央で並べる。
+          const coRun = coRunEntryRef.current
+          if (coRun) {
+            coRun.style.left = `${r.right + 14}px`
+            coRun.style.top = `${r.top + r.height / 2 - coRun.offsetHeight / 2}px`
           }
         }
       }
@@ -508,17 +525,32 @@ export function GalleryPage() {
       // Navigation to /record is performed by the overlay when the iris phase begins.
       return
     }
-    // 別groupにいる場合は GPS 焦点へジャンプしつつ、同じタップで arm まで進める
+    // タップで現在位置へジャンプしつつ、同じタップで arm まで進める
     // (旧仕様は2タップ必要だったが、1タップで record 確認モーダルへ)。
-    // homeGroup があるケース: home へ切替えるだけで home スケールになる。
-    // containingRealGroup ケース: group identity は維持しつつ camera を home
-    // スケールに flyTo (FocusGPS が signal 変化で flyTo を発火する)。
+    // group identity を更新: home があれば home、なければ GPS を含む実 group へ。
     if (homeGroup) {
       if (currentGroupId !== 'home') setCurrentGroupId('home')
     } else if (containingRealGroup) {
       if (currentGroupId !== containingRealGroup.id) setCurrentGroupId(containingRealGroup.id)
-      setFocusGPSSignal(s => s + 1)
     }
+    // 現在位置へ flyTo。光学的中心が画面中心ではなく FAB(顔) の中心に来るよう
+    // padding を計算して渡す (padding は viewport を縮めて中心をずらすので maxBounds 下でも効く)。
+    // home/real どちらのケースでも必ず発火させる (FocusGPS が signal 変化で flyTo)。
+    const fab = fabRef.current
+    if (fab) {
+      const rr = fab.getBoundingClientRect()
+      const dx = rr.left + rr.width / 2 - window.innerWidth / 2
+      const dy = rr.top + rr.height / 2 - window.innerHeight / 2
+      // 光学的中心 = (left + (W-right))/2, (top + (H-bottom))/2。
+      // これを (W/2+dx, H/2+dy) にしたいので left-right=2dx, top-bottom=2dy。
+      setGpsFocusPadding({
+        top: Math.max(0, 2 * dy),
+        bottom: Math.max(0, -2 * dy),
+        left: Math.max(0, 2 * dx),
+        right: Math.max(0, -2 * dx),
+      })
+    }
+    setFocusGPSSignal(s => s + 1)
     setArmed(true)
     setView('map')
   }
@@ -549,7 +581,6 @@ export function GalleryPage() {
             <GalleryLayers
               runs={runs}
               dots={dots}
-              currentPosition={initialCenter ?? null}
               namedPlaces={namedPlaces}
               onPickPlace={setSelectedPlace}
             />
@@ -564,6 +595,7 @@ export function GalleryPage() {
               signal={focusGPSSignal}
               center={initialCenter ?? null}
               zoom={HOME_FIXED_ZOOM}
+              padding={gpsFocusPadding}
             />
             <GroupEdgeIndicator
               currentGroup={currentGroup}
@@ -657,16 +689,21 @@ export function GalleryPage() {
         </button>
       )}
       {armed && <div ref={startLabelRef} className="start-label">TAP TO START</div>}
-      {armed && (
+      {armed && user && (
         <button
+          ref={coRunEntryRef}
           type="button"
           className="co-run-entry-btn"
           onClick={(e) => {
             e.stopPropagation()
             useCoRunStore.getState().openPicker()
           }}
+          aria-label="友達と走る"
         >
-          友達と走る
+          <span className="co-run-entry-icon">
+            <Icon icon="lucide:user-plus" />
+          </span>
+          <span className="co-run-entry-label">友達と走る</span>
         </button>
       )}
 
