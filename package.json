@@ -17,6 +17,7 @@
     "@capacitor/app": "^7.1.2",
     "@capacitor/browser": "^7.0.5",
     "@capacitor/core": "^7.6.4",
+    "@capacitor/geolocation": "^7.1.8",
     "@capacitor/ios": "^7.6.4",
     "@deck.gl/mapbox": "^9.3.2",
     "@google/genai": "^2.0.1",

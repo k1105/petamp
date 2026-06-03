@@ -1,5 +1,6 @@
 import { useRef, useCallback } from 'react'
 import { useMapStore } from '../store/useMapStore'
+import { REPLAY_SPEED } from '../utils/replaySpeed'
 
 export function useAnimation() {
   const { currentTime, isPlaying, duration, setCurrentTime, setIsPlaying, setDuration } = useMapStore()
@@ -21,7 +22,8 @@ export function useAnimation() {
       if (lastFrameTimeRef.current === null) {
         lastFrameTimeRef.current = now
       }
-      const delta = (now - lastFrameTimeRef.current) / 1000
+      // ラン終了後のループ再生 (RunResultPage) と同じ速さで動点を進める
+      const delta = ((now - lastFrameTimeRef.current) / 1000) * REPLAY_SPEED
       lastFrameTimeRef.current = now
 
       const store = useMapStore.getState()

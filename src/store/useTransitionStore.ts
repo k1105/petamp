@@ -17,6 +17,8 @@ interface State {
   origin: { x: number; y: number } | null
   areaName: string | null
   runId: string | null
+  /** 「一緒に走る」セッション経由の /record か。null ならソロ。 */
+  sessionId: string | null
   /** onboarding → /record 経由かどうか。初回チュートリアル popup の出し分けに使う。 */
   fromOnboarding: boolean
 }
@@ -25,6 +27,7 @@ interface Actions {
   startRecord: (
     origin: { x: number; y: number },
     areaName: string | null,
+    sessionId?: string | null,
     opts?: { fromOnboarding?: boolean },
   ) => void
   startRunDetail: (origin: { x: number; y: number }, runId: string) => void
@@ -37,18 +40,20 @@ export const useTransitionStore = create<State & Actions>(set => ({
   origin: null,
   areaName: null,
   runId: null,
+  sessionId: null,
   fromOnboarding: false,
-  startRecord: (origin, areaName, opts) =>
+  startRecord: (origin, areaName, sessionId, opts) =>
     set({
       phase: 'expanding',
       origin,
       areaName,
       runId: null,
+      sessionId: sessionId ?? null,
       fromOnboarding: opts?.fromOnboarding ?? false,
     }),
   startRunDetail: (origin, runId) =>
-    set({ phase: 'run-expand', origin, areaName: null, runId, fromOnboarding: false }),
+    set({ phase: 'run-expand', origin, areaName: null, runId, sessionId: null, fromOnboarding: false }),
   setPhase: (phase) => set({ phase }),
   reset: () =>
-    set({ phase: 'idle', origin: null, areaName: null, runId: null, fromOnboarding: false }),
+    set({ phase: 'idle', origin: null, areaName: null, runId: null, sessionId: null, fromOnboarding: false }),
 }))

@@ -15,11 +15,17 @@ export async function ensureFreshAuth(auth: SpotifyAuth): Promise<SpotifyAuth> {
 // payload is an episode (we only handle tracks).
 // Throws on auth/network errors; caller is responsible for catching and
 // rotating the auth on 401.
+// `Accept-Language: en` asks Spotify to send canonical English artist/track
+// names regardless of the user's account locale. Without it, ja-JP users see
+// "ザ・ビートルズ" instead of "The Beatles", which kills GetSongBPM lookups.
 export async function fetchCurrentlyPlaying(
   auth: SpotifyAuth,
 ): Promise<SpotifyTrackSnapshot | null> {
   const res = await fetch(`${API_BASE}/me/player/currently-playing`, {
-    headers: { Authorization: `Bearer ${auth.accessToken}` },
+    headers: {
+      Authorization: `Bearer ${auth.accessToken}`,
+      'Accept-Language': 'en',
+    },
   })
   if (res.status === 204) return null
   if (res.status === 401) throw new SpotifyAuthError('access token rejected')

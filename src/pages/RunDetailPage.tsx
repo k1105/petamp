@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { PathLayer } from '@deck.gl/layers'
 import { ScatterplotLayer } from '@deck.gl/layers'
@@ -8,12 +8,12 @@ import { BaseMap } from '../components/map/BaseMap'
 import { useMap, useMapZoom } from '../components/map/MapContext'
 import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AreaLabel } from '../components/map/AreaLabel'
-import { AnimationControl } from '../components/detail/AnimationControl'
 import { PathDebugPanel } from '../components/recording/PathDebugPanel'
 import { useAnimation } from '../hooks/useAnimation'
 import { useElevationStats } from '../hooks/useElevationStats'
 import { getPaletteForRun, hexToRgb, type Palette } from '../utils/themePalettes'
 import { useRunStore } from '../store/useRunStore'
+import { useMapStore } from '../store/useMapStore'
 import { useSocialFeedStore } from '../store/useSocialFeedStore'
 import { useAuth } from '../hooks/useAuth'
 import { positionAtTime, relAltitudeAtTime } from '../hooks/useGalleryAnimation'
@@ -140,30 +140,11 @@ export function RunDetailPage() {
   const followedUsers = useSocialFeedStore(s => s.followedUsers)
   const { user: currentUser } = useAuth()
   const [runsLoaded, setRunsLoaded] = useState(false)
-  const [controlsVisible, setControlsVisible] = useState(true)
+  // 画面中央タップ時に一瞬出す再生/停止アイコン。n はアニメーション再生用の更新キー。
+  const [tapFlash, setTapFlash] = useState<{ icon: 'play' | 'pause'; n: number } | null>(null)
+  const tapFlashNRef = useRef(0)
+  const tapFlashTimerRef = useRef<number | null>(null)
   const notationEnabled = useSettingsStore(s => s.experimental.notation)
-
-  // 画面タッチ中はシークバーを表示し、一定時間操作がなければフェードアウトする
-  useEffect(() => {
-    const HIDE_DELAY_MS = 2500
-    let timerId: number | null = null
-    const showThenScheduleHide = () => {
-      setControlsVisible(true)
-      if (timerId !== null) window.clearTimeout(timerId)
-      timerId = window.setTimeout(() => {
-        setControlsVisible(false)
-        timerId = null
-      }, HIDE_DELAY_MS)
-    }
-    document.addEventListener('pointerdown', showThenScheduleHide)
-    document.addEventListener('pointermove', showThenScheduleHide)
-    showThenScheduleHide()
-    return () => {
-      document.removeEventListener('pointerdown', showThenScheduleHide)
-      document.removeEventListener('pointermove', showThenScheduleHide)
-      if (timerId !== null) window.clearTimeout(timerId)
-    }
-  }, [])
 
   // 直リンクでrunsが空のままならロード（next/prev算出 + 404判定用）
   useEffect(() => {
@@ -176,7 +157,7 @@ export function RunDetailPage() {
     loadRuns().finally(() => setRunsLoaded(true))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const { currentTime, isPlaying, duration, setDuration, play, stop, seekTo, reset } = useAnimation()
+  const { currentTime, isPlaying, duration, setDuration, play, stop, reset } = useAnimation()
 
   // 終端到達 → 5秒待って先頭から再生
   useEffect(() => {
@@ -187,6 +168,65 @@ export function RunDetailPage() {
     }, 5000)
     return () => window.clearTimeout(id)
   }, [isPlaying, currentTime, duration, reset, play])
+
+  // ページ表示時は再生をデフォルトにする (run ロード & duration 確定で自動再生)
+  useEffect(() => {
+    if (duration <= 0) return
+    play()
+    return () => stop()
+  }, [run?.id, duration, play, stop])
+
+  // 画面中央に再生/停止アイコンを一瞬表示する
+  const showTapFlash = useCallback((icon: 'play' | 'pause') => {
+    tapFlashNRef.current += 1
+    setTapFlash({ icon, n: tapFlashNRef.current })
+    if (tapFlashTimerRef.current !== null) window.clearTimeout(tapFlashTimerRef.current)
+    tapFlashTimerRef.current = window.setTimeout(() => setTapFlash(null), 600)
+  }, [])
+
+  // 再生/停止トグル。最新状態は store から直接読む（毎フレームの再subscribeを避ける）
+  const togglePlayback = useCallback(() => {
+    const s = useMapStore.getState()
+    if (s.isPlaying) {
+      stop()
+      showTapFlash('pause')
+    } else {
+      if (s.duration > 0 && s.currentTime >= s.duration) reset()
+      play()
+      showTapFlash('play')
+    }
+  }, [play, stop, reset, showTapFlash])
+
+  // 画面中央タップで再生/停止を切り替える。ドラッグ(地図オービット)や長押し、
+  // ボタン類・吹き出し・デバッグパネル上のタップはトグル対象外。
+  useEffect(() => {
+    let start: { x: number; y: number; t: number } | null = null
+    const onDown = (e: PointerEvent) => {
+      start = { x: e.clientX, y: e.clientY, t: e.timeStamp }
+    }
+    const onUp = (e: PointerEvent) => {
+      const s = start
+      start = null
+      if (!s) return
+      if (Math.hypot(e.clientX - s.x, e.clientY - s.y) > 10) return
+      if (e.timeStamp - s.t > 500) return
+      const el = e.target as HTMLElement | null
+      if (el?.closest('button, a, input, .run-detail-meta, .run-detail-bubble, .run-detail-bubble-backdrop, .debug-overlay')) return
+      togglePlayback()
+    }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('pointerup', onUp)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('pointerup', onUp)
+    }
+  }, [togglePlayback])
+
+  // アンマウント時に flash タイマーを後始末
+  useEffect(() => () => {
+    if (tapFlashTimerRef.current !== null) window.clearTimeout(tapFlashTimerRef.current)
+  }, [])
+
   const acceptedRunPoints = useMemo(() => acceptedPoints(run?.trackPoints ?? []), [run])
   const { gain } = useElevationStats(acceptedRunPoints)
 
@@ -399,16 +439,11 @@ export function RunDetailPage() {
         </div>
       </div>
 
-      <div className={`run-detail-control${controlsVisible ? '' : ' is-hidden'}`}>
-        <AnimationControl
-          currentTime={currentTime}
-          duration={duration}
-          isPlaying={isPlaying}
-          onPlay={play}
-          onStop={stop}
-          onSeek={seekTo}
-        />
-      </div>
+      {tapFlash && (
+        <div className="run-detail-tap-flash" key={tapFlash.n}>
+          <Icon icon={tapFlash.icon === 'play' ? 'lucide:play' : 'lucide:pause'} />
+        </div>
+      )}
 
       {debugOpen && (
         <PathDebugPanel

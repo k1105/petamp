@@ -210,8 +210,8 @@ export function NotationChatPage() {
     if (!sessionEnded || closedRef.current) return
     if (!service) return
     closedRef.current = true
-    void dialogue.close().then(ep => {
-      if (ep) setNewEpisodic(ep)
+    void dialogue.close().then(res => {
+      if (res) setNewEpisodic(res.episodic)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionEnded, service])

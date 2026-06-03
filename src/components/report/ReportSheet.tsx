@@ -3,6 +3,7 @@ import { Icon } from '@iconify/react'
 import { Capacitor } from '@capacitor/core'
 import type { CharacterId } from '../../character/domain/character'
 import type { DialogueTurn, ThreadId, TurnId } from '../../character/domain/dialogue'
+import type { PersistNameProposalResult } from '../../character/logs/promptLog'
 import { isHiddenTriggerContent } from '../../utils/runChatPrompts'
 import { submitReport } from '../../reports/reportStore'
 import type { Report } from '../../reports/types'
@@ -14,6 +15,8 @@ interface Props {
   characterId: CharacterId
   threadId: ThreadId | null
   turns: DialogueTurn[]
+  /** このスレッドの命名永続化結果。対話が締まっていれば付く。Report に同梱する。 */
+  naming?: PersistNameProposalResult | null
   locationPath: string
 }
 
@@ -26,6 +29,7 @@ export function ReportSheet({
   characterId,
   threadId,
   turns,
+  naming,
   locationPath,
 }: Props) {
   const [message, setMessage] = useState('')
@@ -74,6 +78,7 @@ export function ReportSheet({
       message: message.trim(),
       selectedTurnIds: Array.from(selected),
       turns: visibleTurns,
+      naming: naming ?? null,
       client: {
         userAgent: navigator.userAgent,
         appVersion: pkg.version,

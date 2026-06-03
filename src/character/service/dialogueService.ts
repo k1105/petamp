@@ -3,7 +3,16 @@ import type { DialogueTurn, ThreadId, TurnRef } from '../domain/dialogue'
 import type { EpisodicMemory, RelationalState } from '../domain/memory'
 import type { RunSummary } from '../domain/runSummary'
 import type { LLMReply } from '../llm/client'
-import type { PromptLogId } from '../logs/promptLog'
+import type { PersistNameProposalResult, PromptLogId } from '../logs/promptLog'
+
+/**
+ * closeThread の結果。要約から作った Episodic と、命名(nameProposal)の永続化結果。
+ * naming で「命名が走ったか / NamedPlace を保存できたか / スキップ理由」を後段に伝える。
+ */
+export interface ThreadCloseResult {
+  episodic: EpisodicMemory
+  naming: PersistNameProposalResult
+}
 
 export interface SendInput {
   characterId: CharacterId
@@ -42,7 +51,7 @@ export interface DialogueService {
   send(input: SendInput): Promise<DialogueResult>
   /**
    * スレッドを終了して要約→Episodic化を走らせる。
-   * 生成された EpisodicMemory を返す(turn が0件 / LLM失敗時は null)。
+   * 生成された Episodic と命名結果を返す(turn が0件 / LLM失敗時は null)。
    * runSummary と runPoints を渡すと、観測事実をもとにより具体的な日記になり、
    * かつ命名 (nameProposal) があれば NamedPlace として永続化される。
    */
@@ -50,7 +59,7 @@ export interface DialogueService {
     threadId: ThreadId,
     runSummary?: RunSummary,
     runPoints?: ReadonlyArray<{ lat: number; lng: number }>,
-  ): Promise<EpisodicMemory | null>
+  ): Promise<ThreadCloseResult | null>
   /**
    * スレッドを破棄。turns/promptLog/threadを削除し、関係値を session 開始時の
    * snapshot に巻き戻す。snapshot が null の場合は freshRelational に戻す。

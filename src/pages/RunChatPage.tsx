@@ -31,6 +31,7 @@ import {
 import type {
   DialogueTurn,
   EpisodicMemory,
+  PersistNameProposalResult,
   RelationalState,
   RunSegment,
   RunSummary,
@@ -103,6 +104,7 @@ export function RunChatPage() {
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
   const [newEpisodic, setNewEpisodic] = useState<EpisodicMemory | null>(null)
+  const [naming, setNaming] = useState<PersistNameProposalResult | null>(null)
   const { user } = useAuth()
   // 最終ペタンプ発話をユーザが読んでから ending 画面に遷移するためのフラグ。
   // sessionEnded だけで遷移すると CLOSING_NOTE 込みの最終発話を見せる前に画面が消える。
@@ -165,6 +167,10 @@ export function RunChatPage() {
     () => (run ? [{ kind: 'run' as const, id: run.id }] : undefined),
     [run],
   )
+  const runPoints = useMemo(
+    () => (run ? acceptedPoints(run.trackPoints) : undefined),
+    [run],
+  )
   const initialBounds = useMemo(():
     | [[number, number], [number, number]]
     | undefined => {
@@ -185,6 +191,7 @@ export function RunChatPage() {
     memory,
     threadId: handoffThreadId,
     defaultRunSummary: runSummary,
+    defaultRunPoints: runPoints,
     defaultRefs: refs,
   })
 
@@ -218,11 +225,16 @@ export function RunChatPage() {
   useEffect(() => {
     runSummaryRef.current = runSummary
   }, [runSummary])
+  const runPointsRef = useRef(runPoints)
+  useEffect(() => {
+    runPointsRef.current = runPoints
+  }, [runPoints])
   useEffect(() => {
     return () => {
       if (discardedRef.current || closedRef.current) return
       const tid = threadIdRef.current
-      if (service && tid) void service.closeThread(tid, runSummaryRef.current)
+      if (service && tid)
+        void service.closeThread(tid, runSummaryRef.current, runPointsRef.current)
     }
   }, [service])
 
@@ -241,8 +253,11 @@ export function RunChatPage() {
     if (!sessionEnded || closedRef.current) return
     if (!service) return
     closedRef.current = true
-    void dialogue.close().then(ep => {
-      if (ep) setNewEpisodic(ep)
+    void dialogue.close().then(res => {
+      if (res) {
+        setNewEpisodic(res.episodic)
+        setNaming(res.naming)
+      }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionEnded, service])
@@ -402,14 +417,6 @@ export function RunChatPage() {
             </footer>
           ) : (
             <footer className="chat-finish-area">
-              {user && (
-                <button
-                  className="chat-report-btn"
-                  onClick={() => setReportOpen(true)}
-                >
-                  報告する
-                </button>
-              )}
               <button
                 className="chat-ending-btn"
                 onClick={() => setEndingDismissed(true)}
@@ -428,6 +435,7 @@ export function RunChatPage() {
           characterId={petampCharacter.id}
           threadId={dialogue.threadId}
           turns={dialogue.messages}
+          naming={naming}
           locationPath={location.pathname}
         />
       )}
@@ -441,6 +449,14 @@ export function RunChatPage() {
             <div className="chat-ending-summary chat-ending-loading">
               きょうのこと、おぼえてるね…
             </div>
+          )}
+          {user && (
+            <button
+              className="chat-report-btn"
+              onClick={() => setReportOpen(true)}
+            >
+              報告する
+            </button>
           )}
           <button
             className="chat-ending-btn"

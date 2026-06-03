@@ -104,12 +104,15 @@ export function ArchipelagoMapView({ layers, fitBbox, background = 'rgb(30, 110,
       const h = container.clientHeight
       if (w === 0 || h === 0) return
       try {
+        // bearing を渡して、ドラッグの前後左右をカメラの向き基準にする。
+        // (pitch は渡さない。透視で上下の移動量が不均一にならないよう平面で unproject する)
         const vp = new WebMercatorViewport({
           width: w,
           height: h,
           longitude: vs.longitude,
           latitude: vs.latitude,
           zoom: vs.zoom,
+          bearing: vs.bearing,
         })
         const [lng, lat] = vp.unproject([
           w / 2 + dx * JOYSTICK_PAN_SPEED,

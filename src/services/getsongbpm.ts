@@ -56,12 +56,50 @@ function parseBeatsPerBar(raw: number | string | undefined): number {
   return 4
 }
 
+// Spotify often appends provenance suffixes to track titles that GetSongBPM's
+// canonical entries don't include. Strip the common ones so a track like
+// "Bohemian Rhapsody - Remastered 2011" still matches "Bohemian Rhapsody".
+// Order matters: longer/more specific patterns first.
+const TITLE_SUFFIX_PATTERNS: RegExp[] = [
+  / - From ['"].+?['"]$/i,                      // - From "Movie"
+  / - From The .+$/i,                           // - From The Movie X
+  / - Live at .+$/i,                            // - Live at Wembley
+  / - Live in .+$/i,                            // - Live in Tokyo
+  / - Live( Version)?$/i,                       // - Live / - Live Version
+  / - \d{4} Remaster(ed)?$/i,                   // - 2011 Remastered
+  / - Remastered( \d{4})?$/i,                   // - Remastered 2011
+  / - (Single|Album|Acoustic|Stereo|Mono|Radio|Extended|Bonus|Demo|Original) (Version|Edit|Mix|Track|Cut)$/i,
+  / - (Single Version|Album Version|Acoustic|Stereo Version|Mono Version|Radio Edit|Extended Mix|Bonus Track|Demo|Original Version)$/i,
+  / \((feat\.|with) .+?\)$/i,                    // (feat. X) / (with X)
+  / \(Remastered( \d{4})?\)$/i,                  // (Remastered 2011)
+  / \(\d{4} Remaster(ed)?\)$/i,                  // (2011 Remastered)
+  / \((Live|Single Version|Album Version|Acoustic|Demo|Original Version)\)$/i,
+]
+
+function cleanTrackTitle(raw: string): string {
+  let s = raw.trim()
+  // Apply repeatedly so chains like "Title - Remastered (feat. X)" collapse.
+  for (let i = 0; i < 3; i++) {
+    let changed = false
+    for (const re of TITLE_SUFFIX_PATTERNS) {
+      const next = s.replace(re, '').trim()
+      if (next !== s) {
+        s = next
+        changed = true
+      }
+    }
+    if (!changed) break
+  }
+  return s
+}
+
 // Returns enriched song info, or null if the song isn't in GetSongBPM's catalog.
 export async function lookupSongInfo(name: string, artist: string): Promise<SongInfo | null> {
+  const cleanedName = cleanTrackTitle(name)
   const params = new URLSearchParams({
     api_key: apiKey(),
     type: 'both',
-    lookup: `song:${name} artist:${artist}`,
+    lookup: `song:${cleanedName} artist:${artist}`,
     limit: '1',
   })
   const res = await fetch(`${API_BASE}/search/?${params.toString()}`)

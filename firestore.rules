@@ -67,5 +67,37 @@ service cloud.firestore {
       allow delete: if isSignedIn()
         && request.auth.uid in resource.data.members;
     }
+
+    // 一緒に走るセッション (coRuns/{sessionId})。
+    // GPS は同期しない。開始/終了の同期と参加者の状態共有のためだけに存在する。
+    match /coRuns/{sessionId} {
+      // 取得/クエリ: 参加者のみ。招待リスナーは
+      // where('memberUids','array-contains', uid) && where('status','==','lobby')。
+      allow get, list: if isSignedIn()
+        && request.auth.uid in resource.data.memberUids;
+
+      // 作成: 呼び出し元が host かつ memberUids に含まれ、status は lobby 始まり。
+      allow create: if isSignedIn()
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.memberUids is list
+        && request.resource.data.hostUid in request.resource.data.memberUids
+        && request.resource.data.status == 'lobby';
+
+      // 更新: 参加者のみ。membership は不変。
+      // status を変更できるのは host だけ (開始/終了ゲートのフリップ)。
+      // 非 host は自分の members エントリ更新のみ (status 据え置き)。
+      allow update: if isSignedIn()
+        && request.auth.uid in resource.data.memberUids
+        && request.resource.data.memberUids == resource.data.memberUids
+        && request.resource.data.hostUid == resource.data.hostUid
+        && (
+          resource.data.hostUid == request.auth.uid
+          || request.resource.data.status == resource.data.status
+        );
+
+      // 削除: host のみ。
+      allow delete: if isSignedIn()
+        && resource.data.hostUid == request.auth.uid;
+    }
   }
 }

@@ -14,7 +14,15 @@ function loadStored(): StoredCache {
     if (!raw) return {}
     const parsed = JSON.parse(raw) as unknown
     if (typeof parsed === 'object' && parsed !== null) {
-      return parsed as StoredCache
+      // Drop `null` (previous misses) on load so improvements to the lookup
+      // logic — e.g., Accept-Language: en, suffix stripping — get a chance to
+      // retry without forcing users to manually clear localStorage.
+      // Successful BPM hits are preserved (track BPM doesn't change).
+      const cleaned: StoredCache = {}
+      for (const [k, v] of Object.entries(parsed as StoredCache)) {
+        if (v !== null) cleaned[k] = v
+      }
+      return cleaned
     }
   } catch {
     // ignore malformed cache

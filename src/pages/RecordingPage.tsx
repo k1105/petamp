@@ -24,6 +24,9 @@ import {acceptedPoints, accuracyGate, warmupGate, minDistanceGate, maxSpeedGate}
 import {fetchAreaName} from "../hooks/useReverseGeocode";
 import {fetchWeatherForCoords} from "../utils/fetchWeather";
 import {RecordingDebugPanel} from "../components/recording/RecordingDebugPanel";
+import {CoRunBanner} from "../components/corun/CoRunBanner";
+import {CoRunWaitOverlay} from "../components/corun/CoRunWaitOverlay";
+import {useCoRunStore} from "../store/useCoRunStore";
 import type {Run, TrackPoint} from "../types";
 
 const MIN_ZOOM = 12.5;
@@ -324,6 +327,20 @@ export function RecordingPage() {
   const transitionPhase = useTransitionStore(s => s.phase);
   // マウント時点で flag を snapshot。reset() 後では失われるため。
   const [fromOnboarding] = useState(() => useTransitionStore.getState().fromOnboarding);
+  // 「一緒に走る」セッション経由か。reset() で失われる前に snapshot する。
+  const [coRunSessionId] = useState(() => useTransitionStore.getState().sessionId);
+  const isCoRun = coRunSessionId !== null;
+  const markRunning = useCoRunStore(s => s.markRunning);
+  const markFinished = useCoRunStore(s => s.markFinished);
+  const leaveCoRun = useCoRunStore(s => s.leave);
+  // FINISH 後の終了ゲート待機。null でない間 CoRunWaitOverlay を出す。
+  const [endGate, setEndGate] = useState<{origin: {x: number; y: number}; runId: string} | null>(null);
+
+  // 録画開始時に自分の状態を 'running' にして、相手のバナー/待機画面に反映する。
+  useEffect(() => {
+    if (isCoRun) void markRunning();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCoRun]);
 
   // Web (非 native) で geolocation が拒否されているとランは始められない。
   // Permissions API の状態 変化を購読し、拒否時はモーダルで案内する。
@@ -371,7 +388,9 @@ export function RecordingPage() {
     const origin = rect
       ? {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2}
       : {x: window.innerWidth / 2, y: window.innerHeight - 80};
-    startPostRunLoading(origin);
+    // 一緒に走るモードでは「全員のゴール待ち」を先に挟むので、緑のローディングは
+    // ゲートが開いてから出す。ソロは従来どおり即座に覆う。
+    if (!isCoRun) startPostRunLoading(origin);
 
     let points = trackPoints;
     if (isRecording) {
@@ -379,7 +398,8 @@ export function RecordingPage() {
     }
     if (points.length === 0) {
       // 記録が空のときは対話画面に進まないので loading を解除して戻す。
-      resetPostRunLoading();
+      if (isCoRun) void leaveCoRun();
+      else resetPostRunLoading();
       navigate("/");
       return;
     }
@@ -404,11 +424,19 @@ export function RecordingPage() {
       weather,
     };
     await addRun(run);
+    if (isCoRun && coRunSessionId) {
+      // 終了ゲート: 自分のゴールを記録し、全員ゴールするまで待機オーバーレイで待つ。
+      // GPS/レコードは同期しないので、保存は通常どおり完了済み。
+      await markFinished(run.id);
+      setEndGate({origin, runId: run.id});
+      return;
+    }
     navigate(`/run/${run.id}/result`);
   };
 
   return (
     <div className="page">
+      {isCoRun && <CoRunBanner />}
       <div className="map-container">
         {initialCenter !== undefined && (
           <BaseMap
@@ -566,6 +594,16 @@ export function RecordingPage() {
           showRawTube={showRawTube}
           onToggleRawTube={setShowRawTube}
           onClose={() => setRecordingDebugOpen(false)}
+        />
+      )}
+
+      {endGate && (
+        <CoRunWaitOverlay
+          onProceed={() => {
+            // 全員ゴール (or 自己タイムアウト) → N 人分の軌跡を合成再生する画面へ。
+            // co-run セッションはここではクリアしない (合成再生画面が members を使う)。
+            navigate(`/co-run/${coRunSessionId}/result`, {state: {myRunId: endGate.runId}});
+          }}
         />
       )}
     </div>

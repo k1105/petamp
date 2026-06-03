@@ -5,6 +5,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   setDoc,
 } from 'firebase/firestore'
@@ -74,4 +75,17 @@ export async function cloudListRunsOf(uid: string): Promise<Run[]> {
   }
   const snap = await getDocs(collection(db, 'users', uid, 'runs'))
   return snap.docs.map(d => d.data() as Run).filter(r => !!r && typeof r.id === 'string')
+}
+
+/** 指定ユーザーの単一ランを取得する (一緒に走るモードの合成再生で他参加者の軌跡を読む)。 */
+export async function cloudGetRunOf(uid: string, runId: string): Promise<Run | null> {
+  if (Capacitor.isNativePlatform()) {
+    const { snapshot } = await FirebaseFirestore.getDocument({
+      reference: `users/${uid}/runs/${runId}`,
+    })
+    const data = snapshot.data as Run | null | undefined
+    return data && typeof data.id === 'string' ? data : null
+  }
+  const snap = await getDoc(doc(db, 'users', uid, 'runs', runId))
+  return snap.exists() ? (snap.data() as Run) : null
 }

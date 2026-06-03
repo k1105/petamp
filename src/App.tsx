@@ -4,6 +4,7 @@ import { GalleryPage } from './pages/GalleryPage'
 import { RecordingPage } from './pages/RecordingPage'
 import { RunDetailPage } from './pages/RunDetailPage'
 import { RunResultPage } from './pages/RunResultPage'
+import { CoRunResultPage } from './pages/CoRunResultPage'
 import { ShapeEditorPage } from './pages/ShapeEditorPage'
 import { JoystickEditorPage } from './pages/JoystickEditorPage'
 import { RunChatPage } from './pages/RunChatPage'
@@ -21,6 +22,9 @@ import { useSpotifyDeepLink } from './hooks/useSpotifyDeepLink'
 import { TransitionOverlay } from './components/transition/TransitionOverlay'
 import { LoadingScreen } from './components/LoadingScreen'
 import { PostRunLoadingScreen } from './components/PostRunLoadingScreen'
+import { CoRunLobby } from './components/corun/CoRunLobby'
+import { CoRunInviteSheet } from './components/corun/CoRunInviteSheet'
+import { useCoRunInviteListener } from './hooks/useCoRunInviteListener'
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useCharacterMemorySync } from './hooks/useCharacterMemorySync'
 import { useEnsureUserDoc } from './hooks/useEnsureUserDoc'
@@ -103,6 +107,7 @@ function App() {
   useSpotifyPlaybackPoller()
   useBpmSyncedBob()
   useSpotifyDeepLink()
+  useCoRunInviteListener()
   const bootReady = useBootReady()
   return (
     <BrowserRouter>
@@ -111,6 +116,7 @@ function App() {
         <Route path="/record" element={<RecordingPage />} />
         <Route path="/run/:id" element={<RunDetailPage />} />
         <Route path="/run/:id/result" element={<RunResultPage />} />
+        <Route path="/co-run/:sessionId/result" element={<CoRunResultPage />} />
         <Route path="/run/:id/chat" element={<RunChatPage />} />
         <Route path="/run/:id/notation" element={<NotationChatPage />} />
         <Route path="/shape-editor" element={<ShapeEditorPage />} />
@@ -126,6 +132,8 @@ function App() {
       </Routes>
       <TransitionOverlay />
       <PostRunLoadingScreen />
+      <CoRunLobby />
+      <CoRunInviteSheet />
       <LoadingScreen ready={bootReady} />
     </BrowserRouter>
   )

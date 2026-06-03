@@ -34,6 +34,7 @@ import { useHomePhrase } from '../hooks/useHomePhrase'
 import { useMetaballSheet } from '../hooks/useMetaballSheet'
 import { useJoystickStore } from '../store/useJoystickStore'
 import { useTransitionStore } from '../store/useTransitionStore'
+import { useCoRunStore } from '../store/useCoRunStore'
 import { useNamedPlaces } from '../hooks/useNamedPlaces'
 import type { DotPosition } from '../hooks/useGalleryAnimation'
 import type { Run } from '../types'
@@ -656,6 +657,18 @@ export function GalleryPage() {
         </button>
       )}
       {armed && <div ref={startLabelRef} className="start-label">TAP TO START</div>}
+      {armed && (
+        <button
+          type="button"
+          className="co-run-entry-btn"
+          onClick={(e) => {
+            e.stopPropagation()
+            useCoRunStore.getState().openPicker()
+          }}
+        >
+          友達と走る
+        </button>
+      )}
 
       <canvas ref={canvasRef} className="metaball-canvas" />
 

@@ -2517,46 +2517,6 @@ body.map-joystick-fab-out .bottom-sheet {
   color: var(--text-muted);
 }
 
-/* ---- Animation control ---- */
-.animation-control {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-}
-
-.animation-play-btn {
-  width: 40px;
-  height: 40px;
-  background: transparent;
-  backdrop-filter: none;
-  border: none;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 24px;
-}
-
-.animation-play-btn:hover {
-  background: transparent;
-}
-.animation-play-btn:active {
-  transform: scale(0.94);
-}
-
-.animation-play-btn svg {
-  font-size: 24px;
-}
-
-.animation-seek {
-  width: 280px;
-  max-width: 100%;
-  accent-color: #fff;
-  height: 4px;
-}
-
 /* ---- Misc ---- */
 .btn-ghost {
   background: none;
@@ -3765,20 +3725,38 @@ body.map-joystick-fab-out .bottom-sheet {
   font-variant-numeric: tabular-nums;
 }
 
-/* RunDetailPage: bottom-center playback control (no dark backdrop). */
-.run-detail-control {
-  position: absolute;
+/* 画面中央タップで再生/停止した時に一瞬出すアイコン */
+.run-detail-tap-flash {
+  position: fixed;
+  top: 50%;
   left: 50%;
-  bottom: calc(28px + var(--safe-bottom));
-  transform: translateX(-50%);
-  z-index: 20;
-  pointer-events: auto;
-  transition: opacity 0.3s ease;
+  z-index: 30;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  animation: run-detail-tap-flash 0.6s ease-out forwards;
 }
 
-.run-detail-control.is-hidden {
-  opacity: 0;
-  pointer-events: none;
+.run-detail-tap-flash svg {
+  width: 44px;
+  height: 44px;
+}
+
+@keyframes run-detail-tap-flash {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+  25% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.18);
+  }
 }
 
 /* Persistent eye on /run/:id, placed 10dvh above the page bottom + 24px gap.
@@ -5562,4 +5540,255 @@ body.map-joystick-fab-out .bottom-sheet {
 }
 .joystick-editor-anchor-mark-fab {
   background: rgba(0, 100, 255, 0.5);
+}
+
+/* ---- 一緒に走るモード (co-run) ---- */
+
+/* ギャラリー armed 時の「友達と走る」導線 */
+.co-run-entry-btn {
+  position: fixed;
+  left: 50%;
+  bottom: 22vh;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--accent-dim);
+  color: var(--text);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* 共通ボタン */
+.co-run-btn {
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  transition: background 0.15s, opacity 0.15s;
+}
+.co-run-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.co-run-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.co-run-btn-ghost {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+.co-run-btn-block {
+  width: 100%;
+}
+
+.co-run-hint {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+.co-run-error {
+  color: #e2655a;
+  font-size: 13px;
+  margin: 0;
+}
+
+/* フレンド選択 / 待機リスト */
+.co-run-picker,
+.co-run-waiting {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.co-run-friend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.co-run-friend-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.co-run-member-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+}
+.co-run-member-name {
+  color: var(--text);
+  font-size: 14px;
+}
+.co-run-member-state {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.co-run-member-state.co-run-state-ready,
+.co-run-member-state.co-run-state-finished {
+  color: var(--accent);
+}
+.co-run-member-state.co-run-state-declined,
+.co-run-member-state.co-run-state-left {
+  color: #e2655a;
+}
+
+/* 録画中バナー */
+.co-run-banner {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.co-run-banner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: co-run-pulse 1.4s ease-in-out infinite;
+}
+@keyframes co-run-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* 招待受信シート */
+.co-run-invite-sheet {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
+  width: min(92vw, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--surface-raised);
+  border: 1px solid var(--accent);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+.co-run-invite-text {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.co-run-invite-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* 終了ゲート待機オーバーレイ */
+.co-run-wait-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.co-run-wait-card {
+  width: min(92vw, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.co-run-wait-title {
+  color: var(--text);
+  font-size: 16px;
+  text-align: center;
+}
+.co-run-wait-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 合成再生 (CoRunResultPage) の凡例と操作 */
+.co-run-result-legend {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 14px;
+  max-width: 92vw;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.co-run-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.co-run-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.co-run-result-controls {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
+  z-index: 30;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
 }

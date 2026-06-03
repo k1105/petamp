@@ -10,6 +10,7 @@ import { formatDistance, formatElevation, formatDate } from '../utils/formatters
 import { buildRunSummary } from '../utils/runSummary'
 import { loadRun } from '../db/runRepository'
 import { useSettingsStore } from '../store/useSettingsStore'
+import { REPLAY_SPEED } from '../utils/replaySpeed'
 import { useActivePalette } from '../hooks/useActivePalette'
 import { usePostRunLoadingStore } from '../store/usePostRunLoadingStore'
 import {
@@ -29,7 +30,7 @@ const VB_H = 1920
 const PATH_MARGIN_X = 80
 const PATH_MARGIN_TOP = 520
 const PATH_MARGIN_BOTTOM = 320
-const LOOP_SPEED = 60
+const LOOP_SPEED = REPLAY_SPEED
 const STROKE_WIDTH = 10
 const DOT_RADIUS = 22
 

@@ -26,6 +26,7 @@ import type {
   DialogueResult,
   DialogueService,
   SendInput,
+  ThreadCloseResult,
 } from './dialogueService'
 
 export interface DefaultDialogueServiceDeps {
@@ -196,7 +197,7 @@ export class DefaultDialogueService implements DialogueService {
     threadId: ThreadId,
     runSummary?: RunSummary,
     runPoints?: ReadonlyArray<{ lat: number; lng: number }>,
-  ): Promise<EpisodicMemory | null> {
+  ): Promise<ThreadCloseResult | null> {
     const thread = await this.memory.getThread(threadId)
     if (!thread) return null
     const turns = await this.memory.listTurns(threadId)
@@ -306,7 +307,7 @@ export class DefaultDialogueService implements DialogueService {
     await this.memory.putEpisodic(memory)
 
     await this.memory.updateThread({ ...thread, summary })
-    return memory
+    return { episodic: memory, naming: persistResult }
   }
 
   async discardThread(

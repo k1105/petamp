@@ -46,6 +46,7 @@ export type {
   ContextBuilder,
 } from './context/builder'
 export type {
+  PersistNameProposalResult,
   PromptLogEntry,
   PromptLogId,
   PromptLogQuery,

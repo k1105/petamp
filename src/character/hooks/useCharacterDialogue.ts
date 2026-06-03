@@ -5,11 +5,14 @@ import type {
   ThreadId,
   TurnRef,
 } from '../domain/dialogue'
-import type { EpisodicMemory, RelationalState } from '../domain/memory'
+import type { RelationalState } from '../domain/memory'
 import type { RunSummary } from '../domain/runSummary'
 import type { MemoryStore } from '../memory/store'
 import type { PromptLogId } from '../logs/promptLog'
-import type { DialogueService } from '../service/dialogueService'
+import type {
+  DialogueService,
+  ThreadCloseResult,
+} from '../service/dialogueService'
 
 export interface UseCharacterDialogueOptions {
   characterId: CharacterId
@@ -33,8 +36,8 @@ export interface UseCharacterDialogueReturn {
   error: Error | null
   send: (text: string, options?: { extraSystemNote?: string }) => Promise<void>
   rate: (promptLogId: PromptLogId, liked: boolean, note?: string) => Promise<void>
-  /** スレッドを締めて要約を生成。生成された EpisodicMemory を返す。 */
-  close: () => Promise<EpisodicMemory | null>
+  /** スレッドを締めて要約を生成。Episodic と命名結果を返す。 */
+  close: () => Promise<ThreadCloseResult | null>
   /** 直近の応答に対応する PromptLogEntry のID。「このターンのプロンプトを見る」導線用。 */
   lastPromptLogId: PromptLogId | null
 }
@@ -133,8 +136,8 @@ export function useCharacterDialogue(
 
   const close = useCallback(async () => {
     if (!threadId) return null
-    return service.closeThread(threadId, defaultRunSummary)
-  }, [service, threadId, defaultRunSummary])
+    return service.closeThread(threadId, defaultRunSummary, defaultRunPoints)
+  }, [service, threadId, defaultRunSummary, defaultRunPoints])
 
   return {
     messages,
