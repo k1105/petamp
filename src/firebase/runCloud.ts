@@ -32,9 +32,7 @@ async function getUid(): Promise<string | null> {
   return auth.currentUser?.uid ?? null
 }
 
-export async function cloudSaveRun(run: Run): Promise<void> {
-  const uid = await getUid()
-  if (!uid) return
+async function writeRunDoc(uid: string, run: Run): Promise<void> {
   const sanitized = stripForCloud(run)
   if (Capacitor.isNativePlatform()) {
     await FirebaseFirestore.setDocument({
@@ -44,6 +42,36 @@ export async function cloudSaveRun(run: Run): Promise<void> {
     return
   }
   await setDoc(doc(db, 'users', uid, 'runs', run.id), sanitized)
+}
+
+export async function cloudSaveRun(run: Run): Promise<void> {
+  const uid = await getUid()
+  if (!uid) return
+  await writeRunDoc(uid, run)
+}
+
+/**
+ * クラウド保存を「保証」する版。リトライし、最終的に失敗したら throw する。
+ * 「一緒に走る」モードでは相手の端末が users/{uid}/runs/{runId} を読むので、
+ * runId をセッションに公開する前にクラウドへ確実に書けたことを担保する必要がある。
+ * (通常の saveRun は best-effort で失敗を握りつぶすため、ここでは別経路で保証する。)
+ */
+export async function cloudSaveRunEnsured(run: Run, attempts = 4): Promise<void> {
+  let lastErr: unknown = null
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const uid = await getUid()
+      if (!uid) throw new Error('cloudSaveRunEnsured: not signed in')
+      await writeRunDoc(uid, run)
+      return
+    } catch (e) {
+      lastErr = e
+      if (i < attempts - 1) {
+        await new Promise(r => setTimeout(r, 500 * (i + 1)))
+      }
+    }
+  }
+  throw lastErr ?? new Error('cloudSaveRunEnsured failed')
 }
 
 export async function cloudDeleteRun(runId: string): Promise<void> {

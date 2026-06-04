@@ -18,6 +18,7 @@ import { SettingsPopup } from '../components/gallery/SettingsPopup'
 import { ProfileScreen } from '../components/ProfileScreen'
 import { useAuth } from '../hooks/useAuth'
 import { RunTile } from '../components/gallery/RunTile'
+import { CoRunTile } from '../components/gallery/CoRunTile'
 import { EyesIcon } from '../components/gallery/EyesIcon'
 import { useEyeParams } from '../hooks/useEyeParams'
 import { IslandView } from '../components/island/IslandView'
@@ -232,6 +233,32 @@ export function GalleryPage() {
     for (const u of followedUsers) m.set(u.uid, u)
     return m
   }, [followedUsers])
+
+  // TRAIL 一覧用の表示単位。一緒に走ったラン (同一 coRunSessionId) は
+  // 自分 + 相手をまとめて 1 つの co-run アイテムに統合する。
+  type ListItem =
+    | { kind: 'single'; run: Run }
+    | { kind: 'corun'; sessionId: string; runs: Run[] }
+  const listItems = useMemo<ListItem[]>(() => {
+    const items: ListItem[] = []
+    const seenSessions = new Set<string>()
+    for (const run of socialRuns) {
+      const sid = run.coRunSessionId
+      if (sid) {
+        if (seenSessions.has(sid)) continue
+        seenSessions.add(sid)
+        items.push({
+          kind: 'corun',
+          sessionId: sid,
+          runs: socialRuns.filter(r => r.coRunSessionId === sid),
+        })
+      } else {
+        items.push({ kind: 'single', run })
+      }
+    }
+    return items
+  }, [socialRuns])
+  const navigate = useNavigate()
   const [view, setView] = useState<'map' | 'list' | 'profile'>('map')
   const [listMode, setListMode] = useState<'trail' | 'island'>('trail')
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -641,15 +668,25 @@ export function GalleryPage() {
               <p className="empty-hint">記録したランがここに表示されます</p>
             ) : listMode === 'trail' ? (
               <div className="run-grid">
-                {socialRuns.map(run => (
-                  <RunTile
-                    key={run.id}
-                    run={run}
-                    owner={run.ownerUid ? ownerByUid.get(run.ownerUid) ?? null : null}
-                    onDelete={removeRun}
-                    onSelect={handleRunSelect}
-                  />
-                ))}
+                {listItems.map(item =>
+                  item.kind === 'single' ? (
+                    <RunTile
+                      key={item.run.id}
+                      run={item.run}
+                      owner={item.run.ownerUid ? ownerByUid.get(item.run.ownerUid) ?? null : null}
+                      onDelete={removeRun}
+                      onSelect={handleRunSelect}
+                    />
+                  ) : (
+                    <CoRunTile
+                      key={item.sessionId}
+                      sessionId={item.sessionId}
+                      runs={item.runs}
+                      ownerByUid={ownerByUid}
+                      onSelect={sid => navigate(`/co-run/${sid}/result`)}
+                    />
+                  ),
+                )}
               </div>
             ) : (
               <div className="island-view-wrap">

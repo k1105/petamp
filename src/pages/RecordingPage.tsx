@@ -27,6 +27,7 @@ import {RecordingDebugPanel} from "../components/recording/RecordingDebugPanel";
 import {CoRunBanner} from "../components/corun/CoRunBanner";
 import {CoRunWaitOverlay} from "../components/corun/CoRunWaitOverlay";
 import {useCoRunStore} from "../store/useCoRunStore";
+import {cloudSaveRunEnsured} from "../firebase/runCloud";
 import type {Run, TrackPoint} from "../types";
 
 const MIN_ZOOM = 12.5;
@@ -335,6 +336,8 @@ export function RecordingPage() {
   const leaveCoRun = useCoRunStore(s => s.leave);
   // FINISH 後の終了ゲート待機。null でない間 CoRunWaitOverlay を出す。
   const [endGate, setEndGate] = useState<{origin: {x: number; y: number}; runId: string} | null>(null);
+  // co-run でクラウド保存を保証できなかったとき (相手に軌跡を出せない) のエラー表示。
+  const [coRunSaveError, setCoRunSaveError] = useState(false);
 
   // 録画開始時に自分の状態を 'running' にして、相手のバナー/待機画面に反映する。
   useEffect(() => {
@@ -423,10 +426,33 @@ export function RecordingPage() {
       areaName,
       weather,
     };
+    if (isCoRun && coRunSessionId) {
+      // この session のランだと印を付ける。一覧で 1 タイルに統合し、合成リプレイで参照する。
+      run.coRunSessionId = coRunSessionId;
+      const s = useCoRunStore.getState().session;
+      if (s) {
+        run.coRunParticipants = s.memberUids.map(uid => ({
+          uid,
+          displayName: s.members[uid]?.displayName ?? null,
+        }));
+      }
+    }
     await addRun(run);
     if (isCoRun && coRunSessionId) {
-      // 終了ゲート: 自分のゴールを記録し、全員ゴールするまで待機オーバーレイで待つ。
-      // GPS/レコードは同期しないので、保存は通常どおり完了済み。
+      // 終了ゲート前に、自分のランをクラウドへ「確実に」保存する。
+      // co-run では相手の端末が users/{uid}/runs/{runId} を読んで軌跡を再生するので、
+      // ここで保存を保証してから runId を公開しないと、相手側で軌跡が出ない
+      // (best-effort の addRun は失敗を握りつぶすため別経路で担保する)。
+      try {
+        await cloudSaveRunEnsured(run);
+      } catch (e) {
+        console.error("co-run cloud save failed", e);
+        if (isRecording) void stop();
+        resetPostRunLoading();
+        setCoRunSaveError(true);
+        return;
+      }
+      // 自分のゴールを記録し、全員ゴールするまで待機オーバーレイで待つ。
       await markFinished(run.id);
       setEndGate({origin, runId: run.id});
       return;
@@ -595,6 +621,30 @@ export function RecordingPage() {
           onToggleRawTube={setShowRawTube}
           onClose={() => setRecordingDebugOpen(false)}
         />
+      )}
+
+      {coRunSaveError && (
+        <div className="chat-modal-backdrop" role="dialog" aria-modal="true">
+          <div className="chat-modal recording-warning">
+            <p className="recording-warning-title">保存に失敗しました</p>
+            <p className="chat-modal-text">
+              通信が不安定で、一緒に走った記録をクラウドに保存できませんでした。
+              電波の良い場所でもう一度お試しください。
+            </p>
+            <div className="chat-modal-actions">
+              <button
+                className="chat-modal-btn chat-modal-btn-primary"
+                onClick={() => {
+                  setCoRunSaveError(false);
+                  void leaveCoRun();
+                  navigate("/");
+                }}
+              >
+                戻る
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {endGate && (

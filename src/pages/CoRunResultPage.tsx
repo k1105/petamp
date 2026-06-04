@@ -14,23 +14,17 @@ import { REPLAY_SPEED } from '../utils/replaySpeed'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { useRunStore } from '../store/useRunStore'
 import { useCoRunStore } from '../store/useCoRunStore'
+import { useSocialFeedStore } from '../store/useSocialFeedStore'
 import { usePostRunLoadingStore } from '../store/usePostRunLoadingStore'
 import { cloudGetRunOf } from '../firebase/runCloud'
+import { memberColor } from '../utils/coRunColors'
 import type { Run } from '../types'
 
-// メンバーごとの色 (最大 8 人ぶん。超過分は循環)。
-const MEMBER_COLORS: [number, number, number][] = [
-  [28, 151, 94],
-  [232, 101, 90],
-  [90, 142, 232],
-  [232, 198, 90],
-  [168, 90, 232],
-  [90, 218, 210],
-  [232, 140, 90],
-  [200, 200, 200],
-]
-
 const CURRENT_DOT_SCALE = 1.2
+
+// 取得できないメンバー (クラウド伝播待ち等) を取りこぼさないためのリトライ。
+const LOAD_RETRY_MAX = 8
+const LOAD_RETRY_INTERVAL_MS = 1500
 
 type Entry = {
   uid: string
@@ -57,51 +51,113 @@ export function CoRunResultPage() {
   const myUid = useCoRunStore(s => s.myUid)
   const clearLocal = useCoRunStore(s => s.clearLocal)
   const localRuns = useRunStore(s => s.runs)
+  const followedRuns = useSocialFeedStore(s => s.followedRuns)
+  const followedUsers = useSocialFeedStore(s => s.followedUsers)
   const startPostRunLoading = usePostRunLoadingStore(s => s.start)
 
-  const [entries, setEntries] = useState<Entry[] | null>(null)
+  // ライブセッション (ラン直後フロー) か。一覧から過去の co-run をタップした場合は null。
+  const liveSession = session && session.id === sessionId ? session : null
+
+  // ライブセッションで読み込んだ entries。過去 co-run は storedEntries を直接使う。
+  const [liveEntries, setLiveEntries] = useState<Entry[] | null>(null)
   const [playing, setPlaying] = useState(true)
   const [absMs, setAbsMs] = useState(0)
 
-  // セッションが失われている (リロード等) ときは自分のランへフォールバック。
-  useEffect(() => {
-    if (session && session.id === sessionId) return
-    if (myRunId) navigate(`/run/${myRunId}/result`, { replace: true })
-    else navigate('/', { replace: true })
-  }, [session, sessionId, myRunId, navigate])
+  // 過去の co-run (ライブセッション無し) を、保存済みランから再構成する。
+  // 自分のランはローカル、相手のランはソーシャルフィード (フレンドのラン) から、
+  // 同じ coRunSessionId で集める。
+  const storedEntries = useMemo<Entry[] | null>(() => {
+    if (liveSession) return null
+    const mine = localRuns
+      .filter(r => r.coRunSessionId === sessionId)
+      .map(r => ({ uid: myUid ?? r.id, run: r, isMe: true }))
+    const seen = new Set(mine.map(m => m.run.id))
+    const others = followedRuns
+      .filter(r => r.coRunSessionId === sessionId && !seen.has(r.id))
+      .map(r => ({ uid: r.ownerUid ?? r.id, run: r, isMe: false }))
+    const combined = [...mine, ...others]
+    if (combined.length === 0) return null
+    return combined.map((c, i): Entry => {
+      const fromParticipants = c.run.coRunParticipants?.find(p => p.uid === c.uid)?.displayName
+      const fromFollowed = followedUsers.find(u => u.uid === c.uid)?.displayName
+      return {
+        uid: c.uid,
+        run: c.run,
+        color: memberColor(i),
+        name: c.isMe ? 'あなた' : fromFollowed || fromParticipants || '匿名ランナー',
+      }
+    })
+  }, [liveSession, localRuns, followedRuns, followedUsers, sessionId, myUid])
 
-  // 参加者全員のランを読み込む (自分はローカル、他参加者はクラウド)。
+  // フォロー情報が未ロードのまま過去 co-run を開いた場合は取り込みを促す。
   useEffect(() => {
-    if (!session || session.id !== sessionId) return
+    if (liveSession || storedEntries) return
+    void useSocialFeedStore.getState().refresh()
+  }, [liveSession, storedEntries])
+
+  // 表示できるランが一切無い (セッション喪失かつ保存済みも無い) ときだけホームへ。
+  useEffect(() => {
+    if (liveSession) return
+    if (storedEntries && storedEntries.length > 0) return
+    // フォローのロード待ちを少し猶予してからフォールバック。
+    const t = window.setTimeout(() => {
+      if (myRunId) navigate(`/run/${myRunId}/result`, { replace: true })
+      else navigate('/', { replace: true })
+    }, 2500)
+    return () => window.clearTimeout(t)
+  }, [liveSession, storedEntries, myRunId, navigate])
+
+  // 実際に描画する entries: ライブは読み込み結果、過去 co-run は保存済みから再構成。
+  const entries = liveSession ? liveEntries : storedEntries
+
+  // ライブセッション: 参加者全員のランを読み込む (自分はローカル、他参加者はクラウド)。
+  // クラウド伝播の遅延で取りこぼしたメンバーはリトライして埋める (相手の軌跡が出ない問題対策)。
+  useEffect(() => {
+    if (!liveSession) return
     let cancelled = false
-    void (async () => {
-      const active = session.memberUids.filter(uid => {
-        const m = session.members[uid]
+    let timer = 0
+    let attempt = 0
+    const load = async () => {
+      const active = liveSession.memberUids.filter(uid => {
+        const m = liveSession.members[uid]
         return !!m && !!m.runId && m.state === 'finished'
       })
       const loaded = await Promise.all(
         active.map(async (uid, i): Promise<Entry | null> => {
-          const runId = session.members[uid].runId!
-          const run =
-            uid === myUid
-              ? localRuns.find(r => r.id === runId) ?? (await cloudGetRunOf(uid, runId))
-              : await cloudGetRunOf(uid, runId)
-          if (!run) return null
-          return {
-            uid,
-            run,
-            color: MEMBER_COLORS[i % MEMBER_COLORS.length],
-            name: session.members[uid].displayName || '匿名ランナー',
+          const runId = liveSession.members[uid].runId!
+          try {
+            const run =
+              uid === myUid
+                ? localRuns.find(r => r.id === runId) ?? (await cloudGetRunOf(uid, runId))
+                : await cloudGetRunOf(uid, runId)
+            if (!run) return null
+            return {
+              uid,
+              run,
+              color: memberColor(i),
+              name: liveSession.members[uid].displayName || '匿名ランナー',
+            }
+          } catch (e) {
+            console.warn('co-run member run load failed', uid, e)
+            return null
           }
         }),
       )
       if (cancelled) return
-      setEntries(loaded.filter((e): e is Entry => !!e))
-    })()
+      const ok = loaded.filter((e): e is Entry => !!e)
+      setLiveEntries(ok)
+      // 全員ぶん揃っていなければ伝播待ちとみなしてリトライ。
+      if (ok.length < active.length && attempt < LOAD_RETRY_MAX) {
+        attempt++
+        timer = window.setTimeout(() => void load(), LOAD_RETRY_INTERVAL_MS)
+      }
+    }
+    void load()
     return () => {
       cancelled = true
+      if (timer) window.clearTimeout(timer)
     }
-  }, [session, sessionId, myUid, localRuns])
+  }, [liveSession, myUid, localRuns])
 
   // 絶対時刻の共通タイムライン。
   const timeline = useMemo(() => {
