@@ -28,3 +28,8 @@ firestore.rules
 *.sw?
 
 .claude/
+
+# App Store Connect API key / 認証情報
+.env.asc
+*.p8
+ios/build/
