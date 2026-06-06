@@ -31,6 +31,45 @@ type Entry = {
   run: Run
   color: [number, number, number]
   name: string
+  isMe: boolean
+}
+
+// 合成リプレイに渡す前の生データ。色はまだ付けない (dedup と並べ替えのあとで確定する)。
+type RawEntry = { uid: string; run: Run; name: string; isMe: boolean }
+
+/**
+ * 表示用 entries を確定させる共通処理。専用画面を持たず「通常ランの描画を N 本に拡張」する
+ * 方針なので、重複・並び順をここで一元的に正規化してから描画コンポーネントに渡す。
+ * - run.id で重複排除 (クラウド echo などで同じランが二重に入るのを防ぐ)。
+ * - 自分のランは 1 本だけに畳む (同一 coRunSessionId のローカルランが複数あっても、
+ *   myRunId 一致 → 無ければ accepted points が最多のものを残す)。これが「自分が二人いる」
+ *   と z-fighting の元。
+ * - 自分を先頭にして色順を安定させる (ギャラリーの CoRunTile と同じ規約 = 自分が緑)。
+ */
+function normalizeEntries(raw: RawEntry[], myRunId: string | null): Entry[] {
+  const byRun = new Map<string, RawEntry>()
+  for (const r of raw) if (!byRun.has(r.run.id)) byRun.set(r.run.id, r)
+  let list = [...byRun.values()]
+
+  const selves = list.filter(r => r.isMe)
+  if (selves.length > 1) {
+    const keep =
+      (myRunId && selves.find(s => s.run.id === myRunId)) ||
+      [...selves].sort(
+        (a, b) =>
+          acceptedPoints(b.run.trackPoints).length - acceptedPoints(a.run.trackPoints).length,
+      )[0]
+    list = list.filter(r => !r.isMe || r.run.id === keep.run.id)
+  }
+
+  list.sort((a, b) => (a.isMe ? 0 : 1) - (b.isMe ? 0 : 1))
+  return list.map((r, i): Entry => ({
+    uid: r.uid,
+    run: r.run,
+    color: memberColor(i),
+    name: r.name,
+    isMe: r.isMe,
+  }))
 }
 
 /**
@@ -68,26 +107,26 @@ export function CoRunResultPage() {
   // 同じ coRunSessionId で集める。
   const storedEntries = useMemo<Entry[] | null>(() => {
     if (liveSession) return null
-    const mine = localRuns
+    const mine: RawEntry[] = localRuns
       .filter(r => r.coRunSessionId === sessionId)
-      .map(r => ({ uid: myUid ?? r.id, run: r, isMe: true }))
-    const seen = new Set(mine.map(m => m.run.id))
-    const others = followedRuns
-      .filter(r => r.coRunSessionId === sessionId && !seen.has(r.id))
-      .map(r => ({ uid: r.ownerUid ?? r.id, run: r, isMe: false }))
+      .map(r => ({ uid: myUid ?? r.id, run: r, isMe: true, name: 'あなた' }))
+    const others: RawEntry[] = followedRuns
+      .filter(r => r.coRunSessionId === sessionId)
+      .map(r => {
+        const uid = r.ownerUid ?? r.id
+        const fromFollowed = followedUsers.find(u => u.uid === uid)?.displayName
+        const fromParticipants = r.coRunParticipants?.find(p => p.uid === uid)?.displayName
+        return {
+          uid,
+          run: r,
+          isMe: false,
+          name: fromFollowed || fromParticipants || '匿名ランナー',
+        }
+      })
     const combined = [...mine, ...others]
     if (combined.length === 0) return null
-    return combined.map((c, i): Entry => {
-      const fromParticipants = c.run.coRunParticipants?.find(p => p.uid === c.uid)?.displayName
-      const fromFollowed = followedUsers.find(u => u.uid === c.uid)?.displayName
-      return {
-        uid: c.uid,
-        run: c.run,
-        color: memberColor(i),
-        name: c.isMe ? 'あなた' : fromFollowed || fromParticipants || '匿名ランナー',
-      }
-    })
-  }, [liveSession, localRuns, followedRuns, followedUsers, sessionId, myUid])
+    return normalizeEntries(combined, myRunId)
+  }, [liveSession, localRuns, followedRuns, followedUsers, sessionId, myUid, myRunId])
 
   // フォロー情報が未ロードのまま過去 co-run を開いた場合は取り込みを促す。
   useEffect(() => {
@@ -123,7 +162,7 @@ export function CoRunResultPage() {
         return !!m && !!m.runId && m.state === 'finished'
       })
       const loaded = await Promise.all(
-        active.map(async (uid, i): Promise<Entry | null> => {
+        active.map(async (uid): Promise<RawEntry | null> => {
           const runId = liveSession.members[uid].runId!
           try {
             const run =
@@ -134,7 +173,7 @@ export function CoRunResultPage() {
             return {
               uid,
               run,
-              color: memberColor(i),
+              isMe: uid === myUid,
               name: liveSession.members[uid].displayName || '匿名ランナー',
             }
           } catch (e) {
@@ -144,8 +183,8 @@ export function CoRunResultPage() {
         }),
       )
       if (cancelled) return
-      const ok = loaded.filter((e): e is Entry => !!e)
-      setLiveEntries(ok)
+      const ok = loaded.filter((e): e is RawEntry => !!e)
+      setLiveEntries(normalizeEntries(ok, myRunId))
       // 全員ぶん揃っていなければ伝播待ちとみなしてリトライ。
       if (ok.length < active.length && attempt < LOAD_RETRY_MAX) {
         attempt++
@@ -157,7 +196,7 @@ export function CoRunResultPage() {
       cancelled = true
       if (timer) window.clearTimeout(timer)
     }
-  }, [liveSession, myUid, localRuns])
+  }, [liveSession, myUid, localRuns, myRunId])
 
   // 絶対時刻の共通タイムライン。
   const timeline = useMemo(() => {
@@ -201,10 +240,15 @@ export function CoRunResultPage() {
   }
 
   return (
-    <div className="page">
+    <div className="page" style={{ background: 'var(--bg)' }}>
       <div className="map-container">
         {bounds && entries && (
-          <BaseMap initialBounds={bounds} initialBoundsPadding={48} interactive={false}>
+          <BaseMap
+            initialBounds={bounds}
+            initialBoundsPadding={48}
+            interactive={false}
+            mapVisible={false}
+          >
             <CoRunReplayLayers entries={entries} absMs={absMs} />
           </BaseMap>
         )}
@@ -213,13 +257,13 @@ export function CoRunResultPage() {
       {entries && (
         <div className="co-run-result-legend">
           {entries.map(e => (
-            <span key={e.uid} className="co-run-legend-item">
+            <span key={e.run.id} className="co-run-legend-item">
               <span
                 className="co-run-legend-swatch"
                 style={{ background: `rgb(${e.color[0]},${e.color[1]},${e.color[2]})` }}
               />
               {e.name}
-              {e.uid === myUid ? '（あなた）' : ''}
+              {e.isMe ? '（あなた）' : ''}
             </span>
           ))}
         </div>
@@ -268,7 +312,7 @@ function CoRunReplayLayers({ entries, absMs }: { entries: Entry[]; absMs: number
       id: 'co-run-paths',
       data: pathData,
       getPath: d => d.path,
-      getColor: d => [...d.color, 170],
+      getColor: d => [...d.color, 255],
       getWidth: tubeWidth,
       widthUnits: 'meters',
       capRounded: true,
@@ -298,5 +342,8 @@ function CoRunReplayLayers({ entries, absMs }: { entries: Entry[]; absMs: number
     return [pathLayer, dotLayer]
   }, [pathData, entries, absMs, dotRadius, tubeWidth])
 
-  return <DeckOverlay layers={layers} />
+  // 通常ランの個別画面 (RunDetailPage) が既定で使う実績ある描画経路に合わせる。
+  // MapboxOverlay モードでは PathLayer が出ない事象があったため、単色背景に重ねる
+  // fullscreen deck で N 本を描く。
+  return <DeckOverlay layers={layers} mode="fullscreen" />
 }
