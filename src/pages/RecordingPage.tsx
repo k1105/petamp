@@ -28,6 +28,8 @@ import {CoRunBanner} from "../components/corun/CoRunBanner";
 import {CoRunWaitOverlay} from "../components/corun/CoRunWaitOverlay";
 import {useCoRunStore} from "../store/useCoRunStore";
 import {cloudSaveRunEnsured} from "../firebase/runCloud";
+import {totalDistance} from "../utils/geoUtils";
+import {startLiveActivity, updateLiveActivity, endLiveActivity} from "../utils/liveActivity";
 import type {Run, TrackPoint} from "../types";
 
 const MIN_ZOOM = 12.5;
@@ -315,6 +317,7 @@ export function RecordingPage() {
     [filterSettings.kalmanSigmaA, filterSettings.kalmanGateChi2],
   );
   const {isRecording, trackPoints, error, consecutiveRejections, lastMahalanobis2, start, stop} = useGpsRecorder(filters, kalmanConfig);
+  const {palette: livePalette} = useActivePalette();
   const {addRun} = useRunStore();
   const finishBtnRef = useRef<HTMLButtonElement>(null);
   const startPostRunLoading = usePostRunLoadingStore(s => s.start);
@@ -372,17 +375,36 @@ export function RecordingPage() {
   }, [transitionPhase, fromOnboarding, permissionState, isPermissionDenied, isNative]);
   const initialCenter = useCurrentPosition();
   const acceptedTrackPoints = useMemo(() => acceptedPoints(trackPoints), [trackPoints]);
+  // ライブアクティビティ用の安定したラン ID。マウント中ずっと同じ値を使う。
+  const liveActivityRunIdRef = useRef(crypto.randomUUID());
+  // ライブアクティビティの直近更新時刻 (OS の更新バジェット枯渇を避けてスロットルする)。
+  const lastLiveActivityUpdateRef = useRef(0);
+  // 背景に使うテーマカラー。effect 内で最新値を参照するため ref に同期する。
+  const liveActivityBgRef = useRef(livePalette.bg);
+  // eslint-disable-next-line react-hooks/refs
+  liveActivityBgRef.current = livePalette.bg;
 
   // 位置情報が拒否されていない場合だけ記録を開始する。
   // 途中で拒否に切り替わったら cleanup の stop() で停止する。
   useEffect(() => {
     if (isPermissionDenied) return;
     start();
+    void startLiveActivity(liveActivityRunIdRef.current, [], 0, liveActivityBgRef.current);
     return () => {
       stop();
+      void endLiveActivity();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPermissionDenied]);
+
+  // 軌跡が伸びるたびにライブアクティビティを更新する。約 5 秒に 1 回へスロットル。
+  useEffect(() => {
+    if (!isRecording) return;
+    const now = Date.now();
+    if (now - lastLiveActivityUpdateRef.current < 5000) return;
+    lastLiveActivityUpdateRef.current = now;
+    void updateLiveActivity(acceptedTrackPoints, totalDistance(acceptedTrackPoints), liveActivityBgRef.current);
+  }, [acceptedTrackPoints, isRecording]);
 
   const handleFinish = async () => {
     // FINISH を起点に iris-out → ローディング画面で覆い、対話準備完了で iris-in で抜ける。
@@ -399,6 +421,7 @@ export function RecordingPage() {
     if (isRecording) {
       points = await stop();
     }
+    void endLiveActivity();
     if (points.length === 0) {
       // 記録が空のときは対話画面に進まないので loading を解除して戻す。
       if (isCoRun) void leaveCoRun();

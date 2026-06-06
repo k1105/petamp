@@ -16,7 +16,29 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */; };
+		B17A570000000000000000B1 /* PetampWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000A1 /* PetampWidgetBundle.swift */; };
+		B17A570000000000000000B2 /* RunLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000A2 /* RunLiveActivity.swift */; };
+		B17A570000000000000000B3 /* RunActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000A3 /* RunActivityAttributes.swift */; };
+		B17A570000000000000000B4 /* RunActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000A3 /* RunActivityAttributes.swift */; };
+		B17A570000000000000000B5 /* LiveActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000A5 /* LiveActivityPlugin.swift */; };
+		B17A570000000000000000B6 /* LiveActivityPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000A6 /* LiveActivityPlugin.m */; };
+		B17A570000000000000000B8 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000A8 /* MainViewController.swift */; };
+		B17A570000000000000000B7 /* PetampWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000A7 /* PetampWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B17A570000000000000000C4 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B17A570000000000000000B7 /* PetampWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		0F3B45692FBCC1E700F9060B /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
@@ -32,6 +54,14 @@
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
 		FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
+		B17A570000000000000000A1 /* PetampWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetampWidgetBundle.swift; sourceTree = "<group>"; };
+		B17A570000000000000000A2 /* RunLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLiveActivity.swift; sourceTree = "<group>"; };
+		B17A570000000000000000A3 /* RunActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunActivityAttributes.swift; sourceTree = "<group>"; };
+		B17A570000000000000000A4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B17A570000000000000000A5 /* LiveActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPlugin.swift; sourceTree = "<group>"; };
+		B17A570000000000000000A6 /* LiveActivityPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LiveActivityPlugin.m; sourceTree = "<group>"; };
+		B17A570000000000000000A7 /* PetampWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PetampWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B17A570000000000000000A8 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -40,6 +70,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B17A570000000000000000C2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -58,6 +95,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3061FED79650016851F /* App */,
+				B17A570000000000000000D7 /* PetampWidget */,
 				504EC3051FED79650016851F /* Products */,
 				7F8756D8B27F46E3366F6CEA /* Pods */,
 				27E2DDA53C4D2A4D1A88CE4A /* Frameworks */,
@@ -68,8 +106,36 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				B17A570000000000000000A7 /* PetampWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B17A570000000000000000D7 /* PetampWidget */ = {
+			isa = PBXGroup;
+			children = (
+				B17A570000000000000000A1 /* PetampWidgetBundle.swift */,
+				B17A570000000000000000A2 /* RunLiveActivity.swift */,
+				B17A570000000000000000A4 /* Info.plist */,
+			);
+			path = PetampWidget;
+			sourceTree = "<group>";
+		};
+		B17A570000000000000000E1 /* Plugins */ = {
+			isa = PBXGroup;
+			children = (
+				B17A570000000000000000A5 /* LiveActivityPlugin.swift */,
+				B17A570000000000000000A6 /* LiveActivityPlugin.m */,
+			);
+			path = Plugins;
+			sourceTree = "<group>";
+		};
+		B17A570000000000000000E2 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				B17A570000000000000000A3 /* RunActivityAttributes.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		504EC3061FED79650016851F /* App */ = {
@@ -77,6 +143,9 @@
 			children = (
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
+				B17A570000000000000000A8 /* MainViewController.swift */,
+				B17A570000000000000000E1 /* Plugins */,
+				B17A570000000000000000E2 /* Shared */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -109,15 +178,34 @@
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
 				9592DBEFFC6D2A0C8D5DEB22 /* [CP] Embed Pods Frameworks */,
+				B17A570000000000000000C4 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				B17A570000000000000000D6 /* PBXTargetDependency */,
 			);
 			name = App;
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
+		};
+		B17A570000000000000000D1 /* PetampWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B17A570000000000000000D2 /* Build configuration list for PBXNativeTarget "PetampWidgetExtension" */;
+			buildPhases = (
+				B17A570000000000000000C1 /* Sources */,
+				B17A570000000000000000C2 /* Frameworks */,
+				B17A570000000000000000C3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PetampWidgetExtension;
+			productName = PetampWidgetExtension;
+			productReference = B17A570000000000000000A7 /* PetampWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -131,6 +219,10 @@
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
 						LastSwiftMigration = 1100;
+						ProvisioningStyle = Automatic;
+					};
+					B17A570000000000000000D1 = {
+						CreatedOnToolsVersion = 14.0;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -151,6 +243,7 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				B17A570000000000000000D1 /* PetampWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -170,7 +263,32 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B17A570000000000000000C3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXContainerItemProxy section */
+		B17A570000000000000000D5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B17A570000000000000000D1;
+			remoteInfo = PetampWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		B17A570000000000000000D6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B17A570000000000000000D1 /* PetampWidgetExtension */;
+			targetProxy = B17A570000000000000000D5 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXShellScriptBuildPhase section */
 		6634F4EFEBD30273BCE97C65 /* [CP] Check Pods Manifest.lock */ = {
@@ -214,6 +332,20 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				B17A570000000000000000B8 /* MainViewController.swift in Sources */,
+				B17A570000000000000000B4 /* RunActivityAttributes.swift in Sources */,
+				B17A570000000000000000B5 /* LiveActivityPlugin.swift in Sources */,
+				B17A570000000000000000B6 /* LiveActivityPlugin.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B17A570000000000000000C1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B17A570000000000000000B1 /* PetampWidgetBundle.swift in Sources */,
+				B17A570000000000000000B2 /* RunLiveActivity.swift in Sources */,
+				B17A570000000000000000B3 /* RunActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -352,7 +484,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = R23398U3YA;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
@@ -373,7 +505,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = R23398U3YA;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
@@ -382,6 +514,55 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.rennur.petamp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		B17A570000000000000000D3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 6;
+				DEVELOPMENT_TEAM = R23398U3YA;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = PetampWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rennur.petamp.PetampWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B17A570000000000000000D4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 6;
+				DEVELOPMENT_TEAM = R23398U3YA;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = PetampWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rennur.petamp.PetampWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -404,6 +585,15 @@
 			buildConfigurations = (
 				504EC3171FED79650016851F /* Debug */,
 				504EC3181FED79650016851F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B17A570000000000000000D2 /* Build configuration list for PBXNativeTarget "PetampWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B17A570000000000000000D3 /* Debug */,
+				B17A570000000000000000D4 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
