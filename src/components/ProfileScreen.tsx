@@ -293,6 +293,10 @@ export function ProfileScreen({ onClose, runs }: Props) {
             </button>
             {error ? <div className="profile-screen-error">{error}</div> : null}
           </div>
+          {/* 未ログインでもローカル（idb-keyval）の軌跡から累計・ヒストグラムを表示する */}
+          <div className="stats-view-wrap">
+            <StatsView runs={runs} />
+          </div>
         </div>
       )}
     </div>

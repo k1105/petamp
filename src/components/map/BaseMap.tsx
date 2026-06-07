@@ -92,6 +92,8 @@ export function BaseMap({
       style: 'mapbox://styles/mapbox/dark-v11',
       pitch: 45,
       antialias: true,
+      // CJK (日本語) のグリフはローカル描画する。地名ラベル等が確実にクッキリ出る。
+      localIdeographFontFamily: "'Hiragino Sans', 'Noto Sans CJK JP', sans-serif",
     }
     if (initialBounds) {
       opts.bounds = initialBounds

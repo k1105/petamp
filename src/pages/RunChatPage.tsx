@@ -109,6 +109,7 @@ export function RunChatPage() {
   // 最終ペタンプ発話をユーザが読んでから ending 画面に遷移するためのフラグ。
   // sessionEnded だけで遷移すると CLOSING_NOTE 込みの最終発話を見せる前に画面が消える。
   const [endingDismissed, setEndingDismissed] = useState(false)
+  const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const relationalSnapshotRef = useRef<RelationalState | null>(null)
   const discardedRef = useRef(false)
   const closedRef = useRef(false)
@@ -269,6 +270,14 @@ export function RunChatPage() {
     return typeof t.segmentIndex === 'number' ? t.segmentIndex : null
   }, [visiblePair.petamp])
 
+  // 入力テキスト量に応じて textarea の高さを伸縮させる（CSS の max-height で上限）。
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [input])
+
   const onSend = () => {
     if (sessionEnded) return
     const text = input.trim()
@@ -394,6 +403,7 @@ export function RunChatPage() {
           {!sessionEnded ? (
             <footer className="chat-input-area">
               <textarea
+                ref={inputRef}
                 className="chat-input"
                 value={input}
                 onChange={e => setInput(e.target.value)}

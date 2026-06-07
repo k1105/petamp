@@ -72,6 +72,22 @@
   );
 }
 
+/* ラン開始確認 (armed) 時にマップを暗くするレイヤー。マップ上下のグラデーション
+   (map-canvas の mask フェード) 領域もまとめて暗くしたいので、mask は掛けずに
+   全面を覆う。常時マウントして opacity でフェードさせる。 */
+.map-dim {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: rgba(0, 0, 0, 0.42);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.42s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.page.armed .map-dim {
+  opacity: 1;
+}
+
 /* 全画面 deck.gl overlay (.map-canvas の inset/mask を回避するため sibling 配置)。 */
 .deck-fullscreen {
   position: absolute;
@@ -957,6 +973,10 @@
   flex-direction: column;
   gap: 8px;
   cursor: pointer;
+  /* 長押しでの削除確認時に iOS のテキスト選択／コールアウトメニューを抑止 */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .run-tile:active {
@@ -1071,26 +1091,65 @@
   color: var(--text-muted);
 }
 
-.run-tile-delete {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
+/* ラン削除などの確認ダイアログ */
+.confirm-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  font-size: 14px;
-  opacity: 0.5;
+  padding: 24px;
 }
 
-.run-tile-delete:active {
-  opacity: 1;
+.confirm-dialog-panel {
+  width: min(360px, 100%);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  color: var(--text);
+}
+
+.confirm-dialog-message {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: center;
+  white-space: pre-line;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.confirm-dialog-btn {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.confirm-dialog-btn:active {
+  opacity: 0.8;
+}
+
+.confirm-dialog-ok.is-destructive {
+  border-color: rgba(244, 67, 54, 0.5);
+  background: rgba(244, 67, 54, 0.16);
+  color: #f88;
 }
 
 .empty-hint {
@@ -1604,10 +1663,21 @@ body.map-joystick-fab-out .bottom-sheet {
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: transform 0.15s;
+  transition:
+    transform 0.15s,
+    opacity 0.15s;
 }
 .top-settings-btn:active {
   transform: scale(0.94);
+}
+/* ラン開始確認 (armed) 時は画面右外へフレームアウト */
+.page.armed .top-settings-btn {
+  transform: translateX(calc(16px + 100%));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.42s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* ---- Profile slide-in panel (gallery) ---- */
@@ -2681,6 +2751,9 @@ body.map-joystick-fab-out .bottom-sheet {
   white-space: nowrap;
   pointer-events: auto;
   animation: group-edge-fade-in 0.18s ease-out;
+  transition:
+    transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.42s cubic-bezier(0.32, 0.72, 0, 1);
 }
 .group-edge-indicator svg {
   font-size: 18px;
@@ -2696,6 +2769,17 @@ body.map-joystick-fab-out .bottom-sheet {
   left: 16px;
   top: 50%;
   transform: translateY(-50%);
+}
+/* ラン開始確認 (armed) 時は左右の画面外へフレームアウト */
+.page.armed .group-edge-indicator-e {
+  transform: translate(calc(16px + 100%), -50%);
+  opacity: 0;
+  pointer-events: none;
+}
+.page.armed .group-edge-indicator-w {
+  transform: translate(calc(-16px - 100%), -50%);
+  opacity: 0;
+  pointer-events: none;
 }
 @keyframes group-edge-fade-in {
   from {
@@ -2807,6 +2891,14 @@ body.map-joystick-fab-out .bottom-sheet {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   white-space: nowrap;
+  transition:
+    transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.42s cubic-bezier(0.32, 0.72, 0, 1);
+}
+/* ラン開始確認 (armed) 時は画面上外へフレームアウト */
+.page.armed .area-label {
+  transform: translate(-50%, calc(-50% - 80px));
+  opacity: 0;
 }
 
 /* AreaLabel の真下に Spotify 再生中の曲を出す。area-label の縦中心が

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PathLayer, ScatterplotLayer } from '@deck.gl/layers'
+import type { GeoJSONSource, MapLayerMouseEvent } from 'mapbox-gl'
 import { Icon } from '@iconify/react'
 import { BaseMap } from '../components/map/BaseMap'
 import { useMap, useMapZoom } from '../components/map/MapContext'
@@ -19,6 +20,7 @@ import { ProfileScreen } from '../components/ProfileScreen'
 import { useAuth } from '../hooks/useAuth'
 import { RunTile } from '../components/gallery/RunTile'
 import { CoRunTile } from '../components/gallery/CoRunTile'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EyesIcon } from '../components/gallery/EyesIcon'
 import { useEyeParams } from '../hooks/useEyeParams'
 import { IslandView } from '../components/island/IslandView'
@@ -42,57 +44,187 @@ import type { NamedPlace } from '../character/domain/memory'
 
 const MIN_ZOOM = 12.5
 
-const NAMED_PLACE_COLOR_LINE: [number, number, number, number] = [255, 200, 60, 230]
-const NAMED_PLACE_COLOR_DOT: [number, number, number, number] = [255, 200, 60, 255]
-const NAMED_PLACE_COLOR_DOT_OUTLINE: [number, number, number, number] = [60, 40, 0, 255]
+// 地名レイヤ (mapbox ネイティブ symbol)。色は地図のダークスタイル上で映える黄系。
+const NP_LINE_COLOR = '#FFC83C'
+const NP_DOT_COLOR = '#FFC83C'
+const NP_DOT_OUTLINE = '#3C2800'
+const NP_LABEL_COLOR = '#FFFFFF'
+const NP_LABEL_HALO = '#1A1200'
 
-function buildNamedPlaceLayers(
-  places: NamedPlace[],
-  onPick: (place: NamedPlace) => void,
-) {
-  if (places.length === 0) return []
-  const layers = []
-  const segs = places.filter(p => p.polyline && p.polyline.length >= 2)
-  if (segs.length > 0) {
-    layers.push(
-      new PathLayer<NamedPlace>({
-        id: 'gallery-named-place-segment',
-        data: segs,
-        getPath: d => (d.polyline ?? []).map(n => [n.lng, n.lat] as [number, number]),
-        getColor: NAMED_PLACE_COLOR_LINE,
-        getWidth: 6,
-        widthUnits: 'meters',
-        widthMinPixels: 2,
-        capRounded: true,
-        jointRounded: true,
-        pickable: true,
-        onClick: info => { if (info.object) onPick(info.object as NamedPlace) },
-        parameters: { depthCompare: 'always' },
-      }),
-    )
+const NP_SOURCE = 'named-places'
+const NP_LAYER_LINE = 'named-place-line'
+const NP_LAYER_POINT = 'named-place-point'
+const NP_LAYER_LINE_LABEL = 'named-place-line-label'
+const NP_LAYER_POINT_LABEL = 'named-place-point-label'
+const NP_ALL_LAYERS = [NP_LAYER_LINE, NP_LAYER_POINT, NP_LAYER_LINE_LABEL, NP_LAYER_POINT_LABEL]
+
+function namedPlacesToGeoJSON(places: NamedPlace[]): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature[] = []
+  for (const p of places) {
+    const properties = { id: p.id, name: p.name }
+    if (p.polyline && p.polyline.length >= 2) {
+      features.push({
+        type: 'Feature',
+        properties,
+        geometry: { type: 'LineString', coordinates: p.polyline.map(n => [n.lng, n.lat]) },
+      })
+    }
+    if (p.point) {
+      features.push({
+        type: 'Feature',
+        properties,
+        geometry: { type: 'Point', coordinates: [p.point.lng, p.point.lat] },
+      })
+    }
   }
-  const pts = places.filter(p => p.point)
-  if (pts.length > 0) {
-    layers.push(
-      new ScatterplotLayer<NamedPlace>({
-        id: 'gallery-named-place-point',
-        data: pts,
-        getPosition: d => [d.point!.lng, d.point!.lat],
-        getRadius: 6,
-        radiusUnits: 'meters',
-        radiusMinPixels: 4,
-        getFillColor: NAMED_PLACE_COLOR_DOT,
-        getLineColor: NAMED_PLACE_COLOR_DOT_OUTLINE,
-        getLineWidth: 0.8,
-        lineWidthUnits: 'meters',
-        stroked: true,
-        pickable: true,
-        onClick: info => { if (info.object) onPick(info.object as NamedPlace) },
-        parameters: { depthCompare: 'always' },
-      }),
-    )
-  }
-  return layers
+  return { type: 'FeatureCollection', features }
+}
+
+/**
+ * 地名 (NamedPlace) を mapbox ネイティブの symbol レイヤで描く。
+ *
+ * 自前の 1 文字配置 (deck TextLayer) はカーニングがズーム依存になり線追従もガタつくため、
+ * 地図と同じ仕組み = SDF グリフ + `symbol-placement: 'line'` の symbol レイヤに任せる。
+ * px 基準で字間・サイズが一定、曲線追従・縁取り(halo)・衝突回避も内蔵。日本語は
+ * mapbox の `localIdeographFontFamily` (BaseMap で設定) によりローカル描画される。
+ * タップ→popup は mapbox の layer 付き click で取得する。
+ */
+function NamedPlaceMapLayers({
+  places,
+  onPick,
+}: {
+  places: NamedPlace[]
+  onPick: (place: NamedPlace) => void
+}) {
+  const { map } = useMap()
+  // click ハンドラから最新の places を引くための ref (更新は effect 内で行う)。
+  const placesRef = useRef(places)
+
+  useEffect(() => {
+    if (!map) return
+    // style に存在するフォントを使うため、既存 symbol レイヤの text-font を流用する。
+    let textFont: string[] | undefined
+    for (const l of map.getStyle()?.layers ?? []) {
+      const tf = l.type === 'symbol' ? (l.layout?.['text-font'] as string[] | undefined) : undefined
+      if (Array.isArray(tf)) { textFont = tf; break }
+    }
+
+    if (!map.getSource(NP_SOURCE)) {
+      map.addSource(NP_SOURCE, { type: 'geojson', data: namedPlacesToGeoJSON(placesRef.current) })
+    }
+    if (!map.getLayer(NP_LAYER_LINE)) {
+      map.addLayer({
+        id: NP_LAYER_LINE,
+        type: 'line',
+        source: NP_SOURCE,
+        filter: ['==', ['geometry-type'], 'LineString'],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': NP_LINE_COLOR, 'line-width': 3, 'line-opacity': 0.9 },
+      })
+    }
+    if (!map.getLayer(NP_LAYER_POINT)) {
+      map.addLayer({
+        id: NP_LAYER_POINT,
+        type: 'circle',
+        source: NP_SOURCE,
+        filter: ['==', ['geometry-type'], 'Point'],
+        paint: {
+          'circle-radius': 5,
+          'circle-color': NP_DOT_COLOR,
+          'circle-stroke-color': NP_DOT_OUTLINE,
+          'circle-stroke-width': 1.5,
+        },
+      })
+    }
+    if (!map.getLayer(NP_LAYER_LINE_LABEL)) {
+      map.addLayer({
+        id: NP_LAYER_LINE_LABEL,
+        type: 'symbol',
+        source: NP_SOURCE,
+        filter: ['==', ['geometry-type'], 'LineString'],
+        layout: {
+          'symbol-placement': 'line-center',
+          'text-field': ['get', 'name'],
+          'text-size': 13,
+          'text-max-angle': 40,
+          // 文字単位 billboard: 各グリフは線の曲線に沿って回転 (rotation=map) しつつ、
+          // pitch だけ viewport にして 1 文字ずつカメラ正対で立ち上がらせる (mapbox の線ラベルと同じ)。
+          'text-rotation-alignment': 'map',
+          'text-pitch-alignment': 'viewport',
+          ...(textFont ? { 'text-font': textFont } : {}),
+        },
+        paint: { 'text-color': NP_LABEL_COLOR, 'text-halo-color': NP_LABEL_HALO, 'text-halo-width': 1.5 },
+      })
+    }
+    if (!map.getLayer(NP_LAYER_POINT_LABEL)) {
+      map.addLayer({
+        id: NP_LAYER_POINT_LABEL,
+        type: 'symbol',
+        source: NP_SOURCE,
+        filter: ['==', ['geometry-type'], 'Point'],
+        layout: {
+          'symbol-placement': 'point',
+          'text-field': ['get', 'name'],
+          'text-size': 13,
+          'text-offset': [0, -1.2],
+          'text-anchor': 'bottom',
+          // billboard: 常にカメラ正対・上向き。
+          'text-rotation-alignment': 'viewport',
+          'text-pitch-alignment': 'viewport',
+          ...(textFont ? { 'text-font': textFont } : {}),
+        },
+        paint: { 'text-color': NP_LABEL_COLOR, 'text-halo-color': NP_LABEL_HALO, 'text-halo-width': 1.5 },
+      })
+    }
+
+    const onClick = (e: MapLayerMouseEvent) => {
+      const id = e.features?.[0]?.properties?.id
+      const place = placesRef.current.find(p => p.id === id)
+      if (place) onPick(place)
+    }
+    const onEnter = () => { map.getCanvas().style.cursor = 'pointer' }
+    const onLeave = () => { map.getCanvas().style.cursor = '' }
+    for (const id of NP_ALL_LAYERS) {
+      map.on('click', id, onClick)
+      map.on('mouseenter', id, onEnter)
+      map.on('mouseleave', id, onLeave)
+    }
+
+    return () => {
+      // 画面遷移で地図が破棄される途中だと style が無く getLayer 等が投げる。
+      // ハンドラ解除は常に行い、レイヤ/source の除去は style が生きている時だけ試みる。
+      for (const id of NP_ALL_LAYERS) {
+        map.off('click', id, onClick)
+        map.off('mouseenter', id, onEnter)
+        map.off('mouseleave', id, onLeave)
+      }
+      try {
+        if (!map.getStyle()) return
+        for (const id of NP_ALL_LAYERS) {
+          if (map.getLayer(id)) map.removeLayer(id)
+        }
+        if (map.getSource(NP_SOURCE)) map.removeSource(NP_SOURCE)
+      } catch {
+        // 地図破棄中は何もしない (map.remove() がまとめて片付ける)。
+      }
+    }
+    // onPick は安定参照。places は下の effect で setData 更新する。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map])
+
+  useEffect(() => {
+    placesRef.current = places
+    if (!map) return
+    try {
+      if (!map.getStyle()) return
+      const src = map.getSource(NP_SOURCE) as GeoJSONSource | undefined
+      src?.setData(namedPlacesToGeoJSON(places))
+    } catch {
+      // 地図破棄中などは無視。
+    }
+  }, [map, places])
+
+  return null
 }
 
 // FAB タップで現在位置に home スケールでフォーカスする (homeGroup が無い
@@ -125,14 +257,11 @@ function FocusGPS({
 function GalleryLayers({
   runs,
   dots,
-  namedPlaces,
-  onPickPlace,
 }: {
   runs: Run[]
   dots: DotPosition[]
-  namedPlaces: NamedPlace[]
-  onPickPlace: (place: NamedPlace) => void
 }) {
+  const { map } = useMap()
   const zoom = useMapZoom()
   const navigate = useNavigate()
   const radii = useSettingsStore(s => s.radii)
@@ -174,7 +303,20 @@ function GalleryLayers({
       billboard: true,
       pickable: true,
       onClick: info => {
-        if (info.object) navigate(`/run/${info.object.id}`)
+        if (!info.object) return
+        // 同じ地点に地名 (mapbox レイヤ) がある場合は、地名 popup を優先して
+        // ラン遷移しない (deck チューブと mapbox 地名が両方 click 発火するため)。
+        if (map && info.x != null && info.y != null) {
+          try {
+            const present = NP_ALL_LAYERS.filter(id => map.getLayer(id))
+            if (present.length && map.queryRenderedFeatures([info.x, info.y], { layers: present }).length) {
+              return
+            }
+          } catch {
+            // クエリ失敗時はそのまま遷移にフォールバック。
+          }
+        }
+        navigate(`/run/${info.object.id}`)
       },
       updateTriggers: { getColor: tubeColor },
     })
@@ -188,11 +330,8 @@ function GalleryLayers({
       billboard: true,
       updateTriggers: { getFillColor: dotColor },
     })
-    // NamedPlace の point/segment レイヤ。クリックで onPickPlace(place) を呼んで
-    // ポップアップを開く。地形の上に乗せたいので depthCompare 無効化。
-    const placeLayers = buildNamedPlaceLayers(namedPlaces, onPickPlace)
-    return [tubeLayer, dotsLayer, ...placeLayers]
-  }, [runPaths, dots, t, dotRadius, tubeWidth, tubeColor, dotColor, navigate, namedPlaces, onPickPlace])
+    return [tubeLayer, dotsLayer]
+  }, [runPaths, dots, t, dotRadius, tubeWidth, tubeColor, dotColor, navigate, map])
 
   return <DeckOverlay layers={layers} />
 }
@@ -260,6 +399,7 @@ export function GalleryPage() {
   }, [socialRuns])
   const [view, setView] = useState<'map' | 'list' | 'profile'>('map')
   const [listMode, setListMode] = useState<'trail' | 'island'>('trail')
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { user } = useAuth()
   const [armed, setArmed] = useState(false)
@@ -587,7 +727,7 @@ export function GalleryPage() {
   }
 
   return (
-    <div className="page">
+    <div className={`page${armed ? ' armed' : ''}`}>
       <button
         type="button"
         className="top-settings-btn"
@@ -598,18 +738,15 @@ export function GalleryPage() {
         <Icon icon="lucide:settings" />
       </button>
       <div className="map-container">
+        <div className="map-dim" aria-hidden="true" />
         {initialCenter !== undefined && runsLoaded && (
           <BaseMap
             initialCenter={initialCenter ?? undefined}
             initialZoom={HOME_FIXED_ZOOM}
             initialBounds={initialBounds}
           >
-            <GalleryLayers
-              runs={runs}
-              dots={dots}
-              namedPlaces={namedPlaces}
-              onPickPlace={setSelectedPlace}
-            />
+            <GalleryLayers runs={runs} dots={dots} />
+            <NamedPlaceMapLayers places={namedPlaces} onPick={setSelectedPlace} />
             <AreaLabel />
             <NowPlayingLabel />
             <MapBoundsConstraint
@@ -673,7 +810,7 @@ export function GalleryPage() {
                       key={item.run.id}
                       run={item.run}
                       owner={item.run.ownerUid ? ownerByUid.get(item.run.ownerUid) ?? null : null}
-                      onDelete={removeRun}
+                      onRequestDelete={setPendingDeleteId}
                       onSelect={handleRunSelect}
                     />
                   ) : (
@@ -710,6 +847,19 @@ export function GalleryPage() {
       </div>
 
       {settingsOpen && <SettingsPopup onClose={() => setSettingsOpen(false)} />}
+
+      {pendingDeleteId && (
+        <ConfirmDialog
+          message="このランを削除しますか？"
+          confirmLabel="削除"
+          destructive
+          onConfirm={() => {
+            void removeRun(pendingDeleteId)
+            setPendingDeleteId(null)
+          }}
+          onCancel={() => setPendingDeleteId(null)}
+        />
+      )}
 
       {armed && <div className="armed-backdrop" onClick={() => setArmed(false)} />}
       {activeBubbleText && (

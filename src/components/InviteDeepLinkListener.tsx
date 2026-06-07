@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { App, type URLOpenListenerEvent } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
@@ -20,6 +20,15 @@ import { Capacitor } from '@capacitor/core'
 // useNavigate を使うため <BrowserRouter> の内側にマウントすること。
 export function InviteDeepLinkListener(): null {
   const navigate = useNavigate()
+  // useNavigate の identity はナビゲーションのたびに変わりうる。これを effect の依存に
+  // 直接入れると、招待画面の「ホームへ」で location が変わるたび effect が貼り直され、
+  // 下の getLaunchUrl が「起動時の /invite URL」を再消費してホームから invite へ
+  // 引き戻してしまう。ref 経由で最新の navigate を参照し、effect はマウント時の一度だけ
+  // 張る (getLaunchUrl もそこで一度だけ消費される)。
+  const navigateRef = useRef(navigate)
+  useEffect(() => {
+    navigateRef.current = navigate
+  }, [navigate])
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
@@ -33,10 +42,11 @@ export function InviteDeepLinkListener(): null {
         return
       }
       if (!url.pathname.startsWith('/invite/')) return
-      navigate(url.pathname + url.search)
+      navigateRef.current(url.pathname + url.search)
     }
 
-    // コールド起動時の launch URL を一度だけ拾う。
+    // コールド起動時の launch URL を一度だけ拾う。getLaunchUrl はセッション中ずっと同じ
+    // URL を返し続けるので、effect が再実行されると再ナビゲーションの原因になる。
     void App.getLaunchUrl().then((res) => {
       if (res?.url) handleUrl(res.url)
     })
@@ -48,7 +58,7 @@ export function InviteDeepLinkListener(): null {
     return () => {
       void handle.then((h) => h.remove())
     }
-  }, [navigate])
+  }, [])
 
   return null
 }
