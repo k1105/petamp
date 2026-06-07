@@ -9,19 +9,20 @@ import { buildSharedRunSvgPaths, RUN_SVG_VIEW_SIZE } from '../../utils/runSvgPat
 import { memberColor, rgbCss } from '../../utils/coRunColors'
 
 interface Props {
-  sessionId: string
   /** 同一 co-run セッションのラン (自分 + 相手)。自分のランは ownerUid 無しで先頭付近に来る。 */
   runs: Run[]
   /** uid → フォロー中ユーザープロフィール (アバター表示用)。 */
   ownerByUid: Map<string, PublicUser>
-  onSelect: (sessionId: string) => void
+  /** 自分のラン (無ければ先頭) の runId を渡す。個別ラン画面で N 本を合成再生する。 */
+  onSelect: (runId: string) => void
 }
 
 /**
  * 「一緒に走った」ランを 1 タイルに統合し、参加者の軌跡を色分けで重ねて描く。
- * タップで合成リプレイ (/co-run/:sessionId/result) へ。
+ * タップで個別ラン画面 (/run/:id) へ。表示中ランが coRunSessionId を持つので、
+ * そこで参加者全員の軌跡を合成再生する (専用画面は廃止)。
  */
-export function CoRunTile({ sessionId, runs, ownerByUid, onSelect }: Props) {
+export function CoRunTile({ runs, ownerByUid, onSelect }: Props) {
   // 自分のラン (ownerUid 無し) を先頭にして色順を安定させる。
   const ordered = useMemo(
     () => [...runs].sort((a, b) => (a.ownerUid ? 1 : 0) - (b.ownerUid ? 1 : 0)),
@@ -38,7 +39,7 @@ export function CoRunTile({ sessionId, runs, ownerByUid, onSelect }: Props) {
   const others = ordered.filter(r => !!r.ownerUid)
 
   return (
-    <div className="run-tile co-run-tile" onClick={() => onSelect(sessionId)}>
+    <div className="run-tile co-run-tile" onClick={() => onSelect(mine.id)}>
       <div className="run-tile-svg-wrap">
         <svg
           className="run-tile-svg"

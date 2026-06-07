@@ -1,5 +1,5 @@
 // 「一緒に走る」メンバーごとの色 (最大 8 人ぶん。超過分は循環)。
-// 合成リプレイ (CoRunResultPage) と一覧の統合タイル (CoRunTile) で共有する。
+// 合成リプレイ (RunDetailPage の co-run 描画) と一覧の統合タイル (CoRunTile) で共有する。
 export const MEMBER_COLORS: [number, number, number][] = [
   [28, 151, 94],
   [232, 101, 90],

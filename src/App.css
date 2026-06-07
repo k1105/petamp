@@ -5823,7 +5823,7 @@ body.map-joystick-fab-out .bottom-sheet {
   gap: 8px;
 }
 
-/* 合成再生 (CoRunResultPage) の凡例と操作 */
+/* co-run 合成再生の凡例と操作 (RunDetailPage のライブフロー「次へ」で使用) */
 .co-run-result-legend {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 12px);

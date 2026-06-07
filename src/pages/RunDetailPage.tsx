@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { PathLayer } from '@deck.gl/layers'
-import { ScatterplotLayer } from '@deck.gl/layers'
+import { ScatterplotLayer, IconLayer } from '@deck.gl/layers'
 import { Icon } from '@iconify/react'
 import { EyesIcon } from '../components/gallery/EyesIcon'
 import { BaseMap } from '../components/map/BaseMap'
@@ -26,6 +26,11 @@ import { buildTripLayerData } from '../utils/tripLayerData'
 import { totalDistance } from '../utils/geoUtils'
 import { formatDistance, formatElevation, formatDate } from '../utils/formatters'
 import { loadRun } from '../db/runRepository'
+import { computeRunsBbox, expandBboxByMeters } from '../utils/runBbox'
+import { loadCircularAvatar } from '../utils/circularAvatar'
+import { useCoRunReplay, type CoRunEntry } from '../hooks/useCoRunReplay'
+import { useCoRunStore } from '../store/useCoRunStore'
+import { usePostRunLoadingStore } from '../store/usePostRunLoadingStore'
 import { getMemoryStore, petampCharacter } from '../character'
 import type { EpisodicMemory } from '../character'
 import type { Run } from '../types'
@@ -125,9 +130,126 @@ function DetailLayers({
   return <DeckOverlay layers={layers} mode={mapVisible ? 'mapbox' : 'fullscreen'} />
 }
 
+const AVATAR_DOT_SCALE = 1.2
+
+// 一緒に走ったメンバー全員の軌跡を色分けで重ね、共通の絶対タイムラインで N 本の
+// ポリライン + 動点を同時再生する。動点には各メンバーの Google アイコン (円形) を出す。
+// 旧 CoRunResultPage の描画をここに統合し、専用画面を廃止した。
+function CoRunDetailLayers({
+  entries, absMs, mapVisible, avatars,
+}: {
+  entries: CoRunEntry[]
+  absMs: number
+  mapVisible: boolean
+  avatars: Map<string, string>
+}) {
+  const zoom = useMapZoom()
+  const { map } = useMap()
+  const radii = useSettingsStore(s => s.radii)
+  const dotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
+  const tubeWidth = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius) * 2
+
+  // 全員の軌跡が画面中央に収まるよう fit。entries が変わったら再フィット。
+  useEffect(() => {
+    if (!map) return
+    const bbox = computeRunsBbox(entries.map(e => e.run))
+    if (!bbox) return
+    map.fitBounds(expandBboxByMeters(bbox, 60), {
+      padding: 60,
+      duration: 300,
+      maxZoom: FIT_MAX_ZOOM,
+    })
+  }, [map, entries])
+
+  // 軌跡 (ポリライン) はメンバーごとに 1 本、色分け。
+  const pathData = useMemo(
+    () =>
+      entries
+        .map(e => ({
+          uid: e.uid,
+          color: e.color,
+          path: buildPathPositions(acceptedPoints(e.run.trackPoints)),
+        }))
+        .filter(d => d.path.length >= 2),
+    [entries],
+  )
+
+  const layers = useMemo(() => {
+    const pathLayer = new PathLayer<{ uid: string; color: [number, number, number]; path: [number, number, number][] }>({
+      id: 'co-run-paths',
+      data: pathData,
+      getPath: d => d.path,
+      // 軌跡はメンバー問わず白で統一。誰の動点かは動点のアイコン/リング色で判別する。
+      getColor: [255, 255, 255, 255],
+      getWidth: tubeWidth,
+      widthUnits: 'meters',
+      capRounded: true,
+      jointRounded: true,
+      billboard: true,
+    })
+
+    type Dot = { position: [number, number]; color: [number, number, number]; avatar: string | null }
+    const dots: Dot[] = entries
+      .map((e): Dot | null => {
+        const loopSec = (absMs - e.run.startedAt) / 1000
+        const pos = positionAtTime(e.run, loopSec)
+        if (!pos) return null
+        const avatar = e.photoURL ? avatars.get(e.photoURL) ?? null : null
+        return { position: pos, color: e.color, avatar }
+      })
+      .filter((d): d is Dot => !!d)
+
+    const withAvatar = dots.filter(d => !!d.avatar)
+    const withoutAvatar = dots.filter(d => !d.avatar)
+
+    // アイコンの背面にメンバー色のリングを敷いて、どの軌跡の人かを色で結びつける。
+    const ringLayer = new ScatterplotLayer<Dot>({
+      id: 'co-run-avatar-rings',
+      data: withAvatar,
+      getPosition: d => [d.position[0], d.position[1], 0],
+      getRadius: dotRadius * AVATAR_DOT_SCALE * 2.4,
+      radiusUnits: 'meters',
+      getFillColor: d => [...d.color, 255],
+      billboard: true,
+      updateTriggers: { getPosition: absMs },
+    })
+
+    const avatarLayer = new IconLayer<Dot>({
+      id: 'co-run-avatars',
+      data: withAvatar,
+      getPosition: d => [d.position[0], d.position[1], 0],
+      getIcon: d => ({ url: d.avatar!, width: 128, height: 128, anchorX: 64, anchorY: 64, mask: false }),
+      getSize: dotRadius * AVATAR_DOT_SCALE * 4,
+      sizeUnits: 'meters',
+      billboard: true,
+      updateTriggers: { getPosition: absMs },
+    })
+
+    // アイコン未取得 (photoURL 無し / CORS 失敗) のメンバーは色付き動点で表す。
+    const dotLayer = new ScatterplotLayer<Dot>({
+      id: 'co-run-dots',
+      data: withoutAvatar,
+      getPosition: d => [d.position[0], d.position[1], 0],
+      getRadius: dotRadius * AVATAR_DOT_SCALE,
+      radiusUnits: 'meters',
+      getFillColor: d => [...d.color, 255],
+      billboard: true,
+      updateTriggers: { getPosition: absMs },
+    })
+
+    return [pathLayer, dotLayer, ringLayer, avatarLayer]
+  }, [pathData, entries, absMs, dotRadius, tubeWidth, avatars])
+
+  return <DeckOverlay layers={layers} mode={mapVisible ? 'mapbox' : 'fullscreen'} />
+}
+
 export function RunDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  // ラン終了直後の co-run ライブフロー (RecordingPage から遷移) かどうか。
+  const coRunLive = !!(location.state as { coRunLive?: boolean } | null)?.coRunLive
+  const liveMyRunId = (location.state as { myRunId?: string } | null)?.myRunId ?? null
   const [run, setRun] = useState<Run | null>(null)
   const [mapVisible, setMapVisible] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
@@ -157,17 +279,9 @@ export function RunDetailPage() {
     loadRuns().finally(() => setRunsLoaded(true))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const { currentTime, isPlaying, duration, setDuration, play, stop, reset } = useAnimation()
+  const { currentTime, duration, setDuration, play, stop, reset } = useAnimation()
 
-  // 終端到達 → 5秒待って先頭から再生
-  useEffect(() => {
-    if (isPlaying || duration <= 0 || currentTime < duration) return
-    const id = window.setTimeout(() => {
-      reset()
-      play()
-    }, 5000)
-    return () => window.clearTimeout(id)
-  }, [isPlaying, currentTime, duration, reset, play])
+  // ループは useAnimation 側で末尾→先頭に巻き戻して継続するので、ここでの再開処理は不要。
 
   // ページ表示時は再生をデフォルトにする (run ロード & duration 確定で自動再生)
   useEffect(() => {
@@ -262,6 +376,76 @@ export function RunDetailPage() {
     () => (run?.ownerUid ? followedUsers.find(u => u.uid === run.ownerUid) ?? null : null),
     [run, followedUsers],
   )
+
+  // ── co-run (一緒に走ったラン) ──────────────────────────────────────────
+  // 同一 coRunSessionId のラン (自分 + 相手) を集め、N 本の軌跡 + 各自の Google
+  // アイコン付き動点を共通タイムラインで再生する。専用画面 (旧 CoRunResultPage) は
+  // 廃止し、この個別ラン画面に統合した。
+  const coRunSessionId = run?.coRunSessionId ?? null
+  // 自分のランを 1 本に畳む際の優先 runId: ライブは遷移元の myRunId、一覧からは
+  // 表示中のラン (自分のものなら)。
+  const foldRunId = liveMyRunId ?? (run && !isOthers ? run.id : null)
+  const coRunEntries = useCoRunReplay(coRunSessionId, { live: coRunLive, myRunId: foldRunId })
+  const isCoRun = !!coRunSessionId && !!coRunEntries && coRunEntries.length > 0
+
+  // 全員の絶対時刻を貫く共通タイムライン (秒)。
+  const coRunTimeline = useMemo(() => {
+    if (!coRunEntries || coRunEntries.length === 0) return null
+    const start = Math.min(...coRunEntries.map(e => e.run.startedAt))
+    const end = Math.max(...coRunEntries.map(e => e.run.finishedAt))
+    return { start, durationSec: Math.max(1, (end - start) / 1000) }
+  }, [coRunEntries])
+
+  // 動点用に各メンバーの Google アイコンを円形クロップして読み込む。
+  const [coRunAvatars, setCoRunAvatars] = useState<Map<string, string>>(new Map())
+  useEffect(() => {
+    if (!coRunEntries) return
+    // キャッシュ済み URL も loadCircularAvatar は即返すので、ここで除外しない。
+    // (除外すると先に IslandView 等でキャッシュされた分が state に入らずアイコンが出ない)
+    const urls = coRunEntries.map(e => e.photoURL).filter((u): u is string => !!u)
+    if (urls.length === 0) return
+    let cancelled = false
+    void Promise.all(urls.map(u => loadCircularAvatar(u).then(d => [u, d] as const))).then(
+      pairs => {
+        if (cancelled) return
+        setCoRunAvatars(prev => {
+          const next = new Map(prev)
+          let changed = false
+          for (const [u, d] of pairs) {
+            if (d && next.get(u) !== d) {
+              next.set(u, d)
+              changed = true
+            }
+          }
+          return changed ? next : prev
+        })
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [coRunEntries])
+
+  // co-run の場合は共通タイムラインの長さに duration を合わせる (単色再生ループ用)。
+  useEffect(() => {
+    if (!isCoRun || !coRunTimeline) return
+    setDuration(coRunTimeline.durationSec)
+  }, [isCoRun, coRunTimeline, setDuration])
+
+  // ライブ co-run フローの「次へ」: セッションを片付けてから自分のランの対話へ進む。
+  const proceedFromCoRun = useCallback(() => {
+    stop()
+    useCoRunStore.getState().clearLocal()
+    const targetRunId = liveMyRunId ?? run?.id
+    if (targetRunId) {
+      usePostRunLoadingStore
+        .getState()
+        .start({ x: window.innerWidth / 2, y: window.innerHeight - 80 })
+      navigate(`/run/${targetRunId}/result`)
+    } else {
+      navigate('/')
+    }
+  }, [stop, liveMyRunId, run, navigate])
 
   // このRunに紐づく episodic memory を取得 (自分のランのみ)。他人のランでは
   // 取得しない。前回 own ラン分の state が残るが、UI 側で isOthers 時に
@@ -368,6 +552,9 @@ export function RunDetailPage() {
     '--bg': runPalette.bg,
   } as React.CSSProperties
 
+  // co-run 再生用の絶対時刻 (共通タイムラインの start + 経過秒)。
+  const coRunAbsMs = coRunTimeline ? coRunTimeline.start + currentTime * 1000 : 0
+
   return (
     <div className="page run-detail-page" style={pageStyle}>
       <div className="map-container">
@@ -380,7 +567,16 @@ export function RunDetailPage() {
           lockTarget
           mapVisible={mapVisible}
         >
-          <DetailLayers run={run} currentTime={currentTime} mapVisible={mapVisible} palette={runPalette} />
+          {isCoRun && coRunEntries ? (
+            <CoRunDetailLayers
+              entries={coRunEntries}
+              absMs={coRunAbsMs}
+              mapVisible={mapVisible}
+              avatars={coRunAvatars}
+            />
+          ) : (
+            <DetailLayers run={run} currentTime={currentTime} mapVisible={mapVisible} palette={runPalette} />
+          )}
           <AreaLabel override={run.areaName} />
         </BaseMap>
       </div>
@@ -407,24 +603,37 @@ export function RunDetailPage() {
         </button>
       )}
 
-      <button
-        className="run-nav-btn run-nav-prev"
-        onClick={() => prevRun && navigate(`/run/${prevRun.id}`)}
-        disabled={!prevRun}
-        aria-label="前のラン"
-        title="前のラン"
-      >
-        <Icon icon="lucide:chevron-left" />
-      </button>
-      <button
-        className="run-nav-btn run-nav-next"
-        onClick={() => nextRun && navigate(`/run/${nextRun.id}`)}
-        disabled={!nextRun}
-        aria-label="次のラン"
-        title="次のラン"
-      >
-        <Icon icon="lucide:chevron-right" />
-      </button>
+      {/* ライブ co-run フロー中は前後ランナビではなく「次へ」(対話へ進む) を出す。 */}
+      {!coRunLive && (
+        <>
+          <button
+            className="run-nav-btn run-nav-prev"
+            onClick={() => prevRun && navigate(`/run/${prevRun.id}`)}
+            disabled={!prevRun}
+            aria-label="前のラン"
+            title="前のラン"
+          >
+            <Icon icon="lucide:chevron-left" />
+          </button>
+          <button
+            className="run-nav-btn run-nav-next"
+            onClick={() => nextRun && navigate(`/run/${nextRun.id}`)}
+            disabled={!nextRun}
+            aria-label="次のラン"
+            title="次のラン"
+          >
+            <Icon icon="lucide:chevron-right" />
+          </button>
+        </>
+      )}
+
+      {coRunLive && (
+        <div className="co-run-result-controls">
+          <button type="button" className="co-run-btn co-run-btn-primary" onClick={proceedFromCoRun}>
+            次へ
+          </button>
+        </div>
+      )}
 
       <div className="run-detail-meta">
         <div className="run-detail-meta-name">{run.name}</div>

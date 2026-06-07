@@ -4,7 +4,6 @@ import { GalleryPage } from './pages/GalleryPage'
 import { RecordingPage } from './pages/RecordingPage'
 import { RunDetailPage } from './pages/RunDetailPage'
 import { RunResultPage } from './pages/RunResultPage'
-import { CoRunResultPage } from './pages/CoRunResultPage'
 import { ShapeEditorPage } from './pages/ShapeEditorPage'
 import { JoystickEditorPage } from './pages/JoystickEditorPage'
 import { RunChatPage } from './pages/RunChatPage'
@@ -24,6 +23,7 @@ import { LoadingScreen } from './components/LoadingScreen'
 import { PostRunLoadingScreen } from './components/PostRunLoadingScreen'
 import { CoRunLobby } from './components/corun/CoRunLobby'
 import { CoRunInviteSheet } from './components/corun/CoRunInviteSheet'
+import { InviteDeepLinkListener } from './components/InviteDeepLinkListener'
 import { useCoRunInviteListener } from './hooks/useCoRunInviteListener'
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useCharacterMemorySync } from './hooks/useCharacterMemorySync'
@@ -116,7 +116,6 @@ function App() {
         <Route path="/record" element={<RecordingPage />} />
         <Route path="/run/:id" element={<RunDetailPage />} />
         <Route path="/run/:id/result" element={<RunResultPage />} />
-        <Route path="/co-run/:sessionId/result" element={<CoRunResultPage />} />
         <Route path="/run/:id/chat" element={<RunChatPage />} />
         <Route path="/run/:id/notation" element={<NotationChatPage />} />
         <Route path="/shape-editor" element={<ShapeEditorPage />} />
@@ -130,6 +129,7 @@ function App() {
         <Route path="/spotify-callback" element={<SpotifyCallbackPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <InviteDeepLinkListener />
       <TransitionOverlay />
       <PostRunLoadingScreen />
       <CoRunLobby />

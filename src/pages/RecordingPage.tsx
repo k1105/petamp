@@ -673,9 +673,12 @@ export function RecordingPage() {
       {endGate && (
         <CoRunWaitOverlay
           onProceed={() => {
-            // 全員ゴール (or 自己タイムアウト) → N 人分の軌跡を合成再生する画面へ。
-            // co-run セッションはここではクリアしない (合成再生画面が members を使う)。
-            navigate(`/co-run/${coRunSessionId}/result`, {state: {myRunId: endGate.runId}});
+            // 全員ゴール (or 自己タイムアウト) → 個別ラン画面で N 人分の軌跡を合成再生する。
+            // co-run セッションはここではクリアしない (合成再生が members を使う)。
+            // 専用画面は廃止し、RunDetailPage をライブモード (coRunLive) で開く。
+            navigate(`/run/${endGate.runId}`, {
+              state: { coRunLive: true, myRunId: endGate.runId },
+            });
           }}
         />
       )}

@@ -1,17 +1,20 @@
 import { useState } from 'react'
 import { QRCode } from 'react-qr-code'
 import { Icon } from '@iconify/react'
+import { inviteUrl as buildInviteUrl } from '../../config/appUrl'
 
 type Props = {
   myUid: string
 }
 
 /**
- * 自分の招待 QR と招待リンクを表示する。リンクは `${origin}/invite/${uid}` 形式の固定 URL。
- * 受け取った相手がサインイン状態で開くと即時相互フレンドが成立する (InvitePage 側で実装)。
+ * 自分の招待 QR と招待リンクを表示する。リンクは本番ドメイン固定の
+ * `https://<本番>/invite/<uid>` (config/appUrl)。これは Universal Links 対象なので、
+ * アプリ導入済みの相手が QR を読むとブラウザを挟まず直接アプリが起動し、
+ * 未導入なら web の InvitePage にフォールバックする。
  */
 export function InviteTab({ myUid }: Props) {
-  const inviteUrl = `${window.location.origin}/invite/${myUid}`
+  const inviteUrl = buildInviteUrl(myUid)
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {

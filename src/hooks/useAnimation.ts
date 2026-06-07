@@ -28,12 +28,8 @@ export function useAnimation() {
 
       const store = useMapStore.getState()
       const next = store.currentTime + delta
-      if (next >= duration) {
-        stop()
-        setCurrentTime(duration)
-      } else {
-        setCurrentTime(next)
-      }
+      // 末尾に到達したら先頭へ巻き戻してシームレスに無限ループ (明示停止まで止めない)。
+      setCurrentTime(duration > 0 ? next % duration : next)
 
       rafRef.current = requestAnimationFrame(tick)
     }

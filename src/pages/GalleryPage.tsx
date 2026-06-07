@@ -258,7 +258,6 @@ export function GalleryPage() {
     }
     return items
   }, [socialRuns])
-  const navigate = useNavigate()
   const [view, setView] = useState<'map' | 'list' | 'profile'>('map')
   const [listMode, setListMode] = useState<'trail' | 'island'>('trail')
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -680,10 +679,9 @@ export function GalleryPage() {
                   ) : (
                     <CoRunTile
                       key={item.sessionId}
-                      sessionId={item.sessionId}
                       runs={item.runs}
                       ownerByUid={ownerByUid}
-                      onSelect={sid => navigate(`/co-run/${sid}/result`)}
+                      onSelect={handleRunSelect}
                     />
                   ),
                 )}
