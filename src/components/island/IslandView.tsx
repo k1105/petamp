@@ -11,6 +11,7 @@ import { fetchAreaName } from '../../hooks/useReverseGeocode'
 import { useActivePalette } from '../../hooks/useActivePalette'
 import { hexToRgb } from '../../utils/themePalettes'
 import { ArchipelagoMapView, type ArchipelagoBbox } from './ArchipelagoMapView'
+import { LoadingEyesBubble } from '../LoadingEyesBubble'
 import type { Run } from '../../types'
 import type { PublicUser } from '../../firebase/userCloud'
 import { getCircularAvatar, loadCircularAvatar } from '../../utils/circularAvatar'
@@ -218,14 +219,7 @@ export function IslandView({ layout, loading, socialRuns, ownerByUid }: Props) {
   if (!layout) {
     return (
       <div className="island-loading">
-        <div className="island-loading-inner">
-          <span className="island-loading-dot" />
-          <span className="island-loading-dot" />
-          <span className="island-loading-dot" />
-          <p className="island-loading-text">
-            {loading ? 'ISLAND を計算中…' : 'ISLAND を準備中…'}
-          </p>
-        </div>
+        <LoadingEyesBubble text={loading ? 'ISLAND を計算中…' : 'ISLAND を準備中…'} />
       </div>
     )
   }

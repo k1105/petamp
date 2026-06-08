@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { usePostRunLoadingStore } from '../store/usePostRunLoadingStore'
-import { EyesIcon } from './gallery/EyesIcon'
+import { LoadingEyesBubble } from './LoadingEyesBubble'
 
 const ENTER_DURATION_MS = 400
 const CLOSE_DURATION_MS = 1000
@@ -43,12 +43,7 @@ export function PostRunLoadingScreen() {
       style={style}
       aria-hidden={phase !== 'loading'}
     >
-      <div className="post-run-loading-inner">
-        <div className="post-run-loading-eyes">
-          <EyesIcon />
-        </div>
-        <div className="post-run-loading-text">loading...</div>
-      </div>
+      <LoadingEyesBubble text="loading..." />
     </div>
   )
 }

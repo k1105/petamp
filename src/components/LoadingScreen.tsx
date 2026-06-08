@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { EyesIcon } from './gallery/EyesIcon'
+import { LoadingEyesBubble } from './LoadingEyesBubble'
 
 const CLOSING_DURATION_MS = 1000
 
@@ -18,12 +18,7 @@ export function LoadingScreen({ ready }: { ready: boolean }) {
 
   return (
     <div className={`loading-screen phase-${phase}`} aria-hidden={phase !== 'loading'}>
-      <div className="loading-screen-inner">
-        <div className="loading-screen-eyes">
-          <EyesIcon />
-        </div>
-        <div className="loading-screen-text">loading...</div>
-      </div>
+      <LoadingEyesBubble text="loading..." />
     </div>
   )
 }
