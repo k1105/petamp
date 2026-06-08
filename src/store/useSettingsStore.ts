@@ -53,6 +53,8 @@ export interface UiSettings {
   mapPaddingMeters: number  // 軌跡bbox周囲のパディング (m) - gallery map制約
   hasSeenFirstRunIntro: boolean  // 「最初のラン」紹介ポップを表示済みか
   altitudeScale: number     // run detail (単色表現時) の高度可視化倍率。0 で平面。
+  /** トップ画面マップの軌跡表現。'tube'=線, 'points'=半透明の点群ビルボード。 */
+  galleryTrailStyle: 'tube' | 'points'
 }
 
 export interface ExperimentalSettings {
@@ -102,6 +104,7 @@ export const DEFAULT_UI_SETTINGS: UiSettings = {
   mapPaddingMeters: 100,
   hasSeenFirstRunIntro: false,
   altitudeScale: 3,
+  galleryTrailStyle: 'tube',
 }
 
 export const DEFAULT_THEME_SETTINGS: ThemeSettings = {

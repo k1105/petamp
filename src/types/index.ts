@@ -25,6 +25,17 @@ export interface Note {
   photoDataUrl?: string
 }
 
+/**
+ * 記録の移動種別。
+ * - foot: 徒歩・ランニング (by foot)
+ * - bike: 自転車
+ * - car:  車
+ * - other: そのほか
+ * 今後種別が増える可能性があるため文字列ユニオンで定義する。未保存 (過去の Run) は
+ * 表示・編集時に 'foot' として扱う (= 既存ランの遅延マイグレーション)。
+ */
+export type MovementType = 'foot' | 'bike' | 'car' | 'other'
+
 export interface Run {
   id: string
   name: string
@@ -35,6 +46,11 @@ export interface Run {
   areaName?: string
   /** 記録時の天気。未保存 (過去の Run) は表示時に 'sunny' として扱う。 */
   weather?: 'sunny' | 'cloudy' | 'rainy'
+  /**
+   * 記録時の移動種別。未保存 (過去の Run) は表示・編集時に 'foot' として扱う。
+   * 値の解決は getMovementType() を使う。
+   */
+  movementType?: MovementType
   /**
    * フォロー中ユーザーのランをローカルに表示するときに付与される uid。
    * 自分自身のランでは undefined。Firestore には保存しない (受信時に組み立て)。

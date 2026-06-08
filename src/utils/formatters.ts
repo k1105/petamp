@@ -15,9 +15,11 @@ export function formatElevation(meters: number): string {
   return `${Math.round(meters)}m`
 }
 
+/** 年月日を 0000/00/00 (ゼロ埋めスラッシュ) 形式に統一する。 */
 export function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString('ja-JP', {
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
+  const d = new Date(timestamp)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}/${m}/${day}`
 }

@@ -7,7 +7,6 @@ import { EyesIcon } from '../components/gallery/EyesIcon'
 import { BaseMap } from '../components/map/BaseMap'
 import { useMap, useMapZoom } from '../components/map/MapContext'
 import { DeckOverlay } from '../components/map/DeckOverlay'
-import { AreaLabel } from '../components/map/AreaLabel'
 import { PathDebugPanel } from '../components/recording/PathDebugPanel'
 import { useAnimation } from '../hooks/useAnimation'
 import { useElevationStats } from '../hooks/useElevationStats'
@@ -30,6 +29,7 @@ import { computeRunsBbox, expandBboxByMeters } from '../utils/runBbox'
 import { loadCircularAvatar } from '../utils/circularAvatar'
 import { useCoRunReplay, type CoRunEntry } from '../hooks/useCoRunReplay'
 import { useCoRunStore } from '../store/useCoRunStore'
+import { NutritionFacts } from '../components/gallery/NutritionFacts'
 import { usePostRunLoadingStore } from '../store/usePostRunLoadingStore'
 import { getMemoryStore, petampCharacter } from '../character'
 import type { EpisodicMemory } from '../character'
@@ -39,8 +39,8 @@ const MIN_ZOOM = 12.5
 const FIT_MAX_ZOOM = 17
 
 function DetailLayers({
-  run, currentTime, mapVisible, palette,
-}: { run: Run; currentTime: number; mapVisible: boolean; palette: Palette }) {
+  run, currentTime, mapVisible, palette, pointCloud,
+}: { run: Run; currentTime: number; mapVisible: boolean; palette: Palette; pointCloud: boolean }) {
   const zoom = useMapZoom()
   const { map } = useMap()
   const radii = useSettingsStore(s => s.radii)
@@ -84,6 +84,8 @@ function DetailLayers({
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5))
   const tubeWidth = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius) * 2
   const dotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
+  // 点群表現の円半径。線の半分幅より少し大きくして点同士を重ね、軌跡が帯に見えるようにする。
+  const trailRadius = (tubeWidth / 2) * 1.6
   const pathPositions = useMemo(
     () => buildPathPositions(pts, altitudeScale),
     [pts, altitudeScale],
@@ -100,18 +102,32 @@ function DetailLayers({
   const layers = useMemo(() => {
     if (mapVisible && t === 0) return []
     if (pathPositions.length < 2) return []
-    const tubeLayer = new PathLayer({
-      id: 'run-tube',
-      data: [pathPositions],
-      getPath: d => d,
-      getColor: tubeColor,
-      getWidth: tubeWidth,
-      widthUnits: 'meters',
-      capRounded: true,
-      jointRounded: true,
-      billboard: true,
-      updateTriggers: { getColor: tubeColor },
-    })
+    // 成分表示 (Nutrition) モードでは軌跡を線ではなく点群で描く。
+    const trailLayer = pointCloud
+      ? new ScatterplotLayer<[number, number, number]>({
+          id: 'run-trail-points',
+          data: pathPositions,
+          getPosition: d => d,
+          getRadius: trailRadius,
+          radiusUnits: 'meters',
+          getFillColor: tubeColor,
+          billboard: true,
+          // 半透明の重なりを綺麗に出すため深度書き込みを切る。
+          parameters: { depthWriteEnabled: false },
+          updateTriggers: { getFillColor: tubeColor, getRadius: trailRadius },
+        })
+      : new PathLayer({
+          id: 'run-tube',
+          data: [pathPositions],
+          getPath: d => d,
+          getColor: tubeColor,
+          getWidth: tubeWidth,
+          widthUnits: 'meters',
+          capRounded: true,
+          jointRounded: true,
+          billboard: true,
+          updateTriggers: { getColor: tubeColor },
+        })
     const dotLayer = new ScatterplotLayer({
       id: 'run-dot',
       data: dotData,
@@ -122,8 +138,8 @@ function DetailLayers({
       billboard: true,
       updateTriggers: { getFillColor: dotColor },
     })
-    return [tubeLayer, dotLayer]
-  }, [pathPositions, dotData, t, mapVisible, tubeWidth, dotRadius, tubeColor, dotColor])
+    return [trailLayer, dotLayer]
+  }, [pathPositions, dotData, t, mapVisible, pointCloud, tubeWidth, trailRadius, dotRadius, tubeColor, dotColor])
 
   // 単色表現時は .map-canvas の mask/inset で path が縁で fade してしまうため、
   // deck.gl を sibling として全画面に出す。
@@ -251,6 +267,8 @@ export function RunDetailPage() {
   const coRunLive = !!(location.state as { coRunLive?: boolean } | null)?.coRunLive
   const liveMyRunId = (location.state as { myRunId?: string } | null)?.myRunId ?? null
   const [run, setRun] = useState<Run | null>(null)
+  // 軌跡リプレイ / 成分表示 (Nutrition Facts) のタブ切替。
+  const [detailTab, setDetailTab] = useState<'replay' | 'nutrition'>('replay')
   const [mapVisible, setMapVisible] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
   const [memories, setMemories] = useState<EpisodicMemory[]>([])
@@ -325,7 +343,7 @@ export function RunDetailPage() {
       if (Math.hypot(e.clientX - s.x, e.clientY - s.y) > 10) return
       if (e.timeStamp - s.t > 500) return
       const el = e.target as HTMLElement | null
-      if (el?.closest('button, a, input, .run-detail-meta, .run-detail-bubble, .run-detail-bubble-backdrop, .debug-overlay')) return
+      if (el?.closest('button, a, input, .run-detail-meta, .run-detail-bubble, .run-detail-bubble-backdrop, .debug-overlay, .nutrition-facts-panel, .run-detail-tabs')) return
       togglePlayback()
     }
     document.addEventListener('pointerdown', onDown)
@@ -575,24 +593,58 @@ export function RunDetailPage() {
               avatars={coRunAvatars}
             />
           ) : (
-            <DetailLayers run={run} currentTime={currentTime} mapVisible={mapVisible} palette={runPalette} />
+            <DetailLayers
+              run={run}
+              currentTime={currentTime}
+              mapVisible={mapVisible}
+              palette={runPalette}
+              pointCloud={detailTab === 'nutrition'}
+            />
           )}
-          <AreaLabel override={run.areaName} />
         </BaseMap>
+      </div>
+
+      {detailTab === 'nutrition' && (
+        <div className="nutrition-facts-panel">
+          <NutritionFacts run={run} />
+        </div>
+      )}
+
+      <div className="run-detail-tabs" role="tablist" aria-label="表示の切替">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={detailTab === 'replay'}
+          className={`run-detail-tab${detailTab === 'replay' ? ' is-active' : ''}`}
+          onClick={() => setDetailTab('replay')}
+        >
+          TRAIL
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={detailTab === 'nutrition'}
+          className={`run-detail-tab${detailTab === 'nutrition' ? ' is-active' : ''}`}
+          onClick={() => setDetailTab('nutrition')}
+        >
+          NUTRITION
+        </button>
       </div>
 
       <button className="back-btn" onClick={() => navigate('/')} aria-label="閉じる">
         <Icon icon="lucide:x" />
       </button>
-      <button
-        className={`map-toggle-btn ${!mapVisible ? 'active' : ''}`}
-        onClick={() => setMapVisible(v => !v)}
-        title={mapVisible ? 'マップ非表示' : 'マップ表示'}
-        aria-label={mapVisible ? 'マップ非表示' : 'マップ表示'}
-      >
-        <Icon icon={mapVisible ? 'lucide:map-pin-off' : 'lucide:map'} />
-      </button>
-      {!isOthers && (
+      {detailTab === 'replay' && (
+        <button
+          className={`map-toggle-btn ${!mapVisible ? 'active' : ''}`}
+          onClick={() => setMapVisible(v => !v)}
+          title={mapVisible ? 'マップ非表示' : 'マップ表示'}
+          aria-label={mapVisible ? 'マップ非表示' : 'マップ表示'}
+        >
+          <Icon icon={mapVisible ? 'lucide:map-pin-off' : 'lucide:map'} />
+        </button>
+      )}
+      {detailTab === 'replay' && !isOthers && (
         <button
           className="debug-btn"
           onClick={() => setDebugOpen(true)}
@@ -603,7 +655,8 @@ export function RunDetailPage() {
         </button>
       )}
 
-      {/* ライブ co-run フロー中は前後ランナビではなく「次へ」(対話へ進む) を出す。 */}
+      {/* ライブ co-run フロー中は前後ランナビではなく「次へ」(対話へ進む) を出す。
+          前後ラン (左右移動) は TRAIL / NUTRITION 両タブで使える。 */}
       {!coRunLive && (
         <>
           <button
@@ -635,18 +688,20 @@ export function RunDetailPage() {
         </div>
       )}
 
-      <div className="run-detail-meta">
-        <div className="run-detail-meta-name">{run.name}</div>
-        <div className="run-detail-meta-date">{formatDate(run.startedAt)}</div>
-        <div className="run-detail-meta-stat">
-          <span className="run-detail-meta-stat-label">距離</span>
-          <span className="run-detail-meta-stat-value">{formatDistance(dist)}</span>
+      {detailTab === 'replay' && (
+        <div className="run-detail-meta">
+          {run.areaName && <div className="run-detail-meta-name">{run.areaName}</div>}
+          <div className="run-detail-meta-date">{formatDate(run.startedAt)}</div>
+          <div className="run-detail-meta-stat">
+            <span className="run-detail-meta-stat-label">距離</span>
+            <span className="run-detail-meta-stat-value">{formatDistance(dist)}</span>
+          </div>
+          <div className="run-detail-meta-stat">
+            <span className="run-detail-meta-stat-label">獲得標高</span>
+            <span className="run-detail-meta-stat-value">↑{formatElevation(gain)}</span>
+          </div>
         </div>
-        <div className="run-detail-meta-stat">
-          <span className="run-detail-meta-stat-label">獲得標高</span>
-          <span className="run-detail-meta-stat-value">↑{formatElevation(gain)}</span>
-        </div>
-      </div>
+      )}
 
       {tapFlash && (
         <div className="run-detail-tap-flash" key={tapFlash.n}>
@@ -664,7 +719,8 @@ export function RunDetailPage() {
       )}
 
       {/* Persistent eye carried over from the gallery → run-detail transition.
-          Tapping pops a bubble; the bubble's inline link enters the chat. */}
+          Tapping pops a bubble; the bubble's inline link enters the chat.
+          TRAIL / NUTRITION 両タブで背景に居続ける (ペタンプの顔)。 */}
       <button
         ref={eyeRef}
         type="button"

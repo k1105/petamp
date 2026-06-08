@@ -22,6 +22,7 @@ import {effectiveRadius} from "../utils/effectiveRadius";
 import {useBpmDotScale} from "../hooks/useBpmDotScale";
 import {acceptedPoints, accuracyGate, warmupGate, minDistanceGate, maxSpeedGate} from "../utils/recordingFilters";
 import {fetchAreaName} from "../hooks/useReverseGeocode";
+import {formatDate} from "../utils/formatters";
 import {fetchWeatherForCoords} from "../utils/fetchWeather";
 import {RecordingDebugPanel} from "../components/recording/RecordingDebugPanel";
 import {CoRunBanner} from "../components/corun/CoRunBanner";
@@ -325,6 +326,9 @@ export function RecordingPage() {
   const [recordingDebugOpen, setRecordingDebugOpen] = useState(false);
   const [showRawTube, setShowRawTube] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("follow");
+  // 記録の移動種別。ラン開始前 (Gallery の armed 状態) で選んだ値を transition store
+  // 経由で受け取り、FINISH 時に保存する。reset() で失われる前に snapshot する。
+  const [movementType] = useState(() => useTransitionStore.getState().movementType);
   const [warningOpen, setWarningOpen] = useState(false);
   const [introOpen, setIntroOpen] = useState(false);
   const warningShownRef = useRef(false);
@@ -441,13 +445,14 @@ export function RecordingPage() {
     const weather = weatherRaw ?? "sunny";
     const run: Run = {
       id: crypto.randomUUID(),
-      name: `ラン ${new Date().toLocaleDateString("ja-JP")}`,
+      name: `ラン ${formatDate(Date.now())}`,
       startedAt: points[0].timestamp,
       finishedAt: points.at(-1)!.timestamp,
       trackPoints: points,
       notes: [],
       areaName,
       weather,
+      movementType,
     };
     if (isCoRun && coRunSessionId) {
       // この session のランだと印を付ける。一覧で 1 タイルに統合し、合成リプレイで参照する。

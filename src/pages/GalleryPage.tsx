@@ -19,6 +19,7 @@ import { SettingsPopup } from '../components/gallery/SettingsPopup'
 import { ProfileScreen } from '../components/ProfileScreen'
 import { useAuth } from '../hooks/useAuth'
 import { RunTile } from '../components/gallery/RunTile'
+import { RunEditSheet } from '../components/gallery/RunEditSheet'
 import { CoRunTile } from '../components/gallery/CoRunTile'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EyesIcon } from '../components/gallery/EyesIcon'
@@ -38,8 +39,10 @@ import { useJoystickStore } from '../store/useJoystickStore'
 import { useTransitionStore } from '../store/useTransitionStore'
 import { useCoRunStore } from '../store/useCoRunStore'
 import { useNamedPlaces } from '../hooks/useNamedPlaces'
+import { MovementTypeSelector } from '../components/MovementTypeSelector'
+import { DEFAULT_MOVEMENT_TYPE, MOVEMENT_TYPES, getMovementType } from '../utils/movementType'
 import type { DotPosition } from '../hooks/useGalleryAnimation'
-import type { Run } from '../types'
+import type { MovementType, Run } from '../types'
 import type { NamedPlace } from '../character/domain/memory'
 
 const MIN_ZOOM = 12.5
@@ -274,9 +277,16 @@ function GalleryLayers({
   )
   const tubeColor: [number, number, number, number] = [...accentRgb, Math.round(128 * t)]
   const dotColor: [number, number, number, number] = [...accentRgb, Math.round(255 * t)]
+  // 点群表現の円は重なりで色が乗算的に濃くなるので、線より低い α にする。
+  const trailColor: [number, number, number, number] = [...accentRgb, Math.round(70 * t)]
+
+  const trailStyle = useSettingsStore(s => s.ui.galleryTrailStyle)
 
   const dotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
   const tubeWidth = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius) * 2
+  // 点群の円半径。線の半分幅 (tubeWidth/2) より少し大きくして点同士を重ね、
+  // 軌跡が滑らかな帯に見えるようにする。
+  const trailRadius = (tubeWidth / 2) * 1.6
 
   const runPaths = useMemo(
     () =>
@@ -289,37 +299,66 @@ function GalleryLayers({
     [runs],
   )
 
+  // 点群表現用。各ランの全トラックポイントを { id, position } の平坦な配列にする。
+  const trailPoints = useMemo(
+    () =>
+      runs.flatMap(run =>
+        acceptedPoints(run.trackPoints).map(p => ({
+          id: run.id,
+          position: [p.lng, p.lat] as [number, number],
+        })),
+      ),
+    [runs],
+  )
+
   const layers = useMemo(() => {
     if (t === 0) return []
-    const tubeLayer = new PathLayer<{ id: string; path: [number, number, number][] }>({
-      id: 'gallery-tubes',
-      data: runPaths,
-      getPath: d => d.path,
-      getColor: tubeColor,
-      getWidth: tubeWidth,
-      widthUnits: 'meters',
-      capRounded: true,
-      jointRounded: true,
-      billboard: true,
-      pickable: true,
-      onClick: info => {
-        if (!info.object) return
-        // 同じ地点に地名 (mapbox レイヤ) がある場合は、地名 popup を優先して
-        // ラン遷移しない (deck チューブと mapbox 地名が両方 click 発火するため)。
-        if (map && info.x != null && info.y != null) {
-          try {
-            const present = NP_ALL_LAYERS.filter(id => map.getLayer(id))
-            if (present.length && map.queryRenderedFeatures([info.x, info.y], { layers: present }).length) {
-              return
-            }
-          } catch {
-            // クエリ失敗時はそのまま遷移にフォールバック。
+    // 同じ地点に地名 (mapbox レイヤ) がある場合は、地名 popup を優先して
+    // ラン遷移しない (deck レイヤと mapbox 地名が両方 click 発火するため)。
+    const onTrailClick = (info: { object?: { id: string }; x?: number; y?: number }) => {
+      if (!info.object) return
+      if (map && info.x != null && info.y != null) {
+        try {
+          const present = NP_ALL_LAYERS.filter(id => map.getLayer(id))
+          if (present.length && map.queryRenderedFeatures([info.x, info.y], { layers: present }).length) {
+            return
           }
+        } catch {
+          // クエリ失敗時はそのまま遷移にフォールバック。
         }
-        navigate(`/run/${info.object.id}`)
-      },
-      updateTriggers: { getColor: tubeColor },
-    })
+      }
+      navigate(`/run/${info.object.id}`)
+    }
+    const trailLayer =
+      trailStyle === 'points'
+        ? new ScatterplotLayer<{ id: string; position: [number, number] }>({
+            id: 'gallery-trail-points',
+            data: trailPoints,
+            getPosition: d => [d.position[0], d.position[1], 0],
+            getRadius: trailRadius,
+            radiusUnits: 'meters',
+            getFillColor: trailColor,
+            billboard: true,
+            pickable: true,
+            // 半透明の重なりを綺麗に出すため深度書き込みを切る。
+            parameters: { depthWriteEnabled: false },
+            onClick: onTrailClick,
+            updateTriggers: { getFillColor: trailColor, getRadius: trailRadius },
+          })
+        : new PathLayer<{ id: string; path: [number, number, number][] }>({
+            id: 'gallery-tubes',
+            data: runPaths,
+            getPath: d => d.path,
+            getColor: tubeColor,
+            getWidth: tubeWidth,
+            widthUnits: 'meters',
+            capRounded: true,
+            jointRounded: true,
+            billboard: true,
+            pickable: true,
+            onClick: onTrailClick,
+            updateTriggers: { getColor: tubeColor },
+          })
     const dotsLayer = new ScatterplotLayer({
       id: 'gallery-dots',
       data: dots,
@@ -328,10 +367,27 @@ function GalleryLayers({
       radiusUnits: 'meters',
       getFillColor: dotColor,
       billboard: true,
+      // 動点はオクルージョンを無効化し、必ずチューブ(線)の最前面に描く。
+      // 深度テストを always にして点が線に埋もれないようにする。
+      parameters: { depthCompare: 'always', depthWriteEnabled: false },
       updateTriggers: { getFillColor: dotColor },
     })
-    return [tubeLayer, dotsLayer]
-  }, [runPaths, dots, t, dotRadius, tubeWidth, tubeColor, dotColor, navigate, map])
+    return [trailLayer, dotsLayer]
+  }, [
+    runPaths,
+    trailPoints,
+    trailStyle,
+    trailColor,
+    trailRadius,
+    dots,
+    t,
+    dotRadius,
+    tubeWidth,
+    tubeColor,
+    dotColor,
+    navigate,
+    map,
+  ])
 
   return <DeckOverlay layers={layers} />
 }
@@ -354,19 +410,47 @@ function pickFallback(): string {
   return FALLBACK_PHRASES[Math.floor(Math.random() * FALLBACK_PHRASES.length)]
 }
 
+type RunFilter = 'all' | 'mine' | 'friends'
+const RUN_FILTER_OPTIONS: { value: RunFilter; label: string }[] = [
+  { value: 'all', label: 'すべて' },
+  { value: 'mine', label: '自分の記録' },
+  { value: 'friends', label: '友達の記録' },
+]
+
+type MovementFilter = MovementType | 'all'
+const MOVEMENT_FILTER_OPTIONS: { value: MovementFilter; label: string }[] = [
+  { value: 'all', label: 'すべての種別' },
+  ...MOVEMENT_TYPES.map(m => ({ value: m.value as MovementFilter, label: m.label })),
+]
+
 export function GalleryPage() {
-  const { runs, loadRuns, removeRun } = useRunStore()
+  const { runs, loadRuns, removeRun, updateRun } = useRunStore()
   const followedRuns = useSocialFeedStore(s => s.followedRuns)
   const followedUsers = useSocialFeedStore(s => s.followedUsers)
   const ui = useSettingsStore(s => s.ui)
   const setUi = useSettingsStore(s => s.setUi)
 
+  // 一覧の表示フィルター。すべて / 自分のみ / 友達のみ を切り替える。
+  const [runFilter, setRunFilter] = useState<RunFilter>('all')
+  // 移動種別フィルター。'all' なら全種別。
+  const [movementFilter, setMovementFilter] = useState<MovementFilter>('all')
+  const [filterOpen, setFilterOpen] = useState(false)
+
   // TRAIL / ISLAND タブにはフォロー中ユーザーのランも混ぜて表示する。
   // マップ・dot アニメ・home phrase・STATS は今まで通り自分のランのみ。
-  const socialRuns = useMemo(
-    () => [...runs, ...followedRuns].sort((a, b) => b.startedAt - a.startedAt),
-    [runs, followedRuns],
-  )
+  const socialRuns = useMemo(() => {
+    const base =
+      runFilter === 'mine'
+        ? runs
+        : runFilter === 'friends'
+          ? followedRuns
+          : [...runs, ...followedRuns]
+    const filtered =
+      movementFilter === 'all'
+        ? base
+        : base.filter(r => getMovementType(r) === movementFilter)
+    return filtered.slice().sort((a, b) => b.startedAt - a.startedAt)
+  }, [runs, followedRuns, runFilter, movementFilter])
   const ownerByUid = useMemo(() => {
     const m = new Map<string, typeof followedUsers[number]>()
     for (const u of followedUsers) m.set(u.uid, u)
@@ -397,9 +481,25 @@ export function GalleryPage() {
     }
     return items
   }, [socialRuns])
+
+  // TRAIL 一覧は移動種別ごとにグルーピングして見出しを付ける。
+  // co-run は代表ラン (先頭) の種別で分類する。MOVEMENT_TYPES の順で並べ、空グループは省く。
+  const listGroups = useMemo(() => {
+    const typeOf = (item: ListItem) =>
+      getMovementType(item.kind === 'single' ? item.run : item.runs[0])
+    return MOVEMENT_TYPES.map(meta => ({
+      meta,
+      items: listItems.filter(item => typeOf(item) === meta.value),
+    })).filter(g => g.items.length > 0)
+  }, [listItems])
+
   const [view, setView] = useState<'map' | 'list' | 'profile'>('map')
   const [listMode, setListMode] = useState<'trail' | 'island'>('trail')
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  // 長押しで開く編集シート対象のラン id。自分のランのみ (RunTile が他人のランでは発火しない)。
+  const [editingRunId, setEditingRunId] = useState<string | null>(null)
+  // ラン開始前 (armed 状態) に選ぶ移動種別。startRecord で /record へ引き継ぐ。
+  const [movementType, setMovementType] = useState<MovementType>(DEFAULT_MOVEMENT_TYPE)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { user } = useAuth()
   const [armed, setArmed] = useState(false)
@@ -430,6 +530,7 @@ export function GalleryPage() {
   const speechBubbleRef = useRef<HTMLButtonElement>(null)
   const startLabelRef = useRef<HTMLDivElement>(null)
   const coRunEntryRef = useRef<HTMLButtonElement>(null)
+  const movementSelectorRef = useRef<HTMLDivElement>(null)
   const armedRef = useRef(armed)
   // armed の最新値を sheet 描画ループから参照するため ref に同期する。
   // eslint-disable-next-line react-hooks/refs
@@ -643,12 +744,22 @@ export function GalleryPage() {
       if (fab) {
         const r = fab.getBoundingClientRect()
         const cx = r.left + r.width / 2
+        // 顔のすぐ上に吹き出し、その上に移動種別セレクタを積む。
+        // 各要素は translate ではなく left/top を直接指定して中央寄せする
+        // (pop アニメの transform が中央寄せ translate を上書きして横にずれるのを防ぐ)。
+        let stackTop = r.top
         const bubble = speechBubbleRef.current
         if (bubble) {
           bubble.style.left = `${cx - bubble.offsetWidth / 2}px`
           bubble.style.top = `${r.top - 16 - bubble.offsetHeight}px`
+          stackTop = r.top - 16 - bubble.offsetHeight
         }
         if (armed) {
+          const selector = movementSelectorRef.current
+          if (selector) {
+            selector.style.left = `${cx - selector.offsetWidth / 2}px`
+            selector.style.top = `${stackTop - 14 - selector.offsetHeight}px`
+          }
           const label = startLabelRef.current
           if (label) {
             label.style.left = `${cx - label.offsetWidth / 2}px`
@@ -687,7 +798,7 @@ export function GalleryPage() {
       // transition overlay can display it during the iris-paused phase. Reading
       // the DOM avoids reaching into the BaseMap context from outside.
       const areaName = document.querySelector('.area-label')?.textContent ?? null
-      useTransitionStore.getState().startRecord(origin, areaName)
+      useTransitionStore.getState().startRecord(origin, areaName, null, { movementType })
       // Navigation to /record is performed by the overlay when the iris phase begins.
       return
     }
@@ -799,29 +910,88 @@ export function GalleryPage() {
                   ISLAND
                 </button>
               </div>
+              <div className="list-filter">
+                <button
+                  type="button"
+                  className={`list-filter-btn${runFilter !== 'all' || movementFilter !== 'all' ? ' is-active' : ''}`}
+                  aria-label="記録のフィルター"
+                  aria-haspopup="true"
+                  aria-expanded={filterOpen}
+                  onClick={() => setFilterOpen(o => !o)}
+                >
+                  <Icon icon="lucide:filter" />
+                </button>
+                {filterOpen && (
+                  <>
+                    <div
+                      className="list-filter-backdrop"
+                      onClick={() => setFilterOpen(false)}
+                    />
+                    <div className="list-filter-menu" role="menu">
+                      <p className="list-filter-section">表示</p>
+                      {RUN_FILTER_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={runFilter === opt.value}
+                          className={`list-filter-item${runFilter === opt.value ? ' is-active' : ''}`}
+                          onClick={() => setRunFilter(opt.value)}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                      <div className="list-filter-divider" role="separator" />
+                      <p className="list-filter-section">移動種別</p>
+                      {MOVEMENT_FILTER_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={movementFilter === opt.value}
+                          className={`list-filter-item${movementFilter === opt.value ? ' is-active' : ''}`}
+                          onClick={() => setMovementFilter(opt.value)}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
             {socialRuns.length === 0 ? (
               <p className="empty-hint">記録したランがここに表示されます</p>
             ) : listMode === 'trail' ? (
-              <div className="run-grid">
-                {listItems.map(item =>
-                  item.kind === 'single' ? (
-                    <RunTile
-                      key={item.run.id}
-                      run={item.run}
-                      owner={item.run.ownerUid ? ownerByUid.get(item.run.ownerUid) ?? null : null}
-                      onRequestDelete={setPendingDeleteId}
-                      onSelect={handleRunSelect}
-                    />
-                  ) : (
-                    <CoRunTile
-                      key={item.sessionId}
-                      runs={item.runs}
-                      ownerByUid={ownerByUid}
-                      onSelect={handleRunSelect}
-                    />
-                  ),
-                )}
+              <div className="run-groups">
+                {listGroups.map(group => (
+                  <section key={group.meta.value} className="run-group">
+                    <h3 className="run-group-heading">
+                      <Icon icon={group.meta.icon} />
+                      <span>{group.meta.label}</span>
+                    </h3>
+                    <div className="run-grid">
+                      {group.items.map(item =>
+                        item.kind === 'single' ? (
+                          <RunTile
+                            key={item.run.id}
+                            run={item.run}
+                            owner={item.run.ownerUid ? ownerByUid.get(item.run.ownerUid) ?? null : null}
+                            onRequestEdit={setEditingRunId}
+                            onSelect={handleRunSelect}
+                          />
+                        ) : (
+                          <CoRunTile
+                            key={item.sessionId}
+                            runs={item.runs}
+                            ownerByUid={ownerByUid}
+                            onSelect={handleRunSelect}
+                          />
+                        ),
+                      )}
+                    </div>
+                  </section>
+                ))}
               </div>
             ) : (
               <div className="island-view-wrap">
@@ -848,6 +1018,24 @@ export function GalleryPage() {
 
       {settingsOpen && <SettingsPopup onClose={() => setSettingsOpen(false)} />}
 
+      {editingRunId && (() => {
+        const editingRun = runs.find(r => r.id === editingRunId)
+        if (!editingRun) return null
+        return (
+          <RunEditSheet
+            run={editingRun}
+            onChangeType={type => {
+              void updateRun(editingRun.id, { movementType: type })
+            }}
+            onDelete={() => {
+              setEditingRunId(null)
+              setPendingDeleteId(editingRun.id)
+            }}
+            onClose={() => setEditingRunId(null)}
+          />
+        )
+      })()}
+
       {pendingDeleteId && (
         <ConfirmDialog
           message="このランを削除しますか？"
@@ -872,6 +1060,15 @@ export function GalleryPage() {
         >
           {activeBubbleText}
         </button>
+      )}
+      {armed && (
+        <div
+          ref={movementSelectorRef}
+          className="gallery-movement-selector"
+          onClick={e => e.stopPropagation()}
+        >
+          <MovementTypeSelector value={movementType} onChange={setMovementType} />
+        </div>
       )}
       {armed && <div ref={startLabelRef} className="start-label">TAP TO START</div>}
       {armed && user && (

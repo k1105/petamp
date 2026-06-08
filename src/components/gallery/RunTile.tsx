@@ -11,8 +11,8 @@ interface Props {
   run: Run
   /** フォロー中ユーザーのランの場合に owner プロフィールを渡す。自分のランでは null。 */
   owner?: PublicUser | null
-  /** 自分のランを長押ししたとき、削除確認を求める。 */
-  onRequestDelete: (id: string) => void
+  /** 自分のランを長押ししたとき、編集シート (種別変更・削除) を開く。 */
+  onRequestEdit: (id: string) => void
   onSelect: (id: string) => void
 }
 
@@ -20,7 +20,7 @@ const LONG_PRESS_MS = 500
 /** 長押し中にこれ以上動いたらスクロール操作とみなしてキャンセル */
 const MOVE_CANCEL_PX = 10
 
-export function RunTile({ run, owner, onRequestDelete, onSelect }: Props) {
+export function RunTile({ run, owner, onRequestEdit, onSelect }: Props) {
   const path = useMemo(() => buildRunSvgPath(run.trackPoints), [run.trackPoints])
   const dist = useMemo(() => totalDistance(acceptedPoints(run.trackPoints)), [run.trackPoints])
   const title = run.areaName ?? run.name
@@ -46,7 +46,7 @@ export function RunTile({ run, owner, onRequestDelete, onSelect }: Props) {
     clearTimer()
     timerRef.current = window.setTimeout(() => {
       longPressedRef.current = true
-      onRequestDelete(run.id)
+      onRequestEdit(run.id)
     }, LONG_PRESS_MS)
   }
 

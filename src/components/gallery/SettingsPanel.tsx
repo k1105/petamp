@@ -208,6 +208,16 @@ export function SettingsPanel() {
       </Section>
 
       <Section title="軌跡サイズ">
+        <SegmentRow
+          label="軌跡の表現"
+          hint="トップ画面マップの軌跡。線 / 半透明の点群"
+          value={ui.galleryTrailStyle}
+          options={[
+            { value: 'tube', label: '線' },
+            { value: 'points', label: '点群' },
+          ]}
+          onChange={v => setUi({ galleryTrailStyle: v })}
+        />
         <SliderRow
           label="閾値zoom"
           hint="以上はm一定 / 未満は画面ピクセル一定"
