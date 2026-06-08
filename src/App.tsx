@@ -24,6 +24,7 @@ import { PostRunLoadingScreen } from './components/PostRunLoadingScreen'
 import { CoRunLobby } from './components/corun/CoRunLobby'
 import { CoRunInviteSheet } from './components/corun/CoRunInviteSheet'
 import { InviteDeepLinkListener } from './components/InviteDeepLinkListener'
+import { ActivePaletteProvider } from './components/ActivePaletteProvider'
 import { useCoRunInviteListener } from './hooks/useCoRunInviteListener'
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useCharacterMemorySync } from './hooks/useCharacterMemorySync'
@@ -100,6 +101,16 @@ function useBootSignals(): void {
 }
 
 function App() {
+  return (
+    <ActivePaletteProvider>
+      <AppContent />
+    </ActivePaletteProvider>
+  )
+}
+
+// useApplyTheme などパレットに依存するフックは ActivePaletteProvider 配下で
+// 呼ぶ必要があるため、App 本体から切り出している。
+function AppContent() {
   useApplyTheme()
   useEnsureUserDoc()
   useCharacterMemorySync()
