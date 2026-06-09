@@ -41,6 +41,7 @@ import { useCoRunStore } from '../store/useCoRunStore'
 import { useNamedPlaces } from '../hooks/useNamedPlaces'
 import { MovementTypeSelector } from '../components/MovementTypeSelector'
 import { DEFAULT_MOVEMENT_TYPE, MOVEMENT_TYPES, getMovementType } from '../utils/movementType'
+import { buildGalleryListItems } from '../features/gallery/buildGalleryListItems'
 import type { DotPosition } from '../hooks/useGalleryAnimation'
 import type { MovementType, Run } from '../types'
 import type { NamedPlace } from '../character/domain/memory'
@@ -457,35 +458,12 @@ export function GalleryPage() {
     return m
   }, [followedUsers])
 
-  // TRAIL 一覧用の表示単位。一緒に走ったラン (同一 coRunSessionId) は
-  // 自分 + 相手をまとめて 1 つの co-run アイテムに統合する。
-  type ListItem =
-    | { kind: 'single'; run: Run }
-    | { kind: 'corun'; sessionId: string; runs: Run[] }
-  const listItems = useMemo<ListItem[]>(() => {
-    const items: ListItem[] = []
-    const seenSessions = new Set<string>()
-    for (const run of socialRuns) {
-      const sid = run.coRunSessionId
-      if (sid) {
-        if (seenSessions.has(sid)) continue
-        seenSessions.add(sid)
-        items.push({
-          kind: 'corun',
-          sessionId: sid,
-          runs: socialRuns.filter(r => r.coRunSessionId === sid),
-        })
-      } else {
-        items.push({ kind: 'single', run })
-      }
-    }
-    return items
-  }, [socialRuns])
+  const listItems = useMemo(() => buildGalleryListItems(socialRuns), [socialRuns])
 
   // TRAIL 一覧は移動種別ごとにグルーピングして見出しを付ける。
   // co-run は代表ラン (先頭) の種別で分類する。MOVEMENT_TYPES の順で並べ、空グループは省く。
   const listGroups = useMemo(() => {
-    const typeOf = (item: ListItem) =>
+    const typeOf = (item: typeof listItems[number]) =>
       getMovementType(item.kind === 'single' ? item.run : item.runs[0])
     return MOVEMENT_TYPES.map(meta => ({
       meta,
