@@ -2416,6 +2416,7 @@ body.map-joystick-fab-out .bottom-sheet {
    の expanding 段階で自然に覆われる)。 */
 .onboarding-starting .onboarding-bubble,
 .onboarding-starting .onboarding-hint,
+.onboarding-starting .onboarding-skip,
 .onboarding-starting .onboarding-input-area {
   opacity: 0;
   transition: opacity 280ms ease-out;
@@ -2480,6 +2481,23 @@ body.map-joystick-fab-out .bottom-sheet {
   color: rgba(255, 255, 255, 0.7);
   letter-spacing: 0.06em;
   animation: onboarding-hint-pulse 1.6s ease-in-out infinite;
+}
+
+.onboarding-skip {
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0.04em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 8px 12px;
+}
+
+.onboarding-skip:active {
+  color: rgba(255, 255, 255, 0.85);
 }
 
 @keyframes onboarding-hint-pulse {

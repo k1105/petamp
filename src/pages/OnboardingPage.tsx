@@ -104,6 +104,12 @@ export function OnboardingPage() {
     useTransitionStore.getState().startRecord(origin, areaName, null, { fromOnboarding: true })
   }
 
+  // 最終ステップ: ランを開始せずに Gallery へ直行する。「いまはスキップ」用。
+  const skipToGallery = () => {
+    if (starting) return
+    navigate('/', { replace: true })
+  }
+
   const onConfirmInput = async (s: InputStep) => {
     const trimmed = draftName.trim()
     if (!trimmed || busy) return
@@ -185,7 +191,20 @@ export function OnboardingPage() {
           </button>
         </form>
       )}
-      {/* finish ステップは eyes タップが唯一の進行手段。確定ボタンは出さない。 */}
+      {/* finish ステップ: eyes タップでランを開始。確定ボタンは出さないが、
+          まだ走らないユーザ向けに「いまはスキップ」リンクを置く。 */}
+      {isFinish && (
+        <button
+          type="button"
+          className="onboarding-skip"
+          onClick={e => {
+            e.stopPropagation()
+            skipToGallery()
+          }}
+        >
+          いまはスキップ
+        </button>
+      )}
     </div>
   )
 }
