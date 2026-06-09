@@ -21,6 +21,7 @@ import { useAuth } from '../hooks/useAuth'
 import { RunTile } from '../components/gallery/RunTile'
 import { RunEditSheet } from '../components/gallery/RunEditSheet'
 import { CoRunTile } from '../components/gallery/CoRunTile'
+import { NamedPlacePopup } from '../components/gallery/NamedPlacePopup'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EyesIcon } from '../components/gallery/EyesIcon'
 import { useEyeParams } from '../hooks/useEyeParams'
@@ -1129,26 +1130,6 @@ export function GalleryPage() {
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-function NamedPlacePopup({ place, onClose }: { place: NamedPlace; onClose: () => void }) {
-  const desc = (place.description ?? '').trim()
-  return (
-    <div className="named-place-popup" role="dialog" aria-label={`${place.name} の説明`}>
-      <button
-        type="button"
-        className="named-place-popup-close"
-        onClick={onClose}
-        aria-label="閉じる"
-      >
-        ×
-      </button>
-      <div className="named-place-popup-name">{place.name}</div>
-      <div className="named-place-popup-desc">
-        {desc !== '' ? desc : '(まだ言葉になっていない場所)'}
-      </div>
     </div>
   )
 }
