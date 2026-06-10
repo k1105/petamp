@@ -26,6 +26,7 @@ export function SpotifyCallbackPage() {
     const err = params.get('error')
 
     if (err) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPhase({ kind: 'error', message: `Spotify error: ${err}` })
       return
     }
