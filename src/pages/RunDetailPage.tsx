@@ -84,8 +84,8 @@ function DetailLayers({
   const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5))
   const tubeWidth = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius) * 2
   const dotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
-  // 点群表現の円半径。線の半分幅より少し大きくして点同士を重ね、軌跡が帯に見えるようにする。
-  const trailRadius = (tubeWidth / 2) * 1.6
+  // 点群表現の円半径。点を小さめにして、軌跡を粒の集まりとして見せる。
+  const trailRadius = (tubeWidth / 2) * 1.6 * 0.3
   const pathPositions = useMemo(
     () => buildPathPositions(pts, altitudeScale),
     [pts, altitudeScale],
