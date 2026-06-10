@@ -1,29 +1,13 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import { headBobOffsetRef, headPulseScaleRef } from './useBpmSyncedBob'
-
-// '#rrggbb' / 'rgb(r, g, b)' / 'rgba(r, g, b, a)' を [0,1] の RGB に正規化。
-// CSS @property で <color> 型として登録された変数は getComputedStyle が
-// rgb(...) 形式で返すため、hex だけでなく rgb もパースする必要がある。
-function parseCssColor(raw: string): [number, number, number] | null {
-  const s = raw.trim()
-  if (s.startsWith('#') && s.length === 7) {
-    return [
-      parseInt(s.slice(1, 3), 16) / 255,
-      parseInt(s.slice(3, 5), 16) / 255,
-      parseInt(s.slice(5, 7), 16) / 255,
-    ]
-  }
-  const m = s.match(/^rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/)
-  if (m) {
-    const r = parseFloat(m[1])
-    const g = parseFloat(m[2])
-    const b = parseFloat(m[3])
-    if (!Number.isNaN(r) && !Number.isNaN(g) && !Number.isNaN(b)) {
-      return [r / 255, g / 255, b / 255]
-    }
-  }
-  return null
-}
+import {
+  FULLSCREEN_QUAD_VERT_SRC,
+  FULLSCREEN_QUAD_VERTS,
+  SDF_CIRCLE_GLSL,
+  createShaderProgram,
+  deleteShaderProgram,
+  makeAccentUniformRefresher,
+} from '../utils/glShaderUtils'
 
 // Hardcoded peak shape exported from /shape-editor (anchors normalised to NORM_R=80).
 const KAPPA = 0.5522847498
@@ -95,11 +79,6 @@ function tessellate(anchors: Anchor[], cx: number, cy: number, scale: number, ou
   }
 }
 
-const VERT_SRC = `
-attribute vec2 a_pos;
-void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
-`
-
 const FRAG_SRC = `
 precision mediump float;
 #define N 32
@@ -139,21 +118,7 @@ float sdPolygon(vec2 p) {
   return s * sqrt(dSq);
 }
 
-float sdCircle(vec2 p, vec2 c, float r) {
-  return length(p - c) - r;
-}
-
-float smin(float a, float b, float k) {
-  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
-  return mix(b, a, h) - k * h * (1.0 - h);
-}
-
-// w (visibility) が 0 なら d を非常に大きくして smin の影響をゼロにする。
-float sdMaybeCircle(vec2 p, vec4 c) {
-  float d = sdCircle(p, c.xy, c.z);
-  return mix(1e6, d, step(0.5, c.w));
-}
-
+${SDF_CIRCLE_GLSL}
 void main() {
   vec2 p = vec2(gl_FragCoord.x / u_dpr, u_res.y - gl_FragCoord.y / u_dpr);
   vec2 rc = u_rect.xy + u_rect.zw * 0.5;
@@ -199,19 +164,6 @@ interface Options {
   peakAnchors?: readonly PeakAnchorTuple[]
 }
 
-function compile(gl: WebGLRenderingContext, type: number, src: string) {
-  const shader = gl.createShader(type)
-  if (!shader) return null
-  gl.shaderSource(shader, src)
-  gl.compileShader(shader)
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    console.error('shader compile error:', gl.getShaderInfoLog(shader))
-    gl.deleteShader(shader)
-    return null
-  }
-  return shader
-}
-
 export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakHiddenRef, peakRectOverrideRef, peakVelocity = 6, peakAnchors }: Options) {
   // peakAnchors を hook 内部の Pt 形式に変換し、ref 経由で draw に渡す。
   // ref 化することで peakAnchors が変わっても useEffect (WebGL 初期化) を
@@ -237,19 +189,9 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakHi
     const gl = canvas.getContext('webgl', { premultipliedAlpha: true, antialias: true, alpha: true })
     if (!gl) return
 
-    const vs = compile(gl, gl.VERTEX_SHADER, VERT_SRC)
-    const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG_SRC)
-    if (!vs || !fs) return
-
-    const program = gl.createProgram()
-    if (!program) return
-    gl.attachShader(program, vs)
-    gl.attachShader(program, fs)
-    gl.linkProgram(program)
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      console.error('program link error:', gl.getProgramInfoLog(program))
-      return
-    }
+    const sp = createShaderProgram(gl, FULLSCREEN_QUAD_VERT_SRC, FRAG_SRC, 'metaball sheet')
+    if (!sp) return
+    const { program } = sp
 
     const aPos = gl.getAttribLocation(program, 'a_pos')
     const uRes = gl.getUniformLocation(program, 'u_res')
@@ -264,7 +206,7 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakHi
 
     const buf = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, buf)
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW)
+    gl.bufferData(gl.ARRAY_BUFFER, FULLSCREEN_QUAD_VERTS, gl.STATIC_DRAW)
 
     const radius = 24
     const k = 24
@@ -284,21 +226,7 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakHi
     gl.uniform4f(uRadii, radius, 0, radius, 0)
     gl.uniform1f(uK, k)
 
-    // --accent をフレーム間でキャッシュ。テーマ変化があれば uniform を更新。
-    // @property で <color> 型として登録された CSS 変数は getComputedStyle で
-    // rgb(r, g, b) 形式に正規化されるため、hex と rgb の両方をパースする。
-    // また @property の transition 補間中は値が毎フレーム変化するので、その
-    // 度に uniform を更新したい。
-    let lastAccentRaw = ''
-    let cachedColor: [number, number, number] = [28 / 255, 151 / 255, 94 / 255]
-    const refreshAccent = () => {
-      const raw = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
-      if (raw === lastAccentRaw) return
-      lastAccentRaw = raw
-      const parsed = parseCssColor(raw)
-      if (parsed) cachedColor = parsed
-      gl.uniform3f(uColor, cachedColor[0], cachedColor[1], cachedColor[2])
-    }
+    const refreshAccent = makeAccentUniformRefresher(gl, uColor)
     refreshAccent()
 
     const blobBuf = new Float32Array(N * 2)
@@ -463,9 +391,7 @@ export function useMetaballSheet({ canvasRef, fabRef, sheetRef, armedRef, peakHi
       if (rafId !== null) cancelAnimationFrame(rafId)
       window.removeEventListener('resize', onResize)
       ro.disconnect()
-      gl.deleteProgram(program)
-      gl.deleteShader(vs)
-      gl.deleteShader(fs)
+      deleteShaderProgram(gl, sp)
       gl.deleteBuffer(buf)
     }
   }, [canvasRef, fabRef, sheetRef, armedRef, peakHiddenRef, peakRectOverrideRef, peakVelocity])

@@ -1,4 +1,12 @@
 import { useEffect, type RefObject } from 'react'
+import {
+  FULLSCREEN_QUAD_VERT_SRC,
+  FULLSCREEN_QUAD_VERTS,
+  SDF_CIRCLE_GLSL,
+  createShaderProgram,
+  deleteShaderProgram,
+  makeAccentUniformRefresher,
+} from '../utils/glShaderUtils'
 
 // MapJoystick の center + handle 円を smin merge して描画する per-joystick
 // WebGL canvas のレンダラー。canvas は button の中に配置されるので、面・
@@ -6,11 +14,6 @@ import { useEffect, type RefObject } from 'react'
 // 自然に icon/petamp face の下に来る)。各 joystick インスタンスが独立した
 // canvas を持つことで「複数 joystick が画面に存在しても干渉しない」も
 // 解決される。
-
-const VERT_SRC = `
-attribute vec2 a_pos;
-void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
-`
 
 const FRAG_SRC = `
 precision mediump float;
@@ -21,18 +24,7 @@ uniform float u_k;
 uniform vec4 u_center;          // (cx, cy, radius, visible) — canvas-local px
 uniform vec4 u_handle;
 
-float sdCircle(vec2 p, vec2 c, float r) {
-  return length(p - c) - r;
-}
-float smin(float a, float b, float k) {
-  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
-  return mix(b, a, h) - k * h * (1.0 - h);
-}
-float sdMaybeCircle(vec2 p, vec4 c) {
-  float d = sdCircle(p, c.xy, c.z);
-  return mix(1e6, d, step(0.5, c.w));
-}
-
+${SDF_CIRCLE_GLSL}
 void main() {
   // canvas CSS pixel coord, origin top-left
   vec2 p = vec2(gl_FragCoord.x / u_dpr, u_canvasSize.y - gl_FragCoord.y / u_dpr);
@@ -44,35 +36,6 @@ void main() {
   gl_FragColor = vec4(u_color, alpha);
 }
 `
-
-function compileShader(gl: WebGLRenderingContext, type: number, src: string) {
-  const shader = gl.createShader(type)
-  if (!shader) return null
-  gl.shaderSource(shader, src)
-  gl.compileShader(shader)
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    console.error('joystick metaball shader compile error:', gl.getShaderInfoLog(shader))
-    gl.deleteShader(shader)
-    return null
-  }
-  return shader
-}
-
-function parseAccent(raw: string): [number, number, number] {
-  const s = raw.trim()
-  if (s.startsWith('#') && s.length === 7) {
-    return [
-      parseInt(s.slice(1, 3), 16) / 255,
-      parseInt(s.slice(3, 5), 16) / 255,
-      parseInt(s.slice(5, 7), 16) / 255,
-    ]
-  }
-  const m = s.match(/^rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/)
-  if (m) {
-    return [parseFloat(m[1]) / 255, parseFloat(m[2]) / 255, parseFloat(m[3]) / 255]
-  }
-  return [28 / 255, 151 / 255, 94 / 255]
-}
 
 export function useJoystickMetaball(
   canvasRef: RefObject<HTMLCanvasElement | null>,
@@ -88,19 +51,9 @@ export function useJoystickMetaball(
     const gl = canvas.getContext('webgl', { premultipliedAlpha: true, antialias: true, alpha: true })
     if (!gl) return
 
-    const vs = compileShader(gl, gl.VERTEX_SHADER, VERT_SRC)
-    const fs = compileShader(gl, gl.FRAGMENT_SHADER, FRAG_SRC)
-    if (!vs || !fs) return
-
-    const program = gl.createProgram()
-    if (!program) return
-    gl.attachShader(program, vs)
-    gl.attachShader(program, fs)
-    gl.linkProgram(program)
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      console.error('joystick metaball program link error:', gl.getProgramInfoLog(program))
-      return
-    }
+    const sp = createShaderProgram(gl, FULLSCREEN_QUAD_VERT_SRC, FRAG_SRC, 'joystick metaball')
+    if (!sp) return
+    const { program } = sp
 
     const aPos = gl.getAttribLocation(program, 'a_pos')
     const uCanvasSize = gl.getUniformLocation(program, 'u_canvasSize')
@@ -112,7 +65,7 @@ export function useJoystickMetaball(
 
     const buf = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, buf)
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW)
+    gl.bufferData(gl.ARRAY_BUFFER, FULLSCREEN_QUAD_VERTS, gl.STATIC_DRAW)
 
     gl.useProgram(program)
     gl.bindBuffer(gl.ARRAY_BUFFER, buf)
@@ -123,15 +76,7 @@ export function useJoystickMetaball(
     gl.clearColor(0, 0, 0, 0)
     gl.uniform1f(uK, 24)
 
-    let lastAccentRaw = ''
-    let cachedColor: [number, number, number] = [28 / 255, 151 / 255, 94 / 255]
-    const refreshAccent = () => {
-      const raw = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
-      if (raw === lastAccentRaw) return
-      lastAccentRaw = raw
-      cachedColor = parseAccent(raw)
-      gl.uniform3f(uColor, cachedColor[0], cachedColor[1], cachedColor[2])
-    }
+    const refreshAccent = makeAccentUniformRefresher(gl, uColor)
     refreshAccent()
 
     let rafId: number | null = null
@@ -202,9 +147,7 @@ export function useJoystickMetaball(
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId)
       window.removeEventListener('resize', onResize)
-      gl.deleteProgram(program)
-      gl.deleteShader(vs)
-      gl.deleteShader(fs)
+      deleteShaderProgram(gl, sp)
       gl.deleteBuffer(buf)
     }
   }, [canvasRef, buttonRef, centerRef, handleRef])
