@@ -4,6 +4,13 @@
  * - episodic / semantic / relational / namedPlace は IDB から read、書き込みは
  *   IDB に確定したあと Firestore に best-effort で push (失敗してもUIは止めない)
  * - 起動時の sync (Firestore → IDB) は characterSync.ts が担う
+ *
+ * 設計上の割り切り (2026-06 確認):
+ * write-through の cloud push 失敗はログのみで、後から再送する仕組みはない。
+ * characterSync の push は初回マイグレーション時のみなので、失敗したレコードは
+ * 次に同じレコードが put されるまでクラウドに乗らない (episodic は実質乗らない)。
+ * 正は常にローカル IDB で、クラウドは機種変更時の復元用バックアップという位置付け。
+ * リトライキューが必要になったらここではなく characterSync 側に差分 push を実装する。
  */
 import { petampCharacter } from '../character/config'
 import { IdbMemoryStore } from '../character/memory/idbMemoryStore'

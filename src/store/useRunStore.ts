@@ -4,6 +4,23 @@ import { listRuns, loadRun, saveRun, deleteRun, putRunLocal } from '../db/runRep
 import { cloudListRuns } from '../firebase/runCloud'
 import { DUMMY_RUNS } from '../utils/dummyData'
 
+/** photoDataUrl はクラウドに保存しない (stripForCloud) ため、ローカル側の値を持ち越す。 */
+function mergeLocalPhotos(cloud: Run, localRun: Run): Run {
+  return {
+    ...cloud,
+    notes: cloud.notes.map(cn => {
+      const ln = localRun.notes.find(n => n.id === cn.id)
+      return ln?.photoDataUrl ? { ...cn, photoDataUrl: ln.photoDataUrl } : cn
+    }),
+  }
+}
+
+/**
+ * クラウド → ローカルの一方向同期。
+ * 衝突解決は finishedAt の Last-Write-Wins: cloud 側が新しい場合のみ上書きする
+ * (同値・古い場合はローカルを保持)。ローカル → クラウド方向は保存時の
+ * pushRunToCloud (runRepository) が担い、ここでは行わない。
+ */
 async function syncCloudIntoLocal(): Promise<void> {
   let cloudRuns: Run[]
   try {
@@ -21,14 +38,7 @@ async function syncCloudIntoLocal(): Promise<void> {
       continue
     }
     if ((cloud.finishedAt ?? 0) > (localRun.finishedAt ?? 0)) {
-      const merged: Run = {
-        ...cloud,
-        notes: cloud.notes.map(cn => {
-          const ln = localRun.notes.find(n => n.id === cn.id)
-          return ln?.photoDataUrl ? { ...cn, photoDataUrl: ln.photoDataUrl } : cn
-        }),
-      }
-      await putRunLocal(merged)
+      await putRunLocal(mergeLocalPhotos(cloud, localRun))
     }
   }
 }
