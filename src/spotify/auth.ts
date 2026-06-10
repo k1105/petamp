@@ -24,7 +24,7 @@ function clientId(): string {
 // On Capacitor native, the WKWebView origin is capacitor://localhost which
 // is unusable as a Spotify redirect URI. Use the custom URL scheme that the
 // OS routes back into our app via `appUrlOpen` (handled in useSpotifyDeepLink).
-export function redirectUri(): string {
+function redirectUri(): string {
   if (Capacitor.isNativePlatform()) return NATIVE_REDIRECT_URI
   return `${window.location.origin}/spotify-callback`
 }

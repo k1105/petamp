@@ -47,7 +47,7 @@ export interface MotifDetector {
  * weak → ひらがな、sharp → 促音化、pitch → 末尾 ↑/↓、durationMs → 反復数。
  * シンプル実装: symbol を [count] 回繰り返し、変調マークを適用。
  */
-export function renderPhoneme(p: Phoneme): string {
+function renderPhoneme(p: Phoneme): string {
   let base = p.symbol
   if (p.weak) base = toHiragana(base)
   if (p.sharp) base = base.replace(/ン$|ん$/, 'ッ')

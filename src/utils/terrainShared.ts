@@ -17,7 +17,7 @@ function lerpColor(
 
 const FALLBACK_SEA: [number, number, number] = [10, 30, 60]
 
-export const SEA_PALETTE: Record<string, { label: string; rgb: [number, number, number] }> = {
+const SEA_PALETTE: Record<string, { label: string; rgb: [number, number, number] }> = {
   midnight: { label: '深紺', rgb: [10, 30, 60] },
   ocean: { label: '紺青', rgb: [16, 60, 110] },
   azure: { label: 'コバルト', rgb: [30, 110, 180] },
@@ -28,9 +28,9 @@ export const SEA_PALETTE: Record<string, { label: string; rgb: [number, number, 
   ink: { label: '墨', rgb: [10, 18, 30] },
 }
 
-export type SeaPaletteId = keyof typeof SEA_PALETTE
+type SeaPaletteId = keyof typeof SEA_PALETTE
 
-export function resolveSea(id: string | undefined): [number, number, number] {
+function resolveSea(id: string | undefined): [number, number, number] {
   if (id && id in SEA_PALETTE) return SEA_PALETTE[id as SeaPaletteId].rgb
   return FALLBACK_SEA
 }
@@ -40,7 +40,7 @@ const LAND_MID: [number, number, number] = [120, 215, 165]
 const LAND_HIGH: [number, number, number] = [205, 240, 220]
 const SNOW: [number, number, number] = [245, 252, 248]
 
-export function landColor(alt: number, maxLandAlt: number): [number, number, number] {
+function landColor(alt: number, maxLandAlt: number): [number, number, number] {
   if (maxLandAlt <= 0) return LAND_LOW
   const t = Math.max(0, Math.min(1, alt / maxLandAlt))
   if (t < 0.33) return lerpColor(LAND_LOW, LAND_MID, t / 0.33)
@@ -58,7 +58,7 @@ interface ContourLine {
   color: [number, number, number, number]
 }
 
-export interface TerrainKernelParams {
+interface TerrainKernelParams {
   gridSize: number
   radius: number
   power: number
@@ -72,7 +72,7 @@ export interface TerrainKernelParams {
   seaColor?: [number, number, number]
 }
 
-export interface IslandTrack {
+interface IslandTrack {
   nodes: { x: number; y: number; alt: number }[]
 }
 

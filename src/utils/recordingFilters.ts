@@ -38,7 +38,7 @@ export function maxSpeedGate(maxMetersPerSecond: number): PointFilter {
  * 既定のフィルタ閾値。petamp 本体での記録判定だけでなく、visualizer 等の外部ツールが
  * 同じ閾値で振る舞いを揃えられるよう export する。
  */
-export const RECORDING_FILTER_DEFAULTS = {
+const RECORDING_FILTER_DEFAULTS = {
   /** accuracy がこれ以下なら採用 (m)。 */
   maxAccuracyM: 15,
   /** 記録開始から warmup の点は捨てる (ms)。 */

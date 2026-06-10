@@ -22,7 +22,7 @@ export type FriendDoc = {
  * 相互フレンドの doc ID。UID を辞書順でソートし `${minUid}__${maxUid}` で正規化。
  * これにより A→B と B→A が同じ doc になり、書込み 1 回で整合性が保たれる。
  */
-export function friendDocId(uidA: string, uidB: string): string {
+function friendDocId(uidA: string, uidB: string): string {
   const [lo, hi] = uidA < uidB ? [uidA, uidB] : [uidB, uidA]
   return `${lo}__${hi}`
 }

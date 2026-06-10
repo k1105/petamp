@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { PaletteKey, Palette, Weather, TimeOfDay } from '../utils/themePalettes'
 
-export interface ThemeSettings {
+interface ThemeSettings {
   weatherMode: 'auto' | Weather
   timeMode: 'auto' | TimeOfDay
   /** key = `${weather}-${time}`、未指定セルはデフォルトパレット。 */
@@ -47,7 +47,7 @@ export const NAV_STATE_LABEL: Record<NavState, string> = {
   armed: 'armed (record前)',
 }
 
-export interface UiSettings {
+interface UiSettings {
   /** nav状態ごとの目玉パラメータ。状態遷移時に値を補間する。 */
   eyeKeyframes: Record<NavState, EyeParams>
   mapPaddingMeters: number  // 軌跡bbox周囲のパディング (m) - gallery map制約
@@ -57,19 +57,19 @@ export interface UiSettings {
   galleryTrailStyle: 'tube' | 'points'
 }
 
-export interface ExperimentalSettings {
+interface ExperimentalSettings {
   /** 環世界記譜法。ON で /run/:id/notation 系のテスト画面が解禁される。既存 chat/Diary 系には影響しない。 */
   notation: boolean
 }
 
-export const DEFAULT_RADII: Radii = {
+const DEFAULT_RADII: Radii = {
   tubeRadius: 1.0,
   rawTubeRadius: 0.9,
   dotRadius: 3.0,
   zoomThreshold: 16,
 }
 
-export const DEFAULT_FILTER_SETTINGS: FilterSettings = {
+const DEFAULT_FILTER_SETTINGS: FilterSettings = {
   maxSpeed: 15,
   kalmanSigmaA: 2,
   kalmanGateChi2: 9.21,
@@ -92,14 +92,14 @@ function cloneEyeKeyframes(src: Record<NavState, EyeParams>): Record<NavState, E
   }
 }
 
-export const DEFAULT_EYE_KEYFRAMES: Record<NavState, EyeParams> = {
+const DEFAULT_EYE_KEYFRAMES: Record<NavState, EyeParams> = {
   map: { ...BASE_EYE_PARAMS },
   list: { ...BASE_EYE_PARAMS },
   profile: { ...BASE_EYE_PARAMS },
   armed: { ...BASE_EYE_PARAMS },
 }
 
-export const DEFAULT_UI_SETTINGS: UiSettings = {
+const DEFAULT_UI_SETTINGS: UiSettings = {
   eyeKeyframes: DEFAULT_EYE_KEYFRAMES,
   mapPaddingMeters: 100,
   hasSeenFirstRunIntro: false,
@@ -107,13 +107,13 @@ export const DEFAULT_UI_SETTINGS: UiSettings = {
   galleryTrailStyle: 'tube',
 }
 
-export const DEFAULT_THEME_SETTINGS: ThemeSettings = {
+const DEFAULT_THEME_SETTINGS: ThemeSettings = {
   weatherMode: 'auto',
   timeMode: 'auto',
   overrides: {},
 }
 
-export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
+const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   notation: false,
 }
 

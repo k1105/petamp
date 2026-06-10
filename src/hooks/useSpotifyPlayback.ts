@@ -47,13 +47,3 @@ export function useSpotifyPlaybackPoller(): void {
     }
   }, [auth, setAuth, setCurrent])
 }
-
-// Estimated current playback position in ms. Updates each rAF tick when
-// playing. Returns null when no snapshot or paused.
-export function estimatePositionMs(): number | null {
-  const snap = useSpotifyStore.getState().current
-  if (!snap) return null
-  if (!snap.isPlaying) return snap.serverProgressMs
-  const elapsed = Date.now() - snap.localReceivedAt
-  return Math.min(snap.serverProgressMs + elapsed, snap.durationMs)
-}

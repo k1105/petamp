@@ -1,16 +1,11 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { GalleryPage } from './pages/GalleryPage'
 import { RecordingPage } from './pages/RecordingPage'
 import { RunDetailPage } from './pages/RunDetailPage'
 import { RunResultPage } from './pages/RunResultPage'
-import { ShapeEditorPage } from './pages/ShapeEditorPage'
-import { JoystickEditorPage } from './pages/JoystickEditorPage'
 import { RunChatPage } from './pages/RunChatPage'
 import { NotationChatPage } from './pages/NotationChatPage'
-import { CharacterSmokePage } from './pages/CharacterSmokePage'
-import { PromptLogPage } from './pages/PromptLogPage'
-import { NamedPlacesDebugPage } from './pages/NamedPlacesDebugPage'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { InvitePage } from './pages/InvitePage'
 import { CreditsPage } from './pages/CreditsPage'
@@ -35,6 +30,18 @@ import { useRunStore } from './store/useRunStore'
 import { subscribeAuth } from './firebase/auth'
 import { getMemoryStore, petampCharacter } from './character'
 import './App.css'
+
+// 開発専用ページ。import.meta.env.DEV は本番ビルドで false に畳み込まれるため、
+// ページ本体もチャンクとして出力されない。
+const devPages = import.meta.env.DEV
+  ? {
+      ShapeEditorPage: lazy(() => import('./pages/ShapeEditorPage').then(m => ({ default: m.ShapeEditorPage }))),
+      JoystickEditorPage: lazy(() => import('./pages/JoystickEditorPage').then(m => ({ default: m.JoystickEditorPage }))),
+      CharacterSmokePage: lazy(() => import('./pages/CharacterSmokePage').then(m => ({ default: m.CharacterSmokePage }))),
+      PromptLogPage: lazy(() => import('./pages/PromptLogPage').then(m => ({ default: m.PromptLogPage }))),
+      NamedPlacesDebugPage: lazy(() => import('./pages/NamedPlacesDebugPage').then(m => ({ default: m.NamedPlacesDebugPage }))),
+    }
+  : null
 
 /**
  * ルート '/' のゲート。オンボーディング済か (semantic memory に fact.user_name があるか)
@@ -129,11 +136,21 @@ function AppContent() {
         <Route path="/run/:id/result" element={<RunResultPage />} />
         <Route path="/run/:id/chat" element={<RunChatPage />} />
         <Route path="/run/:id/notation" element={<NotationChatPage />} />
-        <Route path="/shape-editor" element={<ShapeEditorPage />} />
-        <Route path="/joystick-editor" element={<JoystickEditorPage />} />
-        <Route path="/character-smoke" element={<CharacterSmokePage />} />
-        <Route path="/prompt-logs" element={<PromptLogPage />} />
-        <Route path="/named-places" element={<NamedPlacesDebugPage />} />
+        {devPages && (
+          <Route path="/shape-editor" element={<Suspense fallback={null}><devPages.ShapeEditorPage /></Suspense>} />
+        )}
+        {devPages && (
+          <Route path="/joystick-editor" element={<Suspense fallback={null}><devPages.JoystickEditorPage /></Suspense>} />
+        )}
+        {devPages && (
+          <Route path="/character-smoke" element={<Suspense fallback={null}><devPages.CharacterSmokePage /></Suspense>} />
+        )}
+        {devPages && (
+          <Route path="/prompt-logs" element={<Suspense fallback={null}><devPages.PromptLogPage /></Suspense>} />
+        )}
+        {devPages && (
+          <Route path="/named-places" element={<Suspense fallback={null}><devPages.NamedPlacesDebugPage /></Suspense>} />
+        )}
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/invite/:uid" element={<InvitePage />} />
         <Route path="/credits" element={<CreditsPage />} />

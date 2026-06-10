@@ -81,5 +81,3 @@ export const DUMMY_RUNS: Run[] = [
   makeRun('dummy-1', '代々木公園ループ', yoyogi, T1),
   makeRun('dummy-2', '原宿〜表参道', harajuku, T2),
 ]
-
-export const DUMMY_CENTER: [number, number] = [139.6960, 35.6730]

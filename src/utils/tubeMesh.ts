@@ -5,39 +5,6 @@ import { simplifyDouglasPeucker } from './simplify'
 /** 線の Douglas-Peucker 単純化の許容誤差 (m)。視覚的に違いの出ない範囲で頂点を削減する。 */
 const DEFAULT_SIMPLIFY_TOLERANCE_M = 0.5
 
-/** barometric を優先、無ければ GPS altitude。両方 null なら null。生値 (フィルタ未適用)。 */
-export function rawAltitude(p: TrackPoint): number | null {
-  if (p.barometricAltitude != null) return p.barometricAltitude
-  if (p.altitude != null) return p.altitude
-  return null
-}
-
-/**
- * 各点の相対高度 (m, 全点中の最低値を 0 基準) を返す。下りランでも全 z が 0 以上に
- * なり、near plane で潜らない。
- *
- * 高度値はノイズ除去・平滑化パイプライン (altitudeFilters) を通したあとの値を使う。
- * パイプラインで両端まで有効値が無かった点は直前値を継続、先頭で値が無い間は 0。
- */
-export function relativeAltitudes(points: TrackPoint[]): Float32Array {
-  const N = points.length
-  const out = new Float32Array(N)
-  const altMap = getFilteredAltitudeMap(points)
-  let baseline = Infinity
-  for (const p of points) {
-    const v = altMap.get(p)
-    if (v != null && v < baseline) baseline = v
-  }
-  if (!Number.isFinite(baseline)) return out  // 全点 null
-  let last = 0
-  for (let i = 0; i < N; i++) {
-    const v = altMap.get(points[i])
-    if (v != null) last = v - baseline
-    out[i] = last
-  }
-  return out
-}
-
 /**
  * PathLayer 用に [lng, lat, z] の配列を組む。altitudeScale=0 で平面、>0 で
  * 相対高度を z 軸に反映。

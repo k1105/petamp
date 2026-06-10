@@ -26,7 +26,7 @@ export interface RunSegment {
   endPointIdx: number
 }
 
-export type RunEventKind =
+type RunEventKind =
   | 'climb_burst'      // value = 上昇 m
   | 'descent_burst'    // value = 下降 m
   | 'u_turn'           // value = 方向変化角(deg)

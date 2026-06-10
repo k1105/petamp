@@ -72,21 +72,6 @@ export function bearingDelta(b1: number, b2: number): number {
   return d
 }
 
-/** Whether two 2D segments (a-b) and (c-d) intersect (open segments). */
-export function segmentsIntersect2D(
-  a: [number, number], b: [number, number],
-  c: [number, number], d: [number, number],
-): boolean {
-  const cross = (x1: number, y1: number, x2: number, y2: number) => x1 * y2 - y1 * x2
-  const d1x = b[0] - a[0], d1y = b[1] - a[1]
-  const d2x = d[0] - c[0], d2y = d[1] - c[1]
-  const denom = cross(d1x, d1y, d2x, d2y)
-  if (Math.abs(denom) < 1e-12) return false
-  const t = cross(c[0] - a[0], c[1] - a[1], d2x, d2y) / denom
-  const u = cross(c[0] - a[0], c[1] - a[1], d1x, d1y) / denom
-  return t > 0 && t < 1 && u > 0 && u < 1
-}
-
 /** 2D segments の交点座標を返す。交差していなければ null。 */
 export function segmentIntersectionPoint2D(
   a: [number, number], b: [number, number],
@@ -101,18 +86,6 @@ export function segmentIntersectionPoint2D(
   const u = cross(c[0] - a[0], c[1] - a[1], d1x, d1y) / denom
   if (!(t > 0 && t < 1 && u > 0 && u < 1)) return null
   return [a[0] + t * d1x, a[1] + t * d1y]
-}
-
-export function bboxCenter(points: TrackPoint[]): [number, number] | undefined {
-  if (points.length === 0) return undefined
-  let latMin = Infinity, latMax = -Infinity, lngMin = Infinity, lngMax = -Infinity
-  for (const p of points) {
-    if (p.lat < latMin) latMin = p.lat
-    if (p.lat > latMax) latMax = p.lat
-    if (p.lng < lngMin) lngMin = p.lng
-    if (p.lng > lngMax) lngMax = p.lng
-  }
-  return [(lngMin + lngMax) / 2, (latMin + latMax) / 2]
 }
 
 export function qualifyAltitude(

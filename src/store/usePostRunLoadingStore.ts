@@ -11,7 +11,7 @@ import { create } from 'zustand'
  * (`readyPending`)、loading 中ならそのまま closing へ遷移する。これでアニメ衝突を避ける。
  */
 
-export type PostRunLoadingPhase = 'idle' | 'entering' | 'loading' | 'closing'
+type PostRunLoadingPhase = 'idle' | 'entering' | 'loading' | 'closing'
 
 interface State {
   phase: PostRunLoadingPhase

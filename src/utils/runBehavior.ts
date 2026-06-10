@@ -23,7 +23,7 @@ export interface BehaviorParams {
  * petamp-visualizer の motion-type viz は defaultParams としてこの値を import すること。
  * ここを書き換えると両側に同時に反映される。
  */
-export const DEFAULT_BEHAVIOR_PARAMS: BehaviorParams = {
+const DEFAULT_BEHAVIOR_PARAMS: BehaviorParams = {
   restingSpeed: 0.5,
   runningSpeed: 3.0,
   smoothingWindow: 5,
@@ -31,8 +31,8 @@ export const DEFAULT_BEHAVIOR_PARAMS: BehaviorParams = {
 }
 
 /** resting 補強: ±REST_WINDOW_SEC 秒以内の点との最大距離がこれ未満なら resting に上書き。 */
-export const REST_SPREAD_METERS = 5
-export const REST_WINDOW_SEC = 5
+const REST_SPREAD_METERS = 5
+const REST_WINDOW_SEC = 5
 
 /**
  * セグメント化の後処理パラメータ。短すぎる区間の吸収と上限カット用。

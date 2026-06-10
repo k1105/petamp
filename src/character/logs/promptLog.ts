@@ -18,7 +18,7 @@ export type PersistNameProposalResult =
   | { outcome: 'skipped'; reason: PersistSkipReason }
   | { outcome: 'none' }
 
-export type PersistSkipReason =
+type PersistSkipReason =
   | 'empty_name'
   | 'existing_thread_place'
   | 'no_run_ref'

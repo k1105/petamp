@@ -3,7 +3,6 @@ import { FirebaseAuthentication } from '@capacitor-firebase/authentication'
 import { FirebaseFirestore } from '@capacitor-firebase/firestore'
 import {
   collection,
-  deleteDoc,
   doc,
   onSnapshot,
   query,
@@ -37,7 +36,7 @@ export type CoRunMemberState =
 
 export type CoRunStatus = 'lobby' | 'running' | 'finished' | 'cancelled'
 
-export type CoRunMember = {
+type CoRunMember = {
   displayName: string | null
   state: CoRunMemberState
   runId: string | null
@@ -56,7 +55,7 @@ export type CoRunSession = {
 }
 
 /** ロビーの有効期限。これを過ぎたセッションは陳腐とみなす。 */
-export const LOBBY_TTL_MS = 3 * 60 * 1000
+const LOBBY_TTL_MS = 3 * 60 * 1000
 
 async function getUid(): Promise<string | null> {
   if (Capacitor.isNativePlatform()) {
@@ -169,15 +168,6 @@ export async function coRunLeave(id: string, isHost: boolean): Promise<void> {
   await coRunSetMemberState(id, 'left')
 }
 
-/** host のみ: セッション doc を削除する。 */
-export async function coRunDeleteSession(id: string): Promise<void> {
-  if (Capacitor.isNativePlatform()) {
-    await FirebaseFirestore.deleteDocument({ reference: `coRuns/${id}` })
-    return
-  }
-  await deleteDoc(doc(db, 'coRuns', id))
-}
-
 function isSession(value: unknown): value is CoRunSession {
   return !!value && typeof (value as CoRunSession).id === 'string'
 }
@@ -279,7 +269,7 @@ export function subscribeMyLobbies(
 // ---- 派生ゲート (スナップショットから算出) -------------------------------
 
 /** 走る意思のあるメンバー (declined/left を除く)。 */
-export function activeMemberUids(session: CoRunSession): string[] {
+function activeMemberUids(session: CoRunSession): string[] {
   return session.memberUids.filter(uid => {
     const st = session.members[uid]?.state
     return st !== 'declined' && st !== 'left'

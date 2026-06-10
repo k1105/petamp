@@ -29,7 +29,7 @@ export const TIME_LABEL: Record<TimeOfDay, string> = {
  * 既定パレット。3 weather × 3 time = 9 セル。
  * すべてアクセント緑 #1c975e の analogous レンジに収まる青緑寄りグレー/ティール。
  */
-export const DEFAULT_PALETTES: Record<Weather, Record<TimeOfDay, Palette>> = {
+const DEFAULT_PALETTES: Record<Weather, Record<TimeOfDay, Palette>> = {
   sunny: {
     morning: { bg: '#78CCE8', accent: '#4AC992' },
     day:     { bg: '#189AB4', accent: '#4AC992' },

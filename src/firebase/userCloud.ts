@@ -1,10 +1,8 @@
 import { Capacitor } from '@capacitor/core'
 import { FirebaseFirestore } from '@capacitor-firebase/firestore'
 import {
-  collection,
   doc,
   getDoc,
-  getDocs,
   setDoc,
 } from 'firebase/firestore'
 import { db } from './client'
@@ -58,19 +56,6 @@ export async function ensureUserDoc(user: AppUser): Promise<void> {
     return
   }
   await setDoc(doc(db, 'users', user.uid), data)
-}
-
-export async function listAllUsers(): Promise<PublicUser[]> {
-  if (Capacitor.isNativePlatform()) {
-    const { snapshots } = await FirebaseFirestore.getCollection({
-      reference: 'users',
-    })
-    return snapshots
-      .map(s => s.data as unknown as PublicUser | null)
-      .filter((u): u is PublicUser => !!u && typeof u.uid === 'string')
-  }
-  const snap = await getDocs(collection(db, 'users'))
-  return snap.docs.map(d => d.data() as PublicUser).filter(u => !!u && typeof u.uid === 'string')
 }
 
 export async function getUserDoc(uid: string): Promise<PublicUser | null> {

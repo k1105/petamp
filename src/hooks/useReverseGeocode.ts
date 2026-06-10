@@ -53,7 +53,3 @@ export function useReverseGeocode(
 
   return name
 }
-
-export function primeCache(lng: number, lat: number, name: string): void {
-  cache.set(cacheKey(lng, lat), name)
-}

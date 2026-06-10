@@ -14,7 +14,7 @@
 // ローカルで /invite フローを web 検証したいときは .env.local に
 //   VITE_PUBLIC_BASE_URL=http://localhost:5173
 // を設定して上書きする。
-export const PUBLIC_BASE_URL =
+const PUBLIC_BASE_URL =
   import.meta.env.VITE_PUBLIC_BASE_URL ?? 'https://petamp.vercel.app'
 
 /** フレンド招待 URL (`https://<本番>/invite/<uid>`) を返す。 */

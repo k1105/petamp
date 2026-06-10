@@ -2,9 +2,9 @@ import type { CharacterId } from '../character/domain/character'
 import type { DialogueTurn, ThreadId, TurnId } from '../character/domain/dialogue'
 import type { PersistNameProposalResult } from '../character/logs/promptLog'
 
-export type ReportId = string
+type ReportId = string
 
-export interface ReportClientInfo {
+interface ReportClientInfo {
   userAgent: string
   appVersion: string
   platform: 'web' | 'capacitor'

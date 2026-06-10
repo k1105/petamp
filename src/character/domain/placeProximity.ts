@@ -12,7 +12,7 @@ interface LatLng {
   lng: number
 }
 
-export function approxDistanceM(a: LatLng, b: LatLng): number {
+function approxDistanceM(a: LatLng, b: LatLng): number {
   const toRad = (d: number) => (d * Math.PI) / 180
   const latRad = toRad((a.lat + b.lat) / 2)
   const dLat = toRad(b.lat - a.lat)
@@ -21,7 +21,7 @@ export function approxDistanceM(a: LatLng, b: LatLng): number {
 }
 
 /** 点 p から、点列 track のうち最も近いノードまでの距離 (m)。 */
-export function pointToTrackMinM(p: LatLng, track: ReadonlyArray<LatLng>): number {
+function pointToTrackMinM(p: LatLng, track: ReadonlyArray<LatLng>): number {
   let min = Infinity
   for (const q of track) {
     const d = approxDistanceM(p, q)
@@ -31,7 +31,7 @@ export function pointToTrackMinM(p: LatLng, track: ReadonlyArray<LatLng>): numbe
 }
 
 /** NamedPlace と track の最小距離 (m)。 */
-export function placeToTrackMinM(place: NamedPlace, track: ReadonlyArray<LatLng>): number {
+function placeToTrackMinM(place: NamedPlace, track: ReadonlyArray<LatLng>): number {
   if (track.length === 0) return Infinity
   if (place.point) {
     return pointToTrackMinM(place.point, track)

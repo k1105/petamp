@@ -4,7 +4,7 @@ import type { LLMReplyTopic } from '../llm/client'
 export type ThreadId = string
 export type TurnId = string
 
-export type TurnRole = 'user' | 'character'
+type TurnRole = 'user' | 'character'
 
 export interface DialogueTurn {
   id: TurnId

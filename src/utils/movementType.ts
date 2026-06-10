@@ -25,8 +25,3 @@ export const MOVEMENT_TYPES: readonly MovementTypeMeta[] = [
 export function getMovementType(run: Pick<Run, 'movementType'>): MovementType {
   return run.movementType ?? DEFAULT_MOVEMENT_TYPE
 }
-
-/** 移動種別のメタ情報を取得する。未知の値はデフォルト (foot) にフォールバックする。 */
-export function movementTypeMeta(type: MovementType): MovementTypeMeta {
-  return MOVEMENT_TYPES.find(m => m.value === type) ?? MOVEMENT_TYPES[0]
-}

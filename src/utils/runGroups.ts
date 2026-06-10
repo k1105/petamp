@@ -116,25 +116,6 @@ export function groupRunsByBboxOverlap(runs: Run[], marginMeters: number): RunGr
   return groups
 }
 
-/** Pick the group whose bbox contains the given point, otherwise the first. */
-export function pickInitialGroup(
-  groups: RunGroup[],
-  preferredCenter?: [number, number] | null,
-): RunGroup | null {
-  if (groups.length === 0) return null
-  if (preferredCenter) {
-    const [lng, lat] = preferredCenter
-    const containing = groups.find(g =>
-      lng >= g.bbox[0][0] &&
-      lng <= g.bbox[1][0] &&
-      lat >= g.bbox[0][1] &&
-      lat <= g.bbox[1][1],
-    )
-    if (containing) return containing
-  }
-  return groups[0]
-}
-
 /** Return the group whose padded bbox contains the given point, else null. */
 export function findGroupContaining(
   groups: RunGroup[],

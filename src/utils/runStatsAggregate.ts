@@ -4,7 +4,7 @@ import { bearing, haversineDistance } from './geoUtils'
 
 const WINDOW_M = 50
 
-export interface SpeedBin {
+interface SpeedBin {
   /** 下限 km/h (含む) */
   from: number
   /** 上限 km/h (含まない、最終 bin のみ Infinity) */
@@ -13,7 +13,7 @@ export interface SpeedBin {
   distanceM: number
 }
 
-export interface DirectionBin {
+interface DirectionBin {
   /** 方位ラベル */
   label: 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW'
   /** 中心方位 (deg, 0=N) */

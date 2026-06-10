@@ -1,4 +1,4 @@
-export type LLMRole = 'system' | 'user' | 'assistant'
+type LLMRole = 'system' | 'user' | 'assistant'
 
 export interface LLMMessage {
   role: LLMRole
@@ -43,7 +43,7 @@ export interface LLMOptions {
   tag?: string
 }
 
-export interface LLMUsage {
+interface LLMUsage {
   inputTokens?: number
   outputTokens?: number
 }

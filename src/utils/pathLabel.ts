@@ -49,7 +49,7 @@ export function smoothPath(pl: PathNode[], iterations = 2): PathNode[] {
 }
 
 /** 連続ノードの累積距離 (m)。長さ N。 */
-export function cumulativeDist(slice: ReadonlyArray<PathNode>): number[] {
+function cumulativeDist(slice: ReadonlyArray<PathNode>): number[] {
   const c = new Array<number>(slice.length)
   c[0] = 0
   for (let i = 1; i < slice.length; i++) {
@@ -85,7 +85,7 @@ function positionAt(
  * dist 位置の (x,y,alt) と、その位置の chord ベース接線 (tx,ty) を返す。
  * 接線は dist ± chordSpan の 2 点を結ぶ弦から計算する。
  */
-export function pointAt(
+function pointAt(
   slice: ReadonlyArray<PathNode>,
   cum: ReadonlyArray<number>,
   dist: number,
@@ -113,7 +113,7 @@ export interface PlaceTextOptions {
  * 1 文字ずつ並べる。各文字の角度は局所接線方向。アンカー位置の接線が逆向きなら
  * 全文字を反転して読み方向を保つ。
  */
-export function placeTextAlongPath(
+function placeTextAlongPath(
   slice: ReadonlyArray<PathNode>,
   cum: ReadonlyArray<number>,
   anchorDist: number,

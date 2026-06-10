@@ -3,7 +3,7 @@ import type { BackgroundGeolocationPlugin } from '@capacitor-community/backgroun
 
 const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>('BackgroundGeolocation')
 
-export interface LocationReading {
+interface LocationReading {
   lat: number
   lng: number
   altitude: number | null

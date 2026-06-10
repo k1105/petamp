@@ -5,7 +5,7 @@ import type { RunSegment, RunSummary } from '../domain/runSummary'
  * default (v1) 実装。差し替え可能。
  */
 
-export function describeShape(topo: RunSummary['topology']): string {
+function describeShape(topo: RunSummary['topology']): string {
   const label =
     topo.shape === 'loop' ? 'ぐるっと回る道'
     : topo.shape === 'out_and_back' ? '同じ道を往復'
@@ -16,7 +16,7 @@ export function describeShape(topo: RunSummary['topology']): string {
   return `${label} (${topo.shape}, 蛇行度${topo.squiggliness.toFixed(2)})`
 }
 
-export function describeBehavior(b: RunSegment['behavior']): string {
+function describeBehavior(b: RunSegment['behavior']): string {
   switch (b) {
     case 'resting': return '止まっていた'
     case 'walking': return '歩いていた'
@@ -30,14 +30,14 @@ export function formatPace(secPerKm: number): string {
   return `${m}'${s.toString().padStart(2, '0')}"`
 }
 
-export function formatDuration(sec: number): string {
+function formatDuration(sec: number): string {
   const total = Math.max(0, Math.round(sec))
   const m = Math.floor(total / 60)
   const s = total - m * 60
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-export function pct(frac: number): string {
+function pct(frac: number): string {
   return `${Math.round(frac * 100)}%`
 }
 

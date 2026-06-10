@@ -10,7 +10,7 @@
  * - 'input' ステップ: ユーザに入力させ、saveAs で指定したキーで semantic memory に保存。
  */
 
-export type OnboardingStepKind = 'tap' | 'input' | 'finish'
+type OnboardingStepKind = 'tap' | 'input' | 'finish'
 
 interface BaseStep {
   id: string
@@ -19,7 +19,7 @@ interface BaseStep {
   kind: OnboardingStepKind
 }
 
-export interface TapStep extends BaseStep {
+interface TapStep extends BaseStep {
   kind: 'tap'
 }
 
@@ -35,7 +35,7 @@ export interface InputStep extends BaseStep {
   maxLength: number
 }
 
-export interface FinishStep extends BaseStep {
+interface FinishStep extends BaseStep {
   kind: 'finish'
   /** 完了ボタンラベル (タップで Gallery に戻る)。 */
   confirmLabel: string

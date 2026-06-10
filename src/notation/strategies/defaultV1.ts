@@ -43,7 +43,7 @@ function pitchFromGradient(gradient: number): -1 | 0 | 1 {
  * 主にビジュアライザ側で「1 座標点 1 音素」レンダリングをするために使う。
  * defaultV1Strategy.encode はこの結果を後段でマージしている。
  */
-export function encodeSegments(run: Run): Phoneme[] {
+function encodeSegments(run: Run): Phoneme[] {
   const pts = acceptedPoints(run.trackPoints)
   if (pts.length < 2) return []
   const out: Phoneme[] = []
