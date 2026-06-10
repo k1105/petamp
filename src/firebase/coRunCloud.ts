@@ -1,16 +1,11 @@
-import { Capacitor } from '@capacitor/core'
-import { FirebaseAuthentication } from '@capacitor-firebase/authentication'
-import { FirebaseFirestore } from '@capacitor-firebase/firestore'
+import { getUid } from './auth'
 import {
-  collection,
-  doc,
-  onSnapshot,
-  query,
-  setDoc,
-  updateDoc,
-  where,
-} from 'firebase/firestore'
-import { auth, db } from './client'
+  setDocument,
+  subscribeCollection,
+  subscribeDocument,
+  updateDocument,
+} from './firestoreAdapter'
+import { pathCoRun, pathCoRuns } from './paths'
 
 /**
  * 「一緒に走る」セッション (coRuns/{sessionId})。
@@ -22,8 +17,6 @@ import { auth, db } from './client'
  *   - 終了ゲート: 全員 finished で host が status='finished' を書く。
  * - status のフリップは host クライアントが単独所有 (write-race 回避)。
  *   非 host は自分の members[myUid] エントリだけを field-path 更新する。
- *
- * パターンは friends.ts / runCloud.ts の getUid()+native/web 分岐に従う。
  */
 
 export type CoRunMemberState =
@@ -57,41 +50,6 @@ export type CoRunSession = {
 /** ロビーの有効期限。これを過ぎたセッションは陳腐とみなす。 */
 const LOBBY_TTL_MS = 3 * 60 * 1000
 
-async function getUid(): Promise<string | null> {
-  if (Capacitor.isNativePlatform()) {
-    const { user } = await FirebaseAuthentication.getCurrentUser()
-    return user?.uid ?? null
-  }
-  await auth.authStateReady()
-  return auth.currentUser?.uid ?? null
-}
-
-async function setSessionDoc(session: CoRunSession): Promise<void> {
-  if (Capacitor.isNativePlatform()) {
-    await FirebaseFirestore.setDocument({
-      reference: `coRuns/${session.id}`,
-      data: session as unknown as Record<string, unknown>,
-    })
-    return
-  }
-  await setDoc(doc(db, 'coRuns', session.id), session)
-}
-
-/** members.{uid}.xxx など dot-path だけを更新する (他メンバーの書込みを潰さない)。 */
-async function updateSessionFields(
-  id: string,
-  fields: Record<string, unknown>,
-): Promise<void> {
-  if (Capacitor.isNativePlatform()) {
-    await FirebaseFirestore.updateDocument({
-      reference: `coRuns/${id}`,
-      data: fields,
-    })
-    return
-  }
-  await updateDoc(doc(db, 'coRuns', id), fields)
-}
-
 /**
  * host がセッションを作成する。host は最初から 'ready'、他は 'invited'。
  * `members` には host を含む全参加者を渡す。
@@ -123,7 +81,7 @@ export async function coRunCreateSession(
     startedAt: null,
     expiresAt: now + LOBBY_TTL_MS,
   }
-  await setSessionDoc(session)
+  await setDocument(pathCoRun(session.id), session)
   return session
 }
 
@@ -142,7 +100,7 @@ export async function coRunSetMemberState(
   if (opts?.runId !== undefined) {
     fields[`members.${uid}.runId`] = opts.runId
   }
-  await updateSessionFields(id, fields)
+  await updateDocument(pathCoRun(id), fields)
 }
 
 /**
@@ -156,7 +114,7 @@ export async function coRunSetStatus(
 ): Promise<void> {
   const fields: Record<string, unknown> = { status }
   if (opts?.startedAt !== undefined) fields.startedAt = opts.startedAt
-  await updateSessionFields(id, fields)
+  await updateDocument(pathCoRun(id), fields)
 }
 
 /** 自分が抜ける (招待辞退含む)。host は cancelled に倒す。 */
@@ -177,32 +135,10 @@ export function subscribeSession(
   id: string,
   cb: (session: CoRunSession | null) => void,
 ): () => void {
-  if (Capacitor.isNativePlatform()) {
-    let callbackId: string | null = null
-    let removed = false
-    void FirebaseFirestore.addDocumentSnapshotListener(
-      { reference: `coRuns/${id}` },
-      (event, error) => {
-        if (error) {
-          console.error('coRun session listener error', error)
-          return
-        }
-        const data = event?.snapshot.data as CoRunSession | null | undefined
-        cb(isSession(data) ? data : null)
-      },
-    ).then(cid => {
-      callbackId = cid
-      if (removed) void FirebaseFirestore.removeSnapshotListener({ callbackId: cid })
-    })
-    return () => {
-      removed = true
-      if (callbackId) void FirebaseFirestore.removeSnapshotListener({ callbackId })
-    }
-  }
-  return onSnapshot(
-    doc(db, 'coRuns', id),
-    snap => cb(snap.exists() ? (snap.data() as CoRunSession) : null),
-    err => console.error('coRun session listener error', err),
+  return subscribeDocument<CoRunSession>(
+    pathCoRun(id),
+    data => cb(isSession(data) ? data : null),
+    'coRun session listener',
   )
 }
 
@@ -215,54 +151,14 @@ export function subscribeMyLobbies(
   uid: string,
   cb: (sessions: CoRunSession[]) => void,
 ): () => void {
-  const fresh = (sessions: CoRunSession[]) =>
-    sessions.filter(s => s.expiresAt > Date.now())
-
-  if (Capacitor.isNativePlatform()) {
-    let callbackId: string | null = null
-    let removed = false
-    void FirebaseFirestore.addCollectionSnapshotListener(
-      {
-        reference: 'coRuns',
-        compositeFilter: {
-          type: 'and',
-          queryConstraints: [
-            { type: 'where', fieldPath: 'memberUids', opStr: 'array-contains', value: uid },
-            { type: 'where', fieldPath: 'status', opStr: '==', value: 'lobby' },
-          ],
-        },
-      },
-      (event, error) => {
-        if (error) {
-          console.error('coRun lobby listener error', error)
-          return
-        }
-        const sessions = (event?.snapshots ?? [])
-          .map(s => s.data as unknown as CoRunSession | null)
-          .filter(isSession)
-        cb(fresh(sessions))
-      },
-    ).then(cid => {
-      callbackId = cid
-      if (removed) void FirebaseFirestore.removeSnapshotListener({ callbackId: cid })
-    })
-    return () => {
-      removed = true
-      if (callbackId) void FirebaseFirestore.removeSnapshotListener({ callbackId })
-    }
-  }
-  const q = query(
-    collection(db, 'coRuns'),
-    where('memberUids', 'array-contains', uid),
-    where('status', '==', 'lobby'),
-  )
-  return onSnapshot(
-    q,
-    snap => {
-      const sessions = snap.docs.map(d => d.data() as CoRunSession).filter(isSession)
-      cb(fresh(sessions))
-    },
-    err => console.error('coRun lobby listener error', err),
+  return subscribeCollection<CoRunSession>(
+    pathCoRuns(),
+    [
+      { fieldPath: 'memberUids', opStr: 'array-contains', value: uid },
+      { fieldPath: 'status', opStr: '==', value: 'lobby' },
+    ],
+    sessions => cb(sessions.filter(isSession).filter(s => s.expiresAt > Date.now())),
+    'coRun lobby listener',
   )
 }
 

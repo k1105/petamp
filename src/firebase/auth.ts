@@ -37,6 +37,19 @@ function fromNative(u: NativeUser): AppUser {
   }
 }
 
+/**
+ * 現在のサインイン UID。未サインインなら null。
+ * (旧 runCloud / coRunCloud / friends / characterCloud に重複していた実装の共有版)
+ */
+export async function getUid(): Promise<string | null> {
+  if (Capacitor.isNativePlatform()) {
+    const { user } = await FirebaseAuthentication.getCurrentUser()
+    return user?.uid ?? null
+  }
+  await auth.authStateReady()
+  return auth.currentUser?.uid ?? null
+}
+
 const provider = new GoogleAuthProvider()
 
 export async function signInWithGoogle(): Promise<AppUser> {

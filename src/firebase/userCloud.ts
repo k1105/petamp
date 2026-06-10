@@ -1,12 +1,6 @@
-import { Capacitor } from '@capacitor/core'
-import { FirebaseFirestore } from '@capacitor-firebase/firestore'
-import {
-  doc,
-  getDoc,
-  setDoc,
-} from 'firebase/firestore'
-import { db } from './client'
 import type { AppUser } from './auth'
+import { getDocument, setDocument } from './firestoreAdapter'
+import { pathUser } from './paths'
 
 export type PublicUser = {
   uid: string
@@ -23,21 +17,10 @@ function sanitize(value: unknown): unknown {
 }
 
 export async function ensureUserDoc(user: AppUser): Promise<void> {
-  const ref = `users/${user.uid}`
   const now = Date.now()
-  let createdAt = now
-
-  if (Capacitor.isNativePlatform()) {
-    const { snapshot } = await FirebaseFirestore.getDocument({ reference: ref })
-    const existing = snapshot.data as Partial<PublicUser> | null | undefined
-    if (existing && typeof existing.createdAt === 'number') createdAt = existing.createdAt
-  } else {
-    const snap = await getDoc(doc(db, 'users', user.uid))
-    if (snap.exists()) {
-      const existing = snap.data() as Partial<PublicUser>
-      if (typeof existing.createdAt === 'number') createdAt = existing.createdAt
-    }
-  }
+  const existing = await getDocument<Partial<PublicUser>>(pathUser(user.uid))
+  const createdAt =
+    existing && typeof existing.createdAt === 'number' ? existing.createdAt : now
 
   const data: PublicUser = {
     uid: user.uid,
@@ -48,21 +31,9 @@ export async function ensureUserDoc(user: AppUser): Promise<void> {
     updatedAt: now,
   }
 
-  if (Capacitor.isNativePlatform()) {
-    await FirebaseFirestore.setDocument({
-      reference: ref,
-      data: data as unknown as Record<string, unknown>,
-    })
-    return
-  }
-  await setDoc(doc(db, 'users', user.uid), data)
+  await setDocument(pathUser(user.uid), data)
 }
 
 export async function getUserDoc(uid: string): Promise<PublicUser | null> {
-  if (Capacitor.isNativePlatform()) {
-    const { snapshot } = await FirebaseFirestore.getDocument({ reference: `users/${uid}` })
-    return (snapshot.data as PublicUser | null | undefined) ?? null
-  }
-  const snap = await getDoc(doc(db, 'users', uid))
-  return snap.exists() ? (snap.data() as PublicUser) : null
+  return getDocument<PublicUser>(pathUser(uid))
 }
