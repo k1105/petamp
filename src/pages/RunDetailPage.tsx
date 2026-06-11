@@ -12,7 +12,7 @@ import { useAnimation } from '../hooks/useAnimation'
 import { useElevationStats } from '../hooks/useElevationStats'
 import { getPaletteForRun, hexToRgb, type Palette } from '../utils/themePalettes'
 import { useRunStore } from '../store/useRunStore'
-import { useMapStore } from '../store/useMapStore'
+import { useReplayStore } from '../store/useReplayStore'
 import { useSocialFeedStore } from '../store/useSocialFeedStore'
 import { useAuth } from '../hooks/useAuth'
 import { positionAtTime, relAltitudeAtTime } from '../hooks/useGalleryAnimation'
@@ -318,7 +318,7 @@ export function RunDetailPage() {
 
   // 再生/停止トグル。最新状態は store から直接読む（毎フレームの再subscribeを避ける）
   const togglePlayback = useCallback(() => {
-    const s = useMapStore.getState()
+    const s = useReplayStore.getState()
     if (s.isPlaying) {
       stop()
       showTapFlash('pause')

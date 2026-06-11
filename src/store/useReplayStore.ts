@@ -1,6 +1,10 @@
 import { create } from 'zustand'
 
-interface MapStore {
+/**
+ * ランのリプレイ再生状態 (RunDetailPage + useAnimation 専用)。
+ * 地図そのものの状態は持たない (mapbox instance は MapContext が供給する)。
+ */
+interface ReplayStore {
   currentTime: number
   isPlaying: boolean
   duration: number
@@ -9,7 +13,7 @@ interface MapStore {
   setDuration: (d: number) => void
 }
 
-export const useMapStore = create<MapStore>((set) => ({
+export const useReplayStore = create<ReplayStore>((set) => ({
   currentTime: 0,
   isPlaying: false,
   duration: 0,

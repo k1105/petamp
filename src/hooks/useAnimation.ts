@@ -1,9 +1,9 @@
 import { useRef, useCallback } from 'react'
-import { useMapStore } from '../store/useMapStore'
+import { useReplayStore } from '../store/useReplayStore'
 import { REPLAY_SPEED } from '../utils/replaySpeed'
 
 export function useAnimation() {
-  const { currentTime, isPlaying, duration, setCurrentTime, setIsPlaying, setDuration } = useMapStore()
+  const { currentTime, isPlaying, duration, setCurrentTime, setIsPlaying, setDuration } = useReplayStore()
   const rafRef = useRef<number | null>(null)
   const lastFrameTimeRef = useRef<number | null>(null)
 
@@ -26,7 +26,7 @@ export function useAnimation() {
       const delta = ((now - lastFrameTimeRef.current) / 1000) * REPLAY_SPEED
       lastFrameTimeRef.current = now
 
-      const store = useMapStore.getState()
+      const store = useReplayStore.getState()
       const next = store.currentTime + delta
       // 末尾に到達したら先頭へ巻き戻してシームレスに無限ループ (明示停止まで止めない)。
       setCurrentTime(duration > 0 ? next % duration : next)
