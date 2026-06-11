@@ -1,402 +1,39 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { PathLayer, ScatterplotLayer } from '@deck.gl/layers'
-import type { GeoJSONSource, MapLayerMouseEvent } from 'mapbox-gl'
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import { BaseMap } from '../components/map/BaseMap'
-import { useMap, useMapZoom } from '../components/map/MapContext'
-import { DeckOverlay } from '../components/map/DeckOverlay'
 import { AreaLabel } from '../components/map/AreaLabel'
 import { NowPlayingLabel } from '../components/map/NowPlayingLabel'
 import { MapBoundsConstraint } from '../components/map/MapBoundsConstraint'
 import { GroupEdgeIndicator } from '../components/map/GroupEdgeIndicator'
-import { expandBboxByMeters } from '../utils/runBbox'
-import { groupRunsByBboxOverlap, makeHomeGroup, findGroupContaining } from '../utils/runGroups'
+import { NamedPlaceMapLayers } from '../components/map/NamedPlaceMapLayers'
+import { FocusGPS, type Padding } from '../components/map/FocusGPS'
+import { GalleryLayers } from '../components/gallery/GalleryLayers'
+import { GalleryListPanel } from '../components/gallery/GalleryListPanel'
+import { NamedPlacePopup } from '../components/gallery/NamedPlacePopup'
+import { FirstRunIntro } from '../components/gallery/FirstRunIntro'
+import { SettingsPopup } from '../components/gallery/SettingsPopup'
+import { EyesIcon } from '../components/gallery/EyesIcon'
+import { ProfileScreen } from '../components/ProfileScreen'
+import { MovementTypeSelector } from '../components/MovementTypeSelector'
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
-import { useSocialFeedStore } from '../store/useSocialFeedStore'
-import { SettingsPopup } from '../components/gallery/SettingsPopup'
-import { ProfileScreen } from '../components/ProfileScreen'
+import { useJoystickStore } from '../store/useJoystickStore'
+import { useTransitionStore } from '../store/useTransitionStore'
+import { useCoRunStore } from '../store/useCoRunStore'
 import { useAuth } from '../hooks/useAuth'
-import { RunTile } from '../components/gallery/RunTile'
-import { RunEditSheet } from '../components/gallery/RunEditSheet'
-import { CoRunTile } from '../components/gallery/CoRunTile'
-import { ConfirmDialog } from '../components/ConfirmDialog'
-import { EyesIcon } from '../components/gallery/EyesIcon'
 import { useEyeParams } from '../hooks/useEyeParams'
-import { IslandView } from '../components/island/IslandView'
-import { computeArchipelagoLayout, type ArchipelagoLayoutResult } from '../utils/archipelagoLayout'
-import { buildPathPositions } from '../utils/tubeMesh'
-import { effectiveRadius } from '../utils/effectiveRadius'
-import { acceptedPoints } from '../utils/recordingFilters'
 import { useGalleryAnimation } from '../hooks/useGalleryAnimation'
-import { hexToRgb } from '../utils/themePalettes'
 import { useActivePalette } from '../hooks/useActivePalette'
 import { useCurrentPosition } from '../hooks/useCurrentPosition'
 import { useHomePhrase } from '../hooks/useHomePhrase'
 import { useMetaballSheet } from '../hooks/useMetaballSheet'
-import { useJoystickStore } from '../store/useJoystickStore'
-import { useTransitionStore } from '../store/useTransitionStore'
-import { useCoRunStore } from '../store/useCoRunStore'
 import { useNamedPlaces } from '../hooks/useNamedPlaces'
-import { MovementTypeSelector } from '../components/MovementTypeSelector'
-import { DEFAULT_MOVEMENT_TYPE, MOVEMENT_TYPES, getMovementType } from '../utils/movementType'
-import type { DotPosition } from '../hooks/useGalleryAnimation'
-import type { MovementType, Run } from '../types'
+import { useGroupNavigation, HOME_FIXED_ZOOM } from '../hooks/useGroupNavigation'
+import { useFabStackPositioning } from '../hooks/useFabStackPositioning'
+import { DEFAULT_MOVEMENT_TYPE } from '../utils/movementType'
+import type { MovementType } from '../types'
 import type { NamedPlace } from '../character/domain/memory'
-
-const MIN_ZOOM = 12.5
-
-// 地名レイヤ (mapbox ネイティブ symbol)。色は地図のダークスタイル上で映える黄系。
-const NP_LINE_COLOR = '#FFC83C'
-const NP_DOT_COLOR = '#FFC83C'
-const NP_DOT_OUTLINE = '#3C2800'
-const NP_LABEL_COLOR = '#FFFFFF'
-const NP_LABEL_HALO = '#1A1200'
-
-const NP_SOURCE = 'named-places'
-const NP_LAYER_LINE = 'named-place-line'
-const NP_LAYER_POINT = 'named-place-point'
-const NP_LAYER_LINE_LABEL = 'named-place-line-label'
-const NP_LAYER_POINT_LABEL = 'named-place-point-label'
-const NP_ALL_LAYERS = [NP_LAYER_LINE, NP_LAYER_POINT, NP_LAYER_LINE_LABEL, NP_LAYER_POINT_LABEL]
-
-function namedPlacesToGeoJSON(places: NamedPlace[]): GeoJSON.FeatureCollection {
-  const features: GeoJSON.Feature[] = []
-  for (const p of places) {
-    const properties = { id: p.id, name: p.name }
-    if (p.polyline && p.polyline.length >= 2) {
-      features.push({
-        type: 'Feature',
-        properties,
-        geometry: { type: 'LineString', coordinates: p.polyline.map(n => [n.lng, n.lat]) },
-      })
-    }
-    if (p.point) {
-      features.push({
-        type: 'Feature',
-        properties,
-        geometry: { type: 'Point', coordinates: [p.point.lng, p.point.lat] },
-      })
-    }
-  }
-  return { type: 'FeatureCollection', features }
-}
-
-/**
- * 地名 (NamedPlace) を mapbox ネイティブの symbol レイヤで描く。
- *
- * 自前の 1 文字配置 (deck TextLayer) はカーニングがズーム依存になり線追従もガタつくため、
- * 地図と同じ仕組み = SDF グリフ + `symbol-placement: 'line'` の symbol レイヤに任せる。
- * px 基準で字間・サイズが一定、曲線追従・縁取り(halo)・衝突回避も内蔵。日本語は
- * mapbox の `localIdeographFontFamily` (BaseMap で設定) によりローカル描画される。
- * タップ→popup は mapbox の layer 付き click で取得する。
- */
-function NamedPlaceMapLayers({
-  places,
-  onPick,
-}: {
-  places: NamedPlace[]
-  onPick: (place: NamedPlace) => void
-}) {
-  const { map } = useMap()
-  // click ハンドラから最新の places を引くための ref (更新は effect 内で行う)。
-  const placesRef = useRef(places)
-
-  useEffect(() => {
-    if (!map) return
-    // style に存在するフォントを使うため、既存 symbol レイヤの text-font を流用する。
-    let textFont: string[] | undefined
-    for (const l of map.getStyle()?.layers ?? []) {
-      const tf = l.type === 'symbol' ? (l.layout?.['text-font'] as string[] | undefined) : undefined
-      if (Array.isArray(tf)) { textFont = tf; break }
-    }
-
-    if (!map.getSource(NP_SOURCE)) {
-      map.addSource(NP_SOURCE, { type: 'geojson', data: namedPlacesToGeoJSON(placesRef.current) })
-    }
-    if (!map.getLayer(NP_LAYER_LINE)) {
-      map.addLayer({
-        id: NP_LAYER_LINE,
-        type: 'line',
-        source: NP_SOURCE,
-        filter: ['==', ['geometry-type'], 'LineString'],
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': NP_LINE_COLOR, 'line-width': 3, 'line-opacity': 0.9 },
-      })
-    }
-    if (!map.getLayer(NP_LAYER_POINT)) {
-      map.addLayer({
-        id: NP_LAYER_POINT,
-        type: 'circle',
-        source: NP_SOURCE,
-        filter: ['==', ['geometry-type'], 'Point'],
-        paint: {
-          'circle-radius': 5,
-          'circle-color': NP_DOT_COLOR,
-          'circle-stroke-color': NP_DOT_OUTLINE,
-          'circle-stroke-width': 1.5,
-        },
-      })
-    }
-    if (!map.getLayer(NP_LAYER_LINE_LABEL)) {
-      map.addLayer({
-        id: NP_LAYER_LINE_LABEL,
-        type: 'symbol',
-        source: NP_SOURCE,
-        filter: ['==', ['geometry-type'], 'LineString'],
-        layout: {
-          'symbol-placement': 'line-center',
-          'text-field': ['get', 'name'],
-          'text-size': 13,
-          'text-max-angle': 40,
-          // 文字単位 billboard: 各グリフは線の曲線に沿って回転 (rotation=map) しつつ、
-          // pitch だけ viewport にして 1 文字ずつカメラ正対で立ち上がらせる (mapbox の線ラベルと同じ)。
-          'text-rotation-alignment': 'map',
-          'text-pitch-alignment': 'viewport',
-          ...(textFont ? { 'text-font': textFont } : {}),
-        },
-        paint: { 'text-color': NP_LABEL_COLOR, 'text-halo-color': NP_LABEL_HALO, 'text-halo-width': 1.5 },
-      })
-    }
-    if (!map.getLayer(NP_LAYER_POINT_LABEL)) {
-      map.addLayer({
-        id: NP_LAYER_POINT_LABEL,
-        type: 'symbol',
-        source: NP_SOURCE,
-        filter: ['==', ['geometry-type'], 'Point'],
-        layout: {
-          'symbol-placement': 'point',
-          'text-field': ['get', 'name'],
-          'text-size': 13,
-          'text-offset': [0, -1.2],
-          'text-anchor': 'bottom',
-          // billboard: 常にカメラ正対・上向き。
-          'text-rotation-alignment': 'viewport',
-          'text-pitch-alignment': 'viewport',
-          ...(textFont ? { 'text-font': textFont } : {}),
-        },
-        paint: { 'text-color': NP_LABEL_COLOR, 'text-halo-color': NP_LABEL_HALO, 'text-halo-width': 1.5 },
-      })
-    }
-
-    const onClick = (e: MapLayerMouseEvent) => {
-      const id = e.features?.[0]?.properties?.id
-      const place = placesRef.current.find(p => p.id === id)
-      if (place) onPick(place)
-    }
-    const onEnter = () => { map.getCanvas().style.cursor = 'pointer' }
-    const onLeave = () => { map.getCanvas().style.cursor = '' }
-    for (const id of NP_ALL_LAYERS) {
-      map.on('click', id, onClick)
-      map.on('mouseenter', id, onEnter)
-      map.on('mouseleave', id, onLeave)
-    }
-
-    return () => {
-      // 画面遷移で地図が破棄される途中だと style が無く getLayer 等が投げる。
-      // ハンドラ解除は常に行い、レイヤ/source の除去は style が生きている時だけ試みる。
-      for (const id of NP_ALL_LAYERS) {
-        map.off('click', id, onClick)
-        map.off('mouseenter', id, onEnter)
-        map.off('mouseleave', id, onLeave)
-      }
-      try {
-        if (!map.getStyle()) return
-        for (const id of NP_ALL_LAYERS) {
-          if (map.getLayer(id)) map.removeLayer(id)
-        }
-        if (map.getSource(NP_SOURCE)) map.removeSource(NP_SOURCE)
-      } catch {
-        // 地図破棄中は何もしない (map.remove() がまとめて片付ける)。
-      }
-    }
-    // onPick は安定参照。places は下の effect で setData 更新する。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map])
-
-  useEffect(() => {
-    placesRef.current = places
-    if (!map) return
-    try {
-      if (!map.getStyle()) return
-      const src = map.getSource(NP_SOURCE) as GeoJSONSource | undefined
-      src?.setData(namedPlacesToGeoJSON(places))
-    } catch {
-      // 地図破棄中などは無視。
-    }
-  }, [map, places])
-
-  return null
-}
-
-// FAB タップで現在位置に home スケールでフォーカスする (homeGroup が無い
-// = GPS が realGroup 内のケース用)。signal を increment するたびに flyTo。
-type Padding = { top: number; bottom: number; left: number; right: number }
-
-function FocusGPS({
-  signal,
-  center,
-  zoom,
-  padding,
-}: {
-  signal: number
-  center: [number, number] | null
-  zoom: number
-  // 現在位置を画面中心ではなく petamp の顔(FAB)の位置に表示するための padding。
-  // padding は viewport を縮めて光学的中心をずらすため、maxBounds 下でも focal point を寄せられる。
-  padding: Padding
-}) {
-  const { map } = useMap()
-  const lastRef = useRef(0)
-  useEffect(() => {
-    if (!map || !center || signal === 0 || signal === lastRef.current) return
-    lastRef.current = signal
-    map.flyTo({ center, zoom, padding, duration: 700 })
-  }, [signal, map, center, zoom, padding])
-  return null
-}
-
-function GalleryLayers({
-  runs,
-  dots,
-}: {
-  runs: Run[]
-  dots: DotPosition[]
-}) {
-  const { map } = useMap()
-  const zoom = useMapZoom()
-  const navigate = useNavigate()
-  const radii = useSettingsStore(s => s.radii)
-  const { palette } = useActivePalette()
-
-  const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5))
-  const accentRgb = useMemo<[number, number, number]>(
-    () => hexToRgb(palette.accent),
-    [palette.accent],
-  )
-  const tubeColor: [number, number, number, number] = [...accentRgb, Math.round(128 * t)]
-  const dotColor: [number, number, number, number] = [...accentRgb, Math.round(255 * t)]
-  // 点群表現の円は重なりで色が乗算的に濃くなるので、線より低い α にする。
-  const trailColor: [number, number, number, number] = [...accentRgb, Math.round(70 * t)]
-
-  const trailStyle = useSettingsStore(s => s.ui.galleryTrailStyle)
-
-  const dotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
-  const tubeWidth = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius) * 2
-  // 点群の円半径。線の半分幅 (tubeWidth/2) より少し大きくして点同士を重ね、
-  // 軌跡が滑らかな帯に見えるようにする。
-  const trailRadius = (tubeWidth / 2) * 1.6
-
-  const runPaths = useMemo(
-    () =>
-      runs
-        .map(run => ({
-          id: run.id,
-          path: buildPathPositions(acceptedPoints(run.trackPoints)),
-        }))
-        .filter(r => r.path.length >= 2),
-    [runs],
-  )
-
-  // 点群表現用。各ランの全トラックポイントを { id, position } の平坦な配列にする。
-  const trailPoints = useMemo(
-    () =>
-      runs.flatMap(run =>
-        acceptedPoints(run.trackPoints).map(p => ({
-          id: run.id,
-          position: [p.lng, p.lat] as [number, number],
-        })),
-      ),
-    [runs],
-  )
-
-  const layers = useMemo(() => {
-    if (t === 0) return []
-    // 同じ地点に地名 (mapbox レイヤ) がある場合は、地名 popup を優先して
-    // ラン遷移しない (deck レイヤと mapbox 地名が両方 click 発火するため)。
-    const onTrailClick = (info: { object?: { id: string }; x?: number; y?: number }) => {
-      if (!info.object) return
-      if (map && info.x != null && info.y != null) {
-        try {
-          const present = NP_ALL_LAYERS.filter(id => map.getLayer(id))
-          if (present.length && map.queryRenderedFeatures([info.x, info.y], { layers: present }).length) {
-            return
-          }
-        } catch {
-          // クエリ失敗時はそのまま遷移にフォールバック。
-        }
-      }
-      navigate(`/run/${info.object.id}`)
-    }
-    const trailLayer =
-      trailStyle === 'points'
-        ? new ScatterplotLayer<{ id: string; position: [number, number] }>({
-            id: 'gallery-trail-points',
-            data: trailPoints,
-            getPosition: d => [d.position[0], d.position[1], 0],
-            getRadius: trailRadius,
-            radiusUnits: 'meters',
-            getFillColor: trailColor,
-            billboard: true,
-            pickable: true,
-            // 半透明の重なりを綺麗に出すため深度書き込みを切る。
-            parameters: { depthWriteEnabled: false },
-            onClick: onTrailClick,
-            updateTriggers: { getFillColor: trailColor, getRadius: trailRadius },
-          })
-        : new PathLayer<{ id: string; path: [number, number, number][] }>({
-            id: 'gallery-tubes',
-            data: runPaths,
-            getPath: d => d.path,
-            getColor: tubeColor,
-            getWidth: tubeWidth,
-            widthUnits: 'meters',
-            capRounded: true,
-            jointRounded: true,
-            billboard: true,
-            pickable: true,
-            onClick: onTrailClick,
-            updateTriggers: { getColor: tubeColor },
-          })
-    const dotsLayer = new ScatterplotLayer({
-      id: 'gallery-dots',
-      data: dots,
-      getPosition: (d: { position: [number, number] }) => [d.position[0], d.position[1], 0],
-      getRadius: dotRadius,
-      radiusUnits: 'meters',
-      getFillColor: dotColor,
-      billboard: true,
-      // 動点はオクルージョンを無効化し、必ずチューブ(線)の最前面に描く。
-      // 深度テストを always にして点が線に埋もれないようにする。
-      parameters: { depthCompare: 'always', depthWriteEnabled: false },
-      updateTriggers: { getFillColor: dotColor },
-    })
-    return [trailLayer, dotsLayer]
-  }, [
-    runPaths,
-    trailPoints,
-    trailStyle,
-    trailColor,
-    trailRadius,
-    dots,
-    t,
-    dotRadius,
-    tubeWidth,
-    tubeColor,
-    dotColor,
-    navigate,
-    map,
-  ])
-
-  return <DeckOverlay layers={layers} />
-}
-
-// Home (initial) state config — small fixed-size cage centred on GPS at a
-// fixed zoom, distinct from any recorded group. Pan-to-edge from here jumps
-// to the nearest real group.
-const HOME_HALF_SIZE_METERS = 150
-const HOME_FIXED_ZOOM = 17.5
 
 // Fallback phrases used while the LLM ambient phrase isn't ready (no API key,
 // network failure, or still generating). Picked once per arm; not cycled.
@@ -410,94 +47,12 @@ function pickFallback(): string {
   return FALLBACK_PHRASES[Math.floor(Math.random() * FALLBACK_PHRASES.length)]
 }
 
-type RunFilter = 'all' | 'mine' | 'friends'
-const RUN_FILTER_OPTIONS: { value: RunFilter; label: string }[] = [
-  { value: 'all', label: 'すべて' },
-  { value: 'mine', label: '自分の記録' },
-  { value: 'friends', label: '友達の記録' },
-]
-
-type MovementFilter = MovementType | 'all'
-const MOVEMENT_FILTER_OPTIONS: { value: MovementFilter; label: string }[] = [
-  { value: 'all', label: 'すべての種別' },
-  ...MOVEMENT_TYPES.map(m => ({ value: m.value as MovementFilter, label: m.label })),
-]
-
 export function GalleryPage() {
-  const { runs, loadRuns, removeRun, updateRun } = useRunStore()
-  const followedRuns = useSocialFeedStore(s => s.followedRuns)
-  const followedUsers = useSocialFeedStore(s => s.followedUsers)
+  const { runs, loadRuns } = useRunStore()
   const ui = useSettingsStore(s => s.ui)
   const setUi = useSettingsStore(s => s.setUi)
 
-  // 一覧の表示フィルター。すべて / 自分のみ / 友達のみ を切り替える。
-  const [runFilter, setRunFilter] = useState<RunFilter>('all')
-  // 移動種別フィルター。'all' なら全種別。
-  const [movementFilter, setMovementFilter] = useState<MovementFilter>('all')
-  const [filterOpen, setFilterOpen] = useState(false)
-
-  // TRAIL / ISLAND タブにはフォロー中ユーザーのランも混ぜて表示する。
-  // マップ・dot アニメ・home phrase・STATS は今まで通り自分のランのみ。
-  const socialRuns = useMemo(() => {
-    const base =
-      runFilter === 'mine'
-        ? runs
-        : runFilter === 'friends'
-          ? followedRuns
-          : [...runs, ...followedRuns]
-    const filtered =
-      movementFilter === 'all'
-        ? base
-        : base.filter(r => getMovementType(r) === movementFilter)
-    return filtered.slice().sort((a, b) => b.startedAt - a.startedAt)
-  }, [runs, followedRuns, runFilter, movementFilter])
-  const ownerByUid = useMemo(() => {
-    const m = new Map<string, typeof followedUsers[number]>()
-    for (const u of followedUsers) m.set(u.uid, u)
-    return m
-  }, [followedUsers])
-
-  // TRAIL 一覧用の表示単位。一緒に走ったラン (同一 coRunSessionId) は
-  // 自分 + 相手をまとめて 1 つの co-run アイテムに統合する。
-  type ListItem =
-    | { kind: 'single'; run: Run }
-    | { kind: 'corun'; sessionId: string; runs: Run[] }
-  const listItems = useMemo<ListItem[]>(() => {
-    const items: ListItem[] = []
-    const seenSessions = new Set<string>()
-    for (const run of socialRuns) {
-      const sid = run.coRunSessionId
-      if (sid) {
-        if (seenSessions.has(sid)) continue
-        seenSessions.add(sid)
-        items.push({
-          kind: 'corun',
-          sessionId: sid,
-          runs: socialRuns.filter(r => r.coRunSessionId === sid),
-        })
-      } else {
-        items.push({ kind: 'single', run })
-      }
-    }
-    return items
-  }, [socialRuns])
-
-  // TRAIL 一覧は移動種別ごとにグルーピングして見出しを付ける。
-  // co-run は代表ラン (先頭) の種別で分類する。MOVEMENT_TYPES の順で並べ、空グループは省く。
-  const listGroups = useMemo(() => {
-    const typeOf = (item: ListItem) =>
-      getMovementType(item.kind === 'single' ? item.run : item.runs[0])
-    return MOVEMENT_TYPES.map(meta => ({
-      meta,
-      items: listItems.filter(item => typeOf(item) === meta.value),
-    })).filter(g => g.items.length > 0)
-  }, [listItems])
-
   const [view, setView] = useState<'map' | 'list' | 'profile'>('map')
-  const [listMode, setListMode] = useState<'trail' | 'island'>('trail')
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  // 長押しで開く編集シート対象のラン id。自分のランのみ (RunTile が他人のランでは発火しない)。
-  const [editingRunId, setEditingRunId] = useState<string | null>(null)
   // ラン開始前 (armed 状態) に選ぶ移動種別。startRecord で /record へ引き継ぐ。
   const [movementType, setMovementType] = useState<MovementType>(DEFAULT_MOVEMENT_TYPE)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -523,6 +78,8 @@ export function GalleryPage() {
   const initialCenter = useCurrentPosition()
   const [searchParams] = useSearchParams()
   const isDebug = searchParams.get('debug') === '1'
+  // ActivePaletteProvider 配下であることを保証する (palette は GalleryLayers が参照)。
+  useActivePalette()
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -594,51 +151,6 @@ export function GalleryPage() {
     loadRuns(isDebug).finally(() => setRunsLoaded(true))
   }, [isDebug])
 
-  // ISLAND タブの archipelago layout はマウントするたびに再計算すると重いので、
-  // GalleryPage 側に持ち上げて runs 参照単位でキャッシュする。ISLAND タブが
-  // 初めて開かれたタイミングで非同期 (1 フレーム後) に計算してローディングを
-  // 描画してから走らせる。
-  const [archLayout, setArchLayout] = useState<ArchipelagoLayoutResult | null>(null)
-  const [archLoading, setArchLoading] = useState(false)
-  const archLayoutRunsRef = useRef<Run[] | null>(null)
-  // 計算中フラグは ref で持つ。state にすると依存に入れた effect が自身を
-  // キャンセルして二度と rAF が走らなくなる。
-  const archInFlightRef = useRef(false)
-
-  // socialRuns 参照が変わったら layout を破棄。
-  useEffect(() => {
-    if (archLayoutRunsRef.current !== null && archLayoutRunsRef.current !== socialRuns) {
-      archLayoutRunsRef.current = null
-      // socialRuns 入れ替えで前回キャッシュを破棄するための同期 reset。
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setArchLayout(null)
-    }
-  }, [socialRuns])
-
-  useEffect(() => {
-    if (listMode !== 'island') return
-    if (archLayoutRunsRef.current === socialRuns) return
-    if (archInFlightRef.current) return
-    if (socialRuns.length === 0) return
-    archInFlightRef.current = true
-    // rAF 計算前にローディング UI を確実に描画させるための同期セット。
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setArchLoading(true)
-    const target = socialRuns
-    // rAF で 1 フレーム譲ってローディング UI を確実に描画してから計算。
-    const raf = requestAnimationFrame(() => {
-      const result = computeArchipelagoLayout(target)
-      archLayoutRunsRef.current = target
-      archInFlightRef.current = false
-      setArchLayout(result)
-      setArchLoading(false)
-    })
-    return () => {
-      cancelAnimationFrame(raf)
-      archInFlightRef.current = false
-    }
-  }, [listMode, socialRuns])
-
   // 初回ラン完了後にトップへ戻ってきたタイミングで一度だけ案内を出す。
   useEffect(() => {
     if (!runsLoaded) return
@@ -654,69 +166,16 @@ export function GalleryPage() {
     setUi({ hasSeenFirstRunIntro: true })
   }
 
-  // Phase 2: cluster runs into actual groups.
-  const realGroups = useMemo(
-    () => groupRunsByBboxOverlap(runs, ui.mapPaddingMeters),
-    [runs, ui.mapPaddingMeters],
-  )
-
-  // 現在位置が既存グループ (padded bbox) に含まれていればそのグループに合流。
-  // 含まれていない場合のみ home pseudo-group を生成する。
-  const containingRealGroup = useMemo(
-    () => (initialCenter ? findGroupContaining(realGroups, initialCenter, ui.mapPaddingMeters) : null),
-    [initialCenter, realGroups, ui.mapPaddingMeters],
-  )
-
-  // Phase 4: synthesise a "home" pseudo-group at GPS so the initial mount
-  // sits at a small fixed cage instead of snapping into a recorded group.
-  const homeGroup = useMemo(
-    () => (initialCenter && !containingRealGroup ? makeHomeGroup(initialCenter, HOME_HALF_SIZE_METERS) : null),
-    [initialCenter, containingRealGroup],
-  )
-
-  // Combined list passed to GroupNavigation — pan-to-edge can move between
-  // home and any real group, and between real groups.
-  const allGroups = useMemo(
-    () => (homeGroup ? [homeGroup, ...realGroups] : realGroups),
-    [homeGroup, realGroups],
-  )
-
-  const [currentGroupId, setCurrentGroupId] = useState<string | null>(null)
-  // GPS確定 (success or null) を待ってから default group を決める。
-  // これでBaseMap マウント時から正しい中心 (= 現在位置 home) で立ち上がり、
-  // 「先にrealGroupに着地→後からhomeへ animate」のずれが起きない。
-  useEffect(() => {
-    if (!runsLoaded) return
-    if (initialCenter === undefined) return
-    if (currentGroupId && allGroups.some(g => g.id === currentGroupId)) return
-    if (homeGroup) {
-      // GPS 確定後の default group 選択。複数候補をまとめて初期化する都合上同期セット。
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCurrentGroupId('home')
-    } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCurrentGroupId(containingRealGroup?.id ?? realGroups[0]?.id ?? null)
-    }
-  }, [runsLoaded, allGroups, currentGroupId, homeGroup, containingRealGroup, realGroups, initialCenter])
-
-  const currentGroup = useMemo(
-    () => allGroups.find(g => g.id === currentGroupId) ?? null,
-    [allGroups, currentGroupId],
-  )
-
-  const isHome = currentGroup?.id === 'home'
-
-  // BaseMap initial position. Home: GPS center + fixed zoom (no `bounds`
-  // option since we want the explicit fixed scale, not bbox-fit). Real
-  // group: padded bbox passed via `bounds` for tight fit.
-  // 例外: 現在位置が realGroup に含まれている初期状態では home スケールで
-  // 立ち上げる (bounds を渡さない)。MapBoundsConstraint が group bbox を
-  // maxBounds として後から適用する。
-  const initialBounds = useMemo(() => {
-    if (!runsLoaded || !currentGroup || isHome) return undefined
-    if (containingRealGroup && currentGroup.id === containingRealGroup.id) return undefined
-    return expandBboxByMeters(currentGroup.bbox, ui.mapPaddingMeters) as [[number, number], [number, number]]
-  }, [runsLoaded, currentGroup, isHome, ui.mapPaddingMeters, containingRealGroup])
+  const {
+    allGroups,
+    currentGroup,
+    currentGroupId,
+    setCurrentGroupId,
+    isHome,
+    containingRealGroup,
+    homeGroup,
+    initialBounds,
+  } = useGroupNavigation(runs, ui.mapPaddingMeters, initialCenter, runsLoaded)
 
   const homePhrase = useHomePhrase(initialCenter ?? undefined, runs, runsLoaded)
 
@@ -725,7 +184,6 @@ export function GalleryPage() {
     // 持つため useMemo 化せず effect に置いている。
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (armed) setBubblePhrase(homePhrase ?? pickFallback())
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     else setBubblePhrase(null)
   }, [armed, homePhrase])
 
@@ -734,50 +192,11 @@ export function GalleryPage() {
   const activeBubbleText = armed ? bubblePhrase : onboardingPhrase
   const isOnboardingBubble = !armed && activeBubbleText !== null
 
-  // Position the speech bubble + start label relative to the FAB's actual
-  // bounding rect each frame. armed 時は start-label も追従。
-  useEffect(() => {
-    if (!activeBubbleText && !armed) return
-    let raf = 0
-    const tick = () => {
-      const fab = fabRef.current
-      if (fab) {
-        const r = fab.getBoundingClientRect()
-        const cx = r.left + r.width / 2
-        // 顔のすぐ上に吹き出し、その上に移動種別セレクタを積む。
-        // 各要素は translate ではなく left/top を直接指定して中央寄せする
-        // (pop アニメの transform が中央寄せ translate を上書きして横にずれるのを防ぐ)。
-        let stackTop = r.top
-        const bubble = speechBubbleRef.current
-        if (bubble) {
-          bubble.style.left = `${cx - bubble.offsetWidth / 2}px`
-          bubble.style.top = `${r.top - 16 - bubble.offsetHeight}px`
-          stackTop = r.top - 16 - bubble.offsetHeight
-        }
-        if (armed) {
-          const selector = movementSelectorRef.current
-          if (selector) {
-            selector.style.left = `${cx - selector.offsetWidth / 2}px`
-            selector.style.top = `${stackTop - 14 - selector.offsetHeight}px`
-          }
-          const label = startLabelRef.current
-          if (label) {
-            label.style.left = `${cx - label.offsetWidth / 2}px`
-            label.style.top = `${r.bottom + 18}px`
-          }
-          // ペタンプの顔(FAB)の右隣に「友達と走る」アイコン+ラベルを縦中央で並べる。
-          const coRun = coRunEntryRef.current
-          if (coRun) {
-            coRun.style.left = `${r.right + 14}px`
-            coRun.style.top = `${r.top + r.height / 2 - coRun.offsetHeight / 2}px`
-          }
-        }
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [armed, activeBubbleText])
+  useFabStackPositioning(
+    { fabRef, speechBubbleRef, movementSelectorRef, startLabelRef, coRunEntryRef },
+    armed,
+    activeBubbleText,
+  )
 
   const handleRunSelect = (runId: string) => {
     const fab = fabRef.current
@@ -887,124 +306,7 @@ export function GalleryPage() {
       </div>
 
       <div className={`gallery-panel gallery-panel-list${view === 'list' ? ' open' : ''}`}>
-        {listMounted && (
-          <>
-            <div className="list-mode-header">
-              <div className="list-mode-toggle" role="tablist">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={listMode === 'trail'}
-                  className={`list-mode-toggle-btn${listMode === 'trail' ? ' is-active' : ''}`}
-                  onClick={() => setListMode('trail')}
-                >
-                  TRAIL
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={listMode === 'island'}
-                  className={`list-mode-toggle-btn${listMode === 'island' ? ' is-active' : ''}`}
-                  onClick={() => setListMode('island')}
-                >
-                  ISLAND
-                </button>
-              </div>
-              <div className="list-filter">
-                <button
-                  type="button"
-                  className={`list-filter-btn${runFilter !== 'all' || movementFilter !== 'all' ? ' is-active' : ''}`}
-                  aria-label="記録のフィルター"
-                  aria-haspopup="true"
-                  aria-expanded={filterOpen}
-                  onClick={() => setFilterOpen(o => !o)}
-                >
-                  <Icon icon="lucide:filter" />
-                </button>
-                {filterOpen && (
-                  <>
-                    <div
-                      className="list-filter-backdrop"
-                      onClick={() => setFilterOpen(false)}
-                    />
-                    <div className="list-filter-menu" role="menu">
-                      <p className="list-filter-section">表示</p>
-                      {RUN_FILTER_OPTIONS.map(opt => (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          role="menuitemradio"
-                          aria-checked={runFilter === opt.value}
-                          className={`list-filter-item${runFilter === opt.value ? ' is-active' : ''}`}
-                          onClick={() => setRunFilter(opt.value)}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                      <div className="list-filter-divider" role="separator" />
-                      <p className="list-filter-section">移動種別</p>
-                      {MOVEMENT_FILTER_OPTIONS.map(opt => (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          role="menuitemradio"
-                          aria-checked={movementFilter === opt.value}
-                          className={`list-filter-item${movementFilter === opt.value ? ' is-active' : ''}`}
-                          onClick={() => setMovementFilter(opt.value)}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-            {socialRuns.length === 0 ? (
-              <p className="empty-hint">記録したランがここに表示されます</p>
-            ) : listMode === 'trail' ? (
-              <div className="run-groups">
-                {listGroups.map(group => (
-                  <section key={group.meta.value} className="run-group">
-                    <h3 className="run-group-heading">
-                      <Icon icon={group.meta.icon} />
-                      <span>{group.meta.label}</span>
-                    </h3>
-                    <div className="run-grid">
-                      {group.items.map(item =>
-                        item.kind === 'single' ? (
-                          <RunTile
-                            key={item.run.id}
-                            run={item.run}
-                            owner={item.run.ownerUid ? ownerByUid.get(item.run.ownerUid) ?? null : null}
-                            onRequestEdit={setEditingRunId}
-                            onSelect={handleRunSelect}
-                          />
-                        ) : (
-                          <CoRunTile
-                            key={item.sessionId}
-                            runs={item.runs}
-                            ownerByUid={ownerByUid}
-                            onSelect={handleRunSelect}
-                          />
-                        ),
-                      )}
-                    </div>
-                  </section>
-                ))}
-              </div>
-            ) : (
-              <div className="island-view-wrap">
-                <IslandView
-                  layout={archLayout}
-                  loading={archLoading}
-                  socialRuns={socialRuns}
-                  ownerByUid={ownerByUid}
-                />
-              </div>
-            )}
-          </>
-        )}
+        {listMounted && <GalleryListPanel onSelectRun={handleRunSelect} />}
       </div>
 
       <div className={`gallery-panel gallery-panel-profile${view === 'profile' ? ' open' : ''}`}>
@@ -1017,37 +319,6 @@ export function GalleryPage() {
       </div>
 
       {settingsOpen && <SettingsPopup onClose={() => setSettingsOpen(false)} />}
-
-      {editingRunId && (() => {
-        const editingRun = runs.find(r => r.id === editingRunId)
-        if (!editingRun) return null
-        return (
-          <RunEditSheet
-            run={editingRun}
-            onChangeType={type => {
-              void updateRun(editingRun.id, { movementType: type })
-            }}
-            onDelete={() => {
-              setEditingRunId(null)
-              setPendingDeleteId(editingRun.id)
-            }}
-            onClose={() => setEditingRunId(null)}
-          />
-        )
-      })()}
-
-      {pendingDeleteId && (
-        <ConfirmDialog
-          message="このランを削除しますか？"
-          confirmLabel="削除"
-          destructive
-          onConfirm={() => {
-            void removeRun(pendingDeleteId)
-            setPendingDeleteId(null)
-          }}
-          onCancel={() => setPendingDeleteId(null)}
-        />
-      )}
 
       {armed && <div className="armed-backdrop" onClick={() => setArmed(false)} />}
       {activeBubbleText && (
@@ -1138,39 +409,7 @@ export function GalleryPage() {
         </div>
       </div>
 
-      {showFirstRunIntro && (
-        <div className="first-run-intro" role="dialog" aria-label="最初のランの案内">
-          <div className="first-run-intro-inner">
-            <h2 className="first-run-intro-title">最初のラン、お疲れさまでした！</h2>
-            <p className="first-run-intro-body">
-              ペタンプは、あなたの住む世界のことを何も知らない存在です。ランニングの記録をつけたら、そのランニングがどんな体験だったかをペタンプに教えてあげることで、ペタンプはどんどん成長していきます。もしかすると、あなたも知らなかった自分の好みや、このセカイのことに気づかせてくれるようになるかもしれません。
-            </p>
-            <button className="first-run-intro-ok" onClick={dismissFirstRunIntro}>
-              OK
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function NamedPlacePopup({ place, onClose }: { place: NamedPlace; onClose: () => void }) {
-  const desc = (place.description ?? '').trim()
-  return (
-    <div className="named-place-popup" role="dialog" aria-label={`${place.name} の説明`}>
-      <button
-        type="button"
-        className="named-place-popup-close"
-        onClick={onClose}
-        aria-label="閉じる"
-      >
-        ×
-      </button>
-      <div className="named-place-popup-name">{place.name}</div>
-      <div className="named-place-popup-desc">
-        {desc !== '' ? desc : '(まだ言葉になっていない場所)'}
-      </div>
+      {showFirstRunIntro && <FirstRunIntro onDismiss={dismissFirstRunIntro} />}
     </div>
   )
 }
