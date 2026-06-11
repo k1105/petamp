@@ -13,7 +13,9 @@ import { GalleryListPanel } from '../components/gallery/GalleryListPanel'
 import { NamedPlacePopup } from '../components/gallery/NamedPlacePopup'
 import { FirstRunIntro } from '../components/gallery/FirstRunIntro'
 import { SettingsPopup } from '../components/gallery/SettingsPopup'
+import { RunEditSheet } from '../components/gallery/RunEditSheet'
 import { EyesIcon } from '../components/gallery/EyesIcon'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ProfileScreen } from '../components/ProfileScreen'
 import { MovementTypeSelector } from '../components/MovementTypeSelector'
 import { useRunStore } from '../store/useRunStore'
@@ -48,11 +50,16 @@ function pickFallback(): string {
 }
 
 export function GalleryPage() {
-  const { runs, loadRuns } = useRunStore()
+  const { runs, loadRuns, removeRun, updateRun } = useRunStore()
   const ui = useSettingsStore(s => s.ui)
   const setUi = useSettingsStore(s => s.setUi)
 
   const [view, setView] = useState<'map' | 'list' | 'profile'>('map')
+  // 長押しで開く編集シート対象のラン id。fixed 配置のシート/ダイアログは
+  // transform を持つ gallery-panel の外 (ページルート) で出す必要があるため、
+  // 状態はパネルではなくページが持つ。
+  const [editingRunId, setEditingRunId] = useState<string | null>(null)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   // ラン開始前 (armed 状態) に選ぶ移動種別。startRecord で /record へ引き継ぐ。
   const [movementType, setMovementType] = useState<MovementType>(DEFAULT_MOVEMENT_TYPE)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -306,7 +313,9 @@ export function GalleryPage() {
       </div>
 
       <div className={`gallery-panel gallery-panel-list${view === 'list' ? ' open' : ''}`}>
-        {listMounted && <GalleryListPanel onSelectRun={handleRunSelect} />}
+        {listMounted && (
+          <GalleryListPanel onSelectRun={handleRunSelect} onRequestEdit={setEditingRunId} />
+        )}
       </div>
 
       <div className={`gallery-panel gallery-panel-profile${view === 'profile' ? ' open' : ''}`}>
@@ -319,6 +328,37 @@ export function GalleryPage() {
       </div>
 
       {settingsOpen && <SettingsPopup onClose={() => setSettingsOpen(false)} />}
+
+      {editingRunId && (() => {
+        const editingRun = runs.find(r => r.id === editingRunId)
+        if (!editingRun) return null
+        return (
+          <RunEditSheet
+            run={editingRun}
+            onChangeType={type => {
+              void updateRun(editingRun.id, { movementType: type })
+            }}
+            onDelete={() => {
+              setEditingRunId(null)
+              setPendingDeleteId(editingRun.id)
+            }}
+            onClose={() => setEditingRunId(null)}
+          />
+        )
+      })()}
+
+      {pendingDeleteId && (
+        <ConfirmDialog
+          message="このランを削除しますか？"
+          confirmLabel="削除"
+          destructive
+          onConfirm={() => {
+            void removeRun(pendingDeleteId)
+            setPendingDeleteId(null)
+          }}
+          onCancel={() => setPendingDeleteId(null)}
+        />
+      )}
 
       {armed && <div className="armed-backdrop" onClick={() => setArmed(false)} />}
       {activeBubbleText && (

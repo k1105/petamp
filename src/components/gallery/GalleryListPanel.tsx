@@ -2,9 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { RunTile } from './RunTile'
 import { CoRunTile } from './CoRunTile'
-import { RunEditSheet } from './RunEditSheet'
 import { IslandView } from '../island/IslandView'
-import { ConfirmDialog } from '../ConfirmDialog'
 import { useRunStore } from '../../store/useRunStore'
 import { useSocialFeedStore } from '../../store/useSocialFeedStore'
 import { computeArchipelagoLayout, type ArchipelagoLayoutResult } from '../../utils/archipelagoLayout'
@@ -35,13 +33,18 @@ type ListItem =
  * フィルタ状態と archipelago layout キャッシュはこのパネルに閉じる
  * (タブ切替で IslandView が unmount しても、このコンポーネントは
  * gallery-panel 内に mount されたまま残るのでキャッシュが生きる)。
+ *
+ * 編集シート・削除ダイアログは fixed 配置のため、transform を持つ
+ * gallery-panel の中ではなくページルート (GalleryPage) 側で出す。
  */
 export function GalleryListPanel({
   onSelectRun,
+  onRequestEdit,
 }: {
   onSelectRun: (runId: string) => void
+  onRequestEdit: (runId: string) => void
 }) {
-  const { runs, updateRun, removeRun } = useRunStore()
+  const { runs } = useRunStore()
   const followedRuns = useSocialFeedStore(s => s.followedRuns)
   const followedUsers = useSocialFeedStore(s => s.followedUsers)
 
@@ -51,8 +54,6 @@ export function GalleryListPanel({
   // 移動種別フィルター。'all' なら全種別。
   const [movementFilter, setMovementFilter] = useState<MovementFilter>('all')
   const [filterOpen, setFilterOpen] = useState(false)
-  // 長押しで開く編集シート対象のラン id。自分のランのみ (RunTile が他人のランでは発火しない)。
-  const [editingRunId, setEditingRunId] = useState<string | null>(null)
 
   // TRAIL / ISLAND タブにはフォロー中ユーザーのランも混ぜて表示する。
   // マップ・dot アニメ・home phrase・STATS は今まで通り自分のランのみ。
@@ -151,9 +152,6 @@ export function GalleryListPanel({
     }
   }, [listMode, socialRuns])
 
-  const editingRun = editingRunId ? runs.find(r => r.id === editingRunId) ?? null : null
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-
   return (
     <>
       <div className="list-mode-header">
@@ -244,7 +242,7 @@ export function GalleryListPanel({
                       key={item.run.id}
                       run={item.run}
                       owner={item.run.ownerUid ? ownerByUid.get(item.run.ownerUid) ?? null : null}
-                      onRequestEdit={setEditingRunId}
+                      onRequestEdit={onRequestEdit}
                       onSelect={onSelectRun}
                     />
                   ) : (
@@ -269,32 +267,6 @@ export function GalleryListPanel({
             ownerByUid={ownerByUid}
           />
         </div>
-      )}
-
-      {editingRun && (
-        <RunEditSheet
-          run={editingRun}
-          onChangeType={type => {
-            void updateRun(editingRun.id, { movementType: type })
-          }}
-          onDelete={() => {
-            setEditingRunId(null)
-            setPendingDeleteId(editingRun.id)
-          }}
-          onClose={() => setEditingRunId(null)}
-        />
-      )}
-      {pendingDeleteId && (
-        <ConfirmDialog
-          message="このランを削除しますか？"
-          confirmLabel="削除"
-          destructive
-          onConfirm={() => {
-            void removeRun(pendingDeleteId)
-            setPendingDeleteId(null)
-          }}
-          onCancel={() => setPendingDeleteId(null)}
-        />
       )}
     </>
   )
