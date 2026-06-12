@@ -4,10 +4,13 @@ import { useRunStore } from '../store/useRunStore'
 import { positionAtTime } from '../hooks/useGalleryAnimation'
 import { acceptedPoints } from '../utils/recordingFilters'
 import { useElevationStats } from '../hooks/useElevationStats'
-import { fetchAreaName } from '../hooks/useReverseGeocode'
+import { useRunBubblePositioning } from '../hooks/useRunBubblePositioning'
+import { useRunMetadata } from '../hooks/useRunMetadata'
 import { totalDistance } from '../utils/geoUtils'
 import { formatDistance, formatElevation, formatDate } from '../utils/formatters'
 import { buildRunSummary } from '../utils/runSummary'
+import { computeBBox, makeProjector } from '../utils/svgProjection'
+import { shareSvgAsPng } from '../utils/shareRunImage'
 import { loadRun } from '../db/runRepository'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { REPLAY_SPEED } from '../utils/replaySpeed'
@@ -22,7 +25,7 @@ import {
 } from '../character'
 import type { RelationalState, ThreadId } from '../character'
 import { OPENING_TRIGGER_FRESH, OPENING_TRIGGER_RESUME } from '../utils/runChatPrompts'
-import type { Run, TrackPoint } from '../types'
+import type { Run } from '../types'
 
 // 9:16 縦長キャンバス
 const VB_W = 1080
@@ -41,50 +44,6 @@ const EYES_Y = 1680
 // タップ判定領域 (目玉の周囲も含めて指で押しやすく)
 const EYES_HIT = { x: 760, y: 1660, w: 280, h: 240 }
 
-interface BBox { lngMin: number; lngMax: number; latMin: number; latMax: number }
-interface Target { x: number; y: number; w: number; h: number }
-
-function computeBBox(pts: TrackPoint[]): BBox | null {
-  if (pts.length === 0) return null
-  let lngMin = Infinity, lngMax = -Infinity, latMin = Infinity, latMax = -Infinity
-  for (const p of pts) {
-    if (p.lng < lngMin) lngMin = p.lng
-    if (p.lng > lngMax) lngMax = p.lng
-    if (p.lat < latMin) latMin = p.lat
-    if (p.lat > latMax) latMax = p.lat
-  }
-  return { lngMin, lngMax, latMin, latMax }
-}
-
-// 軌跡の bbox を target 矩形内に等比フィット。緯度方向の歪みを cosLat で軽く補正。
-function makeProjector(bbox: BBox, target: Target) {
-  const bw = bbox.lngMax - bbox.lngMin || 1e-9
-  const bh = bbox.latMax - bbox.latMin || 1e-9
-  const cosLat = Math.cos(((bbox.latMin + bbox.latMax) / 2) * Math.PI / 180)
-  const scaledBw = bw * cosLat
-  const aspectPath = scaledBw / bh
-  const aspectTarget = target.w / target.h
-  let drawW: number, drawH: number
-  if (aspectPath > aspectTarget) {
-    drawW = target.w
-    drawH = target.w / aspectPath
-  } else {
-    drawH = target.h
-    drawW = target.h * aspectPath
-  }
-  const ox = target.x + (target.w - drawW) / 2
-  const oy = target.y + (target.h - drawH) / 2
-  return (lng: number, lat: number): [number, number] => {
-    const nx = ((lng - bbox.lngMin) * cosLat) / scaledBw
-    const ny = 1 - (lat - bbox.latMin) / bh
-    return [ox + nx * drawW, oy + ny * drawH]
-  }
-}
-
-function safeFileName(s: string): string {
-  return s.replace(/[\\/:*?"<>|\s]+/g, '_').replace(/^_+|_+$/g, '') || 'run'
-}
-
 export function RunResultPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -93,7 +52,7 @@ export function RunResultPage() {
   // 結果画面に固定描画される目玉は gallery の 'map' (idle) キーフレームを採用。
   const eyeParams = ui.eyeKeyframes.map
   const { palette } = useActivePalette()
-  const { runs, loadRuns, updateRun } = useRunStore()
+  const { runs, loadRuns } = useRunStore()
   const [runsLoaded, setRunsLoaded] = useState(false)
   const [loopSec, setLoopSec] = useState(0)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -208,33 +167,13 @@ export function RunResultPage() {
   const eyesGroupRef = useRef<SVGGElement>(null)
   const bubbleRef = useRef<HTMLDivElement>(null)
 
-  // 吹き出し位置を目玉の bounding rect から動的に決める (svg は letterbox される可能性があるため)
-  useEffect(() => {
-    if (!firstPetampTurn) return
-    const place = () => {
-      const eyes = eyesGroupRef.current
-      const bubble = bubbleRef.current
-      if (!eyes || !bubble) return
-      const r = eyes.getBoundingClientRect()
-      const cx = r.left + r.width / 2
-      const w = bubble.offsetWidth
-      const h = bubble.offsetHeight
-      // 吹き出しは目玉の真上、目玉の中心を右下に向くように左寄せ
-      const left = Math.max(16, Math.min(window.innerWidth - w - 16, cx - w + 32))
-      const top = Math.max(16, r.top - 16 - h)
-      bubble.style.left = `${left}px`
-      bubble.style.top = `${top}px`
-    }
-    place()
-    const ro = new ResizeObserver(place)
-    if (eyesGroupRef.current) ro.observe(eyesGroupRef.current)
-    if (bubbleRef.current) ro.observe(bubbleRef.current)
-    window.addEventListener('resize', place)
-    return () => {
-      ro.disconnect()
-      window.removeEventListener('resize', place)
-    }
-  }, [firstPetampTurn])
+  // 吹き出し位置を目玉の bounding rect から動的に決める (svg は letterbox される可能性があるため)。
+  // 吹き出しは目玉の真上、画面端 16px でクランプ。
+  useRunBubblePositioning(eyesGroupRef, bubbleRef, !!firstPetampTurn, firstPetampTurn, {
+    offsetX: 32,
+    gap: 16,
+    clampMargin: 16,
+  })
 
   const handleEyesClick = () => {
     if (!run) return
@@ -253,20 +192,7 @@ export function RunResultPage() {
   }
 
   // 過去のラン (areaName未保存) を初回表示時にバックフィル
-  useEffect(() => {
-    if (!run || run.areaName) return
-    const lats = run.trackPoints.map(p => p.lat)
-    const lngs = run.trackPoints.map(p => p.lng)
-    if (lats.length === 0) return
-    const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2
-    const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2
-    fetchAreaName(centerLng, centerLat).then(name => {
-      if (!name) return
-      updateRun(run.id, { areaName: name }).then(updated => {
-        if (updated) setRun(updated)
-      })
-    })
-  }, [run?.id, run?.areaName, run, updateRun])
+  useRunMetadata(run, setRun)
 
   useEffect(() => {
     if (!run) return
@@ -330,38 +256,13 @@ export function RunResultPage() {
       return
     }
     setShareStatus('saving')
-    let svgUrl: string | null = null
     try {
-      const clone = svgEl.cloneNode(true) as SVGSVGElement
-      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
-      clone.setAttribute('width', String(VB_W))
-      clone.setAttribute('height', String(VB_H))
-      const svgString = new XMLSerializer().serializeToString(clone)
-      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
-      svgUrl = URL.createObjectURL(svgBlob)
-      const img = new Image()
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve()
-        img.onerror = () => reject(new Error('svg load failed'))
-        img.src = svgUrl!
+      await shareSvgAsPng(svgEl, {
+        width: VB_W,
+        height: VB_H,
+        name: run.name,
+        fallbackUrl: window.location.href,
       })
-      const canvas = document.createElement('canvas')
-      canvas.width = VB_W
-      canvas.height = VB_H
-      const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('canvas 2d unavailable')
-      ctx.drawImage(img, 0, 0, VB_W, VB_H)
-      const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/png'))
-      if (!blob) throw new Error('encode failed')
-      const file = new File([blob], `${safeFileName(run.name)}.png`, { type: 'image/png' })
-      const canShareFiles =
-        typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })
-      if (canShareFiles) {
-        await navigator.share({ files: [file], title: run.name })
-      } else {
-        // ファイル共有非対応（主にデスクトップ）→ URL のみで OS シェアシートを開く
-        await navigator.share({ title: run.name, url: window.location.href })
-      }
       setShareStatus('idle')
     } catch (e) {
       if ((e as { name?: string })?.name === 'AbortError') {
@@ -373,8 +274,6 @@ export function RunResultPage() {
       setShareStatus('failed')
       if (shareTimerRef.current !== null) window.clearTimeout(shareTimerRef.current)
       shareTimerRef.current = window.setTimeout(() => setShareStatus('idle'), 2200)
-    } finally {
-      if (svgUrl) URL.revokeObjectURL(svgUrl)
     }
   }
 

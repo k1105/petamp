@@ -1,263 +1,39 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { PathLayer } from '@deck.gl/layers'
-import { ScatterplotLayer, IconLayer } from '@deck.gl/layers'
 import { Icon } from '@iconify/react'
 import { EyesIcon } from '../components/gallery/EyesIcon'
 import { BaseMap } from '../components/map/BaseMap'
-import { useMap, useMapZoom } from '../components/map/MapContext'
-import { DeckOverlay } from '../components/map/DeckOverlay'
+import { DetailLayers } from '../components/map/DetailLayers'
+import { CoRunDetailLayers } from '../components/map/CoRunDetailLayers'
+import { FIT_MAX_ZOOM } from '../components/map/fitConstants'
 import { PathDebugPanel } from '../components/recording/PathDebugPanel'
+import { NutritionFacts } from '../components/gallery/NutritionFacts'
 import { useAnimation } from '../hooks/useAnimation'
 import { useElevationStats } from '../hooks/useElevationStats'
-import { getPaletteForRun, hexToRgb, type Palette } from '../utils/themePalettes'
-import { useRunStore } from '../store/useRunStore'
-import { useReplayStore } from '../store/useReplayStore'
-import { useSocialFeedStore } from '../store/useSocialFeedStore'
 import { useAuth } from '../hooks/useAuth'
-import { positionAtTime, relAltitudeAtTime } from '../hooks/useGalleryAnimation'
-import { buildPathPositions } from '../utils/tubeMesh'
-import { effectiveRadius } from '../utils/effectiveRadius'
-import { acceptedPoints } from '../utils/recordingFilters'
+import { useCoRunReplay } from '../hooks/useCoRunReplay'
+import { useCoRunAvatars } from '../hooks/useCoRunAvatars'
+import { useReplayTapToggle } from '../hooks/useReplayTapToggle'
+import { useRunBubblePositioning } from '../hooks/useRunBubblePositioning'
+import { useRunMetadata } from '../hooks/useRunMetadata'
+import { useRunStore } from '../store/useRunStore'
+import { useSocialFeedStore } from '../store/useSocialFeedStore'
 import { useSettingsStore } from '../store/useSettingsStore'
-import { fetchAreaName } from '../hooks/useReverseGeocode'
+import { useCoRunStore } from '../store/useCoRunStore'
+import { usePostRunLoadingStore } from '../store/usePostRunLoadingStore'
+import { getPaletteForRun } from '../utils/themePalettes'
+import { acceptedPoints } from '../utils/recordingFilters'
 import { buildTripLayerData } from '../utils/tripLayerData'
 import { totalDistance } from '../utils/geoUtils'
 import { formatDistance, formatElevation, formatDate } from '../utils/formatters'
 import { loadRun } from '../db/runRepository'
-import { computeRunsBbox, expandBboxByMeters } from '../utils/runBbox'
-import { loadCircularAvatar } from '../utils/circularAvatar'
-import { useCoRunReplay, type CoRunEntry } from '../hooks/useCoRunReplay'
-import { useCoRunStore } from '../store/useCoRunStore'
-import { NutritionFacts } from '../components/gallery/NutritionFacts'
-import { usePostRunLoadingStore } from '../store/usePostRunLoadingStore'
 import { getMemoryStore, petampCharacter } from '../character'
 import type { EpisodicMemory } from '../character'
 import type { Run } from '../types'
 
-const MIN_ZOOM = 12.5
-const FIT_MAX_ZOOM = 17
-
-function DetailLayers({
-  run, currentTime, mapVisible, palette, pointCloud,
-}: { run: Run; currentTime: number; mapVisible: boolean; palette: Palette; pointCloud: boolean }) {
-  const zoom = useMapZoom()
-  const { map } = useMap()
-  const radii = useSettingsStore(s => s.radii)
-  const altitudeScaleSetting = useSettingsStore(s => s.ui.altitudeScale)
-  const accentRgb = useMemo<[number, number, number]>(
-    () => hexToRgb(palette.accent),
-    [palette.accent],
-  )
-
-  // 経路全体が画面中央に収まるようにフィット（bbox中心 = 画面中心）
-  // run が切り替わったら再フィット
-  useEffect(() => {
-    if (!map) return
-    const fitPts = acceptedPoints(run.trackPoints)
-    if (fitPts.length === 0) return
-    const lngs = fitPts.map(p => p.lng)
-    const lats = fitPts.map(p => p.lat)
-    const bounds: [[number, number], [number, number]] = [
-      [Math.min(...lngs), Math.min(...lats)],
-      [Math.max(...lngs), Math.max(...lats)],
-    ]
-    map.fitBounds(bounds, { padding: 60, duration: 300, maxZoom: FIT_MAX_ZOOM })
-  }, [map, run])
-
-  // 単色表現 (mapVisible=false) の時だけ高度を z 軸に反映。マップ表示時は平面。
-  const altitudeScale = mapVisible ? 0 : altitudeScaleSetting
-
-  // 動点と tube で高度フィルタの入力配列を共有させるため pts を先に確定させる。
-  // 同じ参照を relAltitudeAtTime と buildPathPositions の双方に渡し、WeakMap
-  // キャッシュがヒットして同一のフィルタ結果が使われるようにする。
-  const pts = useMemo(() => acceptedPoints(run.trackPoints), [run])
-
-  const dotData = useMemo(() => {
-    const pos = positionAtTime(run, currentTime)
-    if (!pos) return []
-    const z = altitudeScale > 0 ? relAltitudeAtTime(run, currentTime, pts) * altitudeScale : 0
-    return [{ position: [pos[0], pos[1], z] as [number, number, number] }]
-  }, [run, currentTime, altitudeScale, pts])
-
-
-  const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5))
-  const tubeWidth = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius) * 2
-  const dotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
-  // 点群表現の円半径。点を小さめにして、軌跡を粒の集まりとして見せる。
-  const trailRadius = (tubeWidth / 2) * 1.6 * 0.3
-  const pathPositions = useMemo(
-    () => buildPathPositions(pts, altitudeScale),
-    [pts, altitudeScale],
-  )
-
-  // マップ非表示時は白+黒、表示時はグレー+アクセント
-  const tubeColor: [number, number, number, number] = mapVisible
-    ? [160, 160, 160, Math.round(255 * t)]
-    : [255, 255, 255, 255]
-  const dotColor: [number, number, number, number] = mapVisible
-    ? [...accentRgb, Math.round(255 * t)]
-    : [255, 255, 255, 255]
-
-  const layers = useMemo(() => {
-    if (mapVisible && t === 0) return []
-    if (pathPositions.length < 2) return []
-    // 成分表示 (Nutrition) モードでは軌跡を線ではなく点群で描く。
-    const trailLayer = pointCloud
-      ? new ScatterplotLayer<[number, number, number]>({
-          id: 'run-trail-points',
-          data: pathPositions,
-          getPosition: d => d,
-          getRadius: trailRadius,
-          radiusUnits: 'meters',
-          getFillColor: tubeColor,
-          billboard: true,
-          // 半透明の重なりを綺麗に出すため深度書き込みを切る。
-          parameters: { depthWriteEnabled: false },
-          updateTriggers: { getFillColor: tubeColor, getRadius: trailRadius },
-        })
-      : new PathLayer({
-          id: 'run-tube',
-          data: [pathPositions],
-          getPath: d => d,
-          getColor: tubeColor,
-          getWidth: tubeWidth,
-          widthUnits: 'meters',
-          capRounded: true,
-          jointRounded: true,
-          billboard: true,
-          updateTriggers: { getColor: tubeColor },
-        })
-    const dotLayer = new ScatterplotLayer({
-      id: 'run-dot',
-      data: dotData,
-      getPosition: (d: { position: [number, number, number] }) => d.position,
-      getRadius: dotRadius,
-      radiusUnits: 'meters',
-      getFillColor: dotColor,
-      billboard: true,
-      updateTriggers: { getFillColor: dotColor },
-    })
-    return [trailLayer, dotLayer]
-  }, [pathPositions, dotData, t, mapVisible, pointCloud, tubeWidth, trailRadius, dotRadius, tubeColor, dotColor])
-
-  // 単色表現時は .map-canvas の mask/inset で path が縁で fade してしまうため、
-  // deck.gl を sibling として全画面に出す。
-  return <DeckOverlay layers={layers} mode={mapVisible ? 'mapbox' : 'fullscreen'} />
-}
-
-const AVATAR_DOT_SCALE = 1.2
-
-// 一緒に走ったメンバー全員の軌跡を色分けで重ね、共通の絶対タイムラインで N 本の
-// ポリライン + 動点を同時再生する。動点には各メンバーの Google アイコン (円形) を出す。
-// 旧 CoRunResultPage の描画をここに統合し、専用画面を廃止した。
-function CoRunDetailLayers({
-  entries, absMs, mapVisible, avatars,
-}: {
-  entries: CoRunEntry[]
-  absMs: number
-  mapVisible: boolean
-  avatars: Map<string, string>
-}) {
-  const zoom = useMapZoom()
-  const { map } = useMap()
-  const radii = useSettingsStore(s => s.radii)
-  const dotRadius = effectiveRadius(zoom, radii.zoomThreshold, radii.dotRadius)
-  const tubeWidth = effectiveRadius(zoom, radii.zoomThreshold, radii.tubeRadius) * 2
-
-  // 全員の軌跡が画面中央に収まるよう fit。entries が変わったら再フィット。
-  useEffect(() => {
-    if (!map) return
-    const bbox = computeRunsBbox(entries.map(e => e.run))
-    if (!bbox) return
-    map.fitBounds(expandBboxByMeters(bbox, 60), {
-      padding: 60,
-      duration: 300,
-      maxZoom: FIT_MAX_ZOOM,
-    })
-  }, [map, entries])
-
-  // 軌跡 (ポリライン) はメンバーごとに 1 本、色分け。
-  const pathData = useMemo(
-    () =>
-      entries
-        .map(e => ({
-          uid: e.uid,
-          color: e.color,
-          path: buildPathPositions(acceptedPoints(e.run.trackPoints)),
-        }))
-        .filter(d => d.path.length >= 2),
-    [entries],
-  )
-
-  const layers = useMemo(() => {
-    const pathLayer = new PathLayer<{ uid: string; color: [number, number, number]; path: [number, number, number][] }>({
-      id: 'co-run-paths',
-      data: pathData,
-      getPath: d => d.path,
-      // 軌跡はメンバー問わず白で統一。誰の動点かは動点のアイコン/リング色で判別する。
-      getColor: [255, 255, 255, 255],
-      getWidth: tubeWidth,
-      widthUnits: 'meters',
-      capRounded: true,
-      jointRounded: true,
-      billboard: true,
-    })
-
-    type Dot = { position: [number, number]; color: [number, number, number]; avatar: string | null }
-    const dots: Dot[] = entries
-      .map((e): Dot | null => {
-        const loopSec = (absMs - e.run.startedAt) / 1000
-        const pos = positionAtTime(e.run, loopSec)
-        if (!pos) return null
-        const avatar = e.photoURL ? avatars.get(e.photoURL) ?? null : null
-        return { position: pos, color: e.color, avatar }
-      })
-      .filter((d): d is Dot => !!d)
-
-    const withAvatar = dots.filter(d => !!d.avatar)
-    const withoutAvatar = dots.filter(d => !d.avatar)
-
-    // アイコンの背面にメンバー色のリングを敷いて、どの軌跡の人かを色で結びつける。
-    const ringLayer = new ScatterplotLayer<Dot>({
-      id: 'co-run-avatar-rings',
-      data: withAvatar,
-      getPosition: d => [d.position[0], d.position[1], 0],
-      getRadius: dotRadius * AVATAR_DOT_SCALE * 2.4,
-      radiusUnits: 'meters',
-      getFillColor: d => [...d.color, 255],
-      billboard: true,
-      updateTriggers: { getPosition: absMs },
-    })
-
-    const avatarLayer = new IconLayer<Dot>({
-      id: 'co-run-avatars',
-      data: withAvatar,
-      getPosition: d => [d.position[0], d.position[1], 0],
-      getIcon: d => ({ url: d.avatar!, width: 128, height: 128, anchorX: 64, anchorY: 64, mask: false }),
-      getSize: dotRadius * AVATAR_DOT_SCALE * 4,
-      sizeUnits: 'meters',
-      billboard: true,
-      updateTriggers: { getPosition: absMs },
-    })
-
-    // アイコン未取得 (photoURL 無し / CORS 失敗) のメンバーは色付き動点で表す。
-    const dotLayer = new ScatterplotLayer<Dot>({
-      id: 'co-run-dots',
-      data: withoutAvatar,
-      getPosition: d => [d.position[0], d.position[1], 0],
-      getRadius: dotRadius * AVATAR_DOT_SCALE,
-      radiusUnits: 'meters',
-      getFillColor: d => [...d.color, 255],
-      billboard: true,
-      updateTriggers: { getPosition: absMs },
-    })
-
-    return [pathLayer, dotLayer, ringLayer, avatarLayer]
-  }, [pathData, entries, absMs, dotRadius, tubeWidth, avatars])
-
-  return <DeckOverlay layers={layers} mode={mapVisible ? 'mapbox' : 'fullscreen'} />
-}
+// 画面中央タップの再生/停止トグル対象外にする要素 (ボタン類・吹き出し・パネル)。
+const TAP_TOGGLE_IGNORE =
+  'button, a, input, .run-detail-meta, .run-detail-bubble, .run-detail-bubble-backdrop, .debug-overlay, .nutrition-facts-panel, .run-detail-tabs'
 
 export function RunDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -275,15 +51,11 @@ export function RunDetailPage() {
   const [bubbleOpen, setBubbleOpen] = useState(false)
   const eyeRef = useRef<HTMLButtonElement>(null)
   const bubbleRef = useRef<HTMLDivElement>(null)
-  const { runs, loadRuns, updateRun } = useRunStore()
+  const { runs, loadRuns } = useRunStore()
   const followedRuns = useSocialFeedStore(s => s.followedRuns)
   const followedUsers = useSocialFeedStore(s => s.followedUsers)
   const { user: currentUser } = useAuth()
   const [runsLoaded, setRunsLoaded] = useState(false)
-  // 画面中央タップ時に一瞬出す再生/停止アイコン。n はアニメーション再生用の更新キー。
-  const [tapFlash, setTapFlash] = useState<{ icon: 'play' | 'pause'; n: number } | null>(null)
-  const tapFlashNRef = useRef(0)
-  const tapFlashTimerRef = useRef<number | null>(null)
   const notationEnabled = useSettingsStore(s => s.experimental.notation)
 
   // 直リンクでrunsが空のままならロード（next/prev算出 + 404判定用）
@@ -308,82 +80,14 @@ export function RunDetailPage() {
     return () => stop()
   }, [run?.id, duration, play, stop])
 
-  // 画面中央に再生/停止アイコンを一瞬表示する
-  const showTapFlash = useCallback((icon: 'play' | 'pause') => {
-    tapFlashNRef.current += 1
-    setTapFlash({ icon, n: tapFlashNRef.current })
-    if (tapFlashTimerRef.current !== null) window.clearTimeout(tapFlashTimerRef.current)
-    tapFlashTimerRef.current = window.setTimeout(() => setTapFlash(null), 600)
-  }, [])
-
-  // 再生/停止トグル。最新状態は store から直接読む（毎フレームの再subscribeを避ける）
-  const togglePlayback = useCallback(() => {
-    const s = useReplayStore.getState()
-    if (s.isPlaying) {
-      stop()
-      showTapFlash('pause')
-    } else {
-      if (s.duration > 0 && s.currentTime >= s.duration) reset()
-      play()
-      showTapFlash('play')
-    }
-  }, [play, stop, reset, showTapFlash])
-
-  // 画面中央タップで再生/停止を切り替える。ドラッグ(地図オービット)や長押し、
-  // ボタン類・吹き出し・デバッグパネル上のタップはトグル対象外。
-  useEffect(() => {
-    let start: { x: number; y: number; t: number } | null = null
-    const onDown = (e: PointerEvent) => {
-      start = { x: e.clientX, y: e.clientY, t: e.timeStamp }
-    }
-    const onUp = (e: PointerEvent) => {
-      const s = start
-      start = null
-      if (!s) return
-      if (Math.hypot(e.clientX - s.x, e.clientY - s.y) > 10) return
-      if (e.timeStamp - s.t > 500) return
-      const el = e.target as HTMLElement | null
-      if (el?.closest('button, a, input, .run-detail-meta, .run-detail-bubble, .run-detail-bubble-backdrop, .debug-overlay, .nutrition-facts-panel, .run-detail-tabs')) return
-      togglePlayback()
-    }
-    document.addEventListener('pointerdown', onDown)
-    document.addEventListener('pointerup', onUp)
-    return () => {
-      document.removeEventListener('pointerdown', onDown)
-      document.removeEventListener('pointerup', onUp)
-    }
-  }, [togglePlayback])
-
-  // アンマウント時に flash タイマーを後始末
-  useEffect(() => () => {
-    if (tapFlashTimerRef.current !== null) window.clearTimeout(tapFlashTimerRef.current)
-  }, [])
+  // 画面中央タップで再生/停止トグル + 一瞬出す再生/停止アイコン。
+  const tapFlash = useReplayTapToggle(play, stop, reset, TAP_TOGGLE_IGNORE)
 
   const acceptedRunPoints = useMemo(() => acceptedPoints(run?.trackPoints ?? []), [run])
   const { gain } = useElevationStats(acceptedRunPoints)
 
-  // バブルの位置を eyeRef から計算 (multi-line で高さが変わるので毎回測る)
-  useEffect(() => {
-    if (!bubbleOpen) return
-    const place = () => {
-      const eye = eyeRef.current
-      const bubble = bubbleRef.current
-      if (!eye || !bubble) return
-      const r = eye.getBoundingClientRect()
-      const cx = r.left + r.width / 2
-      bubble.style.left = `${cx - bubble.offsetWidth + 18}px`
-      bubble.style.top = `${r.top - 12 - bubble.offsetHeight}px`
-    }
-    place()
-    const ro = new ResizeObserver(place)
-    if (eyeRef.current) ro.observe(eyeRef.current)
-    if (bubbleRef.current) ro.observe(bubbleRef.current)
-    window.addEventListener('resize', place)
-    return () => {
-      ro.disconnect()
-      window.removeEventListener('resize', place)
-    }
-  }, [bubbleOpen, memories])
+  // バブルの位置を eyeRef から計算 (multi-line で高さが変わるので memories でも再計測)
+  useRunBubblePositioning(eyeRef, bubbleRef, bubbleOpen, memories, { offsetX: 18, gap: 12 })
 
   // 他人のランかどうか。ownerUid が現在ユーザー以外、または currentUser 不在 + ownerUid あり。
   const isOthers = useMemo(() => {
@@ -415,34 +119,7 @@ export function RunDetailPage() {
   }, [coRunEntries])
 
   // 動点用に各メンバーの Google アイコンを円形クロップして読み込む。
-  const [coRunAvatars, setCoRunAvatars] = useState<Map<string, string>>(new Map())
-  useEffect(() => {
-    if (!coRunEntries) return
-    // キャッシュ済み URL も loadCircularAvatar は即返すので、ここで除外しない。
-    // (除外すると先に IslandView 等でキャッシュされた分が state に入らずアイコンが出ない)
-    const urls = coRunEntries.map(e => e.photoURL).filter((u): u is string => !!u)
-    if (urls.length === 0) return
-    let cancelled = false
-    void Promise.all(urls.map(u => loadCircularAvatar(u).then(d => [u, d] as const))).then(
-      pairs => {
-        if (cancelled) return
-        setCoRunAvatars(prev => {
-          const next = new Map(prev)
-          let changed = false
-          for (const [u, d] of pairs) {
-            if (d && next.get(u) !== d) {
-              next.set(u, d)
-              changed = true
-            }
-          }
-          return changed ? next : prev
-        })
-      },
-    )
-    return () => {
-      cancelled = true
-    }
-  }, [coRunEntries])
+  const coRunAvatars = useCoRunAvatars(coRunEntries)
 
   // co-run の場合は共通タイムラインの長さに duration を合わせる (単色再生ループ用)。
   useEffect(() => {
@@ -485,20 +162,7 @@ export function RunDetailPage() {
   }, [run, isOthers])
 
   // 過去のラン (areaName未保存) を初回表示時にバックフィル (自分のランのみ)
-  useEffect(() => {
-    if (!run || run.areaName || isOthers) return
-    const lats = run.trackPoints.map(p => p.lat)
-    const lngs = run.trackPoints.map(p => p.lng)
-    if (lats.length === 0) return
-    const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2
-    const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2
-    fetchAreaName(centerLng, centerLat).then(name => {
-      if (!name) return
-      updateRun(run.id, { areaName: name }).then(updated => {
-        if (updated) setRun(updated)
-      })
-    })
-  }, [run?.id, isOthers])
+  useRunMetadata(run, setRun, !isOthers)
 
   useEffect(() => {
     if (!id) return
@@ -515,7 +179,6 @@ export function RunDetailPage() {
     const fromFollowed = followedRuns.find(r => r.id === id)
     if (fromFollowed) {
       // social feed キャッシュにあればこちらも同期セット。
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRun(fromFollowed)
       setDuration(buildTripLayerData(fromFollowed).duration)
       reset()
