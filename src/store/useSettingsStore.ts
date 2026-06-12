@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { PaletteKey, Palette, Weather, TimeOfDay } from '../utils/themePalettes'
+import type { PaletteKey, Palette, Weather, TimeOfDay } from '../utils/ui/themePalettes'
 
 interface ThemeSettings {
   weatherMode: 'auto' | Weather

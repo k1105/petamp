@@ -1,7 +1,7 @@
-import type { Run, TrackPoint } from '../types'
-import type { RunEvent, RunSegment } from '../character/domain/runSummary'
-import { acceptedPoints } from './recordingFilters'
-import { bearing, bearingDelta, haversineDistance, smoothAltitudes } from './geoUtils'
+import type { Run, TrackPoint } from '../../types'
+import type { RunEvent, RunSegment } from '../../character/domain/runSummary'
+import { acceptedPoints } from '../geo/recordingFilters'
+import { bearing, bearingDelta, haversineDistance, smoothAltitudes } from '../geo/geoUtils'
 import { computeCumulativeDistances } from './runSegments'
 
 const CLIMB_DELTA_M = 12

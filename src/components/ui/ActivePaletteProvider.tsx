@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react'
-import { ActivePaletteContext, useComputeActivePalette } from '../hooks/useActivePalette'
+import { ActivePaletteContext, useComputeActivePalette } from '../../hooks/useActivePalette'
 
 /**
  * アクティブパレットをルートで一度だけ計算し、Context で全 consumer に配る。

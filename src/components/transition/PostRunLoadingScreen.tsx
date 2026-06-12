@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
-import { usePostRunLoadingStore } from '../store/usePostRunLoadingStore'
-import { LoadingEyesBubble } from './LoadingEyesBubble'
+import { usePostRunLoadingStore } from '../../store/usePostRunLoadingStore'
+import { LoadingEyesBubble } from '../ui/LoadingEyesBubble'
 
 const ENTER_DURATION_MS = 400
 const CLOSE_DURATION_MS = 1000

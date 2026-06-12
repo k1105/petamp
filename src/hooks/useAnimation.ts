@@ -1,6 +1,6 @@
 import { useRef, useCallback } from 'react'
 import { useReplayStore } from '../store/useReplayStore'
-import { REPLAY_SPEED } from '../utils/replaySpeed'
+import { REPLAY_SPEED } from '../utils/ui/replaySpeed'
 
 export function useAnimation() {
   const { currentTime, isPlaying, duration, setCurrentTime, setIsPlaying, setDuration } = useReplayStore()

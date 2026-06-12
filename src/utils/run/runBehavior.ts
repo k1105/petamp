@@ -1,5 +1,5 @@
-import type { TrackPoint } from '../types'
-import { haversineDistance } from './geoUtils'
+import type { TrackPoint } from '../../types'
+import { haversineDistance } from '../geo/geoUtils'
 
 /**
  * 振る舞いベースのセグメンテーションで使う点ごとの状態。

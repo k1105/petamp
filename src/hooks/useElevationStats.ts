@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { TrackPoint } from '../types'
-import { elevationGain } from '../utils/geoUtils'
+import { elevationGain } from '../utils/geo/geoUtils'
 
 export function useElevationStats(trackPoints: TrackPoint[]) {
   return useMemo(() => {

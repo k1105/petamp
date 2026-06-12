@@ -1,5 +1,5 @@
-import type { Run } from '../types'
-import { acceptedPoints } from './recordingFilters'
+import type { Run } from '../../types'
+import { acceptedPoints } from '../geo/recordingFilters'
 
 /** [[swLng, swLat], [neLng, neLat]] — Mapbox の LngLatBoundsLike と互換 */
 export type LngLatBbox = [[number, number], [number, number]]

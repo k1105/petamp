@@ -1,6 +1,6 @@
 import type { Run, TrackPoint } from '../../types'
-import { acceptedPoints } from '../../utils/recordingFilters'
-import { haversineDistance } from '../../utils/geoUtils'
+import { acceptedPoints } from '../../utils/geo/recordingFilters'
+import { haversineDistance } from '../../utils/geo/geoUtils'
 import type { NotationStrategy, Phoneme } from '../types'
 
 interface SpeedBucket {

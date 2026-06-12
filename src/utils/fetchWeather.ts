@@ -1,4 +1,4 @@
-import { weatherFromCode, type Weather } from './themePalettes'
+import { weatherFromCode, type Weather } from './ui/themePalettes'
 
 /**
  * 緯度経度の地点の現在天気を Open-Meteo から取得し、3 種 (sunny/cloudy/rainy) に集約して返す。

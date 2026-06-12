@@ -1,4 +1,4 @@
-import type { TrackPoint } from '../types'
+import type { TrackPoint } from '../../types'
 
 /**
  * Douglas-Peucker による軌跡の単純化 (LOD)。

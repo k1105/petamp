@@ -9,7 +9,7 @@ import {
   type Palette,
   type TimeOfDay,
   type Weather,
-} from '../utils/themePalettes'
+} from '../utils/ui/themePalettes'
 
 export interface ActivePalette {
   weather: Weather

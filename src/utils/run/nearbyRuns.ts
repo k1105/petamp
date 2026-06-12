@@ -1,6 +1,6 @@
-import type { Run } from '../types'
-import { acceptedPoints } from './recordingFilters'
-import { haversineDistance } from './geoUtils'
+import type { Run } from '../../types'
+import { acceptedPoints } from '../geo/recordingFilters'
+import { haversineDistance } from '../geo/geoUtils'
 
 /** 現在のGPS座標から指定距離(m)以内に "Runの中心" があるRunの数。 */
 export function nearbyRunCount(

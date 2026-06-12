@@ -1,6 +1,6 @@
-import type { Run } from '../types'
-import { acceptedPoints } from './recordingFilters'
-import { groupRunsByBboxOverlap } from './runGroups'
+import type { Run } from '../../types'
+import { acceptedPoints } from '../geo/recordingFilters'
+import { groupRunsByBboxOverlap } from '../run/runGroups'
 import { nodesFromSamples } from './terrainShared'
 
 export interface ArchipelagoParams {

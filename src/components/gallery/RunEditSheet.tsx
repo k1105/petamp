@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { Icon } from '@iconify/react'
 import type { MovementType, Run } from '../../types'
-import { getMovementType } from '../../utils/movementType'
-import { MovementTypeSelector } from '../MovementTypeSelector'
+import { getMovementType } from '../../utils/run/movementType'
+import { MovementTypeSelector } from './MovementTypeSelector'
 
 interface Props {
   run: Run

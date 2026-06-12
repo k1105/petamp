@@ -1,5 +1,5 @@
-import type { TrackPoint } from '../types'
-import { acceptedPoints } from './recordingFilters'
+import type { TrackPoint } from '../../types'
+import { acceptedPoints } from '../geo/recordingFilters'
 
 const VIEW_SIZE = 100
 const PADDING = 6

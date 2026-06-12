@@ -4,14 +4,14 @@ import { Icon } from '@iconify/react'
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { loadRun } from '../db/runRepository'
-import { buildRunSummary } from '../utils/runSummary'
-import { acceptedPoints } from '../utils/recordingFilters'
+import { buildRunSummary } from '../utils/run/runSummary'
+import { acceptedPoints } from '../utils/geo/recordingFilters'
 import {
   CLOSING_NOTE,
   NOTATION_OPENING_TRIGGER_FRESH,
   NOTATION_OPENING_TRIGGER_RESUME,
   isHiddenTriggerContent,
-} from '../utils/runChatPrompts'
+} from '../utils/run/runChatPrompts'
 import {
   getDialogueService,
   getMemoryStore,

@@ -1,4 +1,4 @@
-import type { TrackPoint } from '../types'
+import type { TrackPoint } from '../../types'
 
 export function haversineDistance(a: TrackPoint, b: TrackPoint): number {
   const R = 6371000

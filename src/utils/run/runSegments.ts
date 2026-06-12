@@ -1,7 +1,7 @@
-import type { Run, TrackPoint } from '../types'
-import type { RunSegment } from '../character/domain/runSummary'
-import { acceptedPoints } from './recordingFilters'
-import { elevationGain, elevationLoss, haversineDistance } from './geoUtils'
+import type { Run, TrackPoint } from '../../types'
+import type { RunSegment } from '../../character/domain/runSummary'
+import { acceptedPoints } from '../geo/recordingFilters'
+import { elevationGain, elevationLoss, haversineDistance } from '../geo/geoUtils'
 import {
   classifyBehavior,
   DEFAULT_BEHAVIOR_SEGMENT_PARAMS,

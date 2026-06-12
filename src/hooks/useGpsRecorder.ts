@@ -1,15 +1,15 @@
 import { useRef, useState, useCallback } from 'react'
 import type { TrackPoint, Note } from '../types'
-import { qualifyAltitude } from '../utils/geoUtils'
-import { applyFilters, defaultFilters, type PointFilter } from '../utils/recordingFilters'
-import { startLocationSubscription, type LocationUnsubscribe } from '../utils/locationSource'
+import { qualifyAltitude } from '../utils/geo/geoUtils'
+import { applyFilters, defaultFilters, type PointFilter } from '../utils/geo/recordingFilters'
+import { startLocationSubscription, type LocationUnsubscribe } from '../utils/geo/locationSource'
 import {
   initKalmanGps,
   kalmanCheck,
   DEFAULT_KALMAN_CONFIG,
   type KalmanGpsConfig,
   type KalmanGpsState,
-} from '../utils/kalmanGps'
+} from '../utils/geo/kalmanGps'
 
 interface GpsRecorderState {
   isRecording: boolean

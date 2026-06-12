@@ -1,6 +1,6 @@
-import type { TrackPoint } from '../types'
-import { getFilteredAltitudeMap } from './altitudeFilters'
-import { simplifyDouglasPeucker } from './simplify'
+import type { TrackPoint } from '../../types'
+import { getFilteredAltitudeMap } from '../geo/altitudeFilters'
+import { simplifyDouglasPeucker } from '../geo/simplify'
 
 /** 線の Douglas-Peucker 単純化の許容誤差 (m)。視覚的に違いの出ない範囲で頂点を削減する。 */
 const DEFAULT_SIMPLIFY_TOLERANCE_M = 0.5

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { expandBboxByMeters } from '../utils/runBbox'
+import { expandBboxByMeters } from '../utils/run/runBbox'
 import {
   groupRunsByBboxOverlap,
   makeHomeGroup,
   findGroupContaining,
   type RunGroup,
-} from '../utils/runGroups'
+} from '../utils/run/runGroups'
 import type { Run } from '../types'
 
 // Home (initial) state config — small fixed-size cage centred on GPS at a

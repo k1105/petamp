@@ -15,7 +15,7 @@ import {
   type Palette,
   type TimeOfDay,
   type Weather,
-} from '../../utils/themePalettes'
+} from '../../utils/ui/themePalettes'
 import {
   resetAllCharacterMemory,
   resetOnboarding,

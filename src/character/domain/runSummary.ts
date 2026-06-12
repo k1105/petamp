@@ -3,7 +3,7 @@
  * ここを純粋関数で計算しておくことで、LLM出力の品質を切り分けて評価できる。
  */
 
-import type { BehaviorState } from '../../utils/runBehavior'
+import type { BehaviorState } from '../../utils/run/runBehavior'
 
 export interface RunSegment {
   /** 0-based の連番。振る舞いベースで切られるため可変個数。 */

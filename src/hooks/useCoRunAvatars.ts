@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { loadCircularAvatar } from '../utils/circularAvatar'
+import { loadCircularAvatar } from '../utils/ui/circularAvatar'
 import type { CoRunEntry } from './useCoRunReplay'
 
 /**

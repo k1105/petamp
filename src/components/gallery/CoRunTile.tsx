@@ -2,11 +2,11 @@ import { useMemo } from 'react'
 import { Icon } from '@iconify/react'
 import type { Run } from '../../types'
 import type { PublicUser } from '../../firebase/userCloud'
-import { totalDistance } from '../../utils/geoUtils'
-import { acceptedPoints } from '../../utils/recordingFilters'
-import { formatDistance, formatDate } from '../../utils/formatters'
-import { buildSharedRunSvgPaths, RUN_SVG_VIEW_SIZE } from '../../utils/runSvgPath'
-import { memberColor, rgbCss } from '../../utils/coRunColors'
+import { totalDistance } from '../../utils/geo/geoUtils'
+import { acceptedPoints } from '../../utils/geo/recordingFilters'
+import { formatDistance, formatDate } from '../../utils/ui/formatters'
+import { buildSharedRunSvgPaths, RUN_SVG_VIEW_SIZE } from '../../utils/path/runSvgPath'
+import { memberColor, rgbCss } from '../../utils/run/coRunColors'
 
 interface Props {
   /** 同一 co-run セッションのラン (自分 + 相手)。自分のランは ownerUid 無しで先頭付近に来る。 */

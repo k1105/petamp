@@ -1,6 +1,6 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import type { TrackPoint } from '../types'
-import { simplifyDouglasPeucker } from './simplify'
+import { simplifyDouglasPeucker } from './geo/simplify'
 
 // ランニング中のライブアクティビティ (iOS 16.2+) を制御するネイティブブリッジ。
 // 実装は ios/App/App/Plugins/LiveActivityPlugin.swift。

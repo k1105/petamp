@@ -1,4 +1,4 @@
-import type { Run, TrackPoint } from '../types'
+import type { Run, TrackPoint } from '../../types'
 
 function makeTrack(
   waypoints: [number, number, number][],

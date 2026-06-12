@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react'
-import type { MovementType } from '../types'
-import { MOVEMENT_TYPES } from '../utils/movementType'
+import type { MovementType } from '../../types'
+import { MOVEMENT_TYPES } from '../../utils/run/movementType'
 
 interface Props {
   value: MovementType

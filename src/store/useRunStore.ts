@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Run } from '../types'
 import { listRuns, loadRun, saveRun, deleteRun, putRunLocal } from '../db/runRepository'
 import { cloudListRuns } from '../firebase/runCloud'
-import { DUMMY_RUNS } from '../utils/dummyData'
+import { DUMMY_RUNS } from '../utils/run/dummyData'
 
 /** photoDataUrl はクラウドに保存しない (stripForCloud) ため、ローカル側の値を持ち越す。 */
 function mergeLocalPhotos(cloud: Run, localRun: Run): Run {

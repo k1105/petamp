@@ -6,7 +6,7 @@ import {
   createShaderProgram,
   deleteShaderProgram,
   makeAccentUniformRefresher,
-} from '../utils/glShaderUtils'
+} from '../utils/ui/glShaderUtils'
 
 // MapJoystick の center + handle 円を smin merge して描画する per-joystick
 // WebGL canvas のレンダラー。canvas は button の中に配置されるので、面・

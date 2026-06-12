@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { EyesIcon } from '../components/gallery/EyesIcon'
-import { ModalPopup } from '../components/ModalPopup'
+import { ModalPopup } from '../components/ui/ModalPopup'
 import { useMetaballSheet, type PeakAnchorTuple } from '../hooks/useMetaballSheet'
 import { useEyeParams } from '../hooks/useEyeParams'
 import {

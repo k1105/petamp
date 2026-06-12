@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Icon } from '@iconify/react'
 import { useReverseGeocode } from '../../hooks/useReverseGeocode'
-import type { RunGroup } from '../../utils/runGroups'
+import type { RunGroup } from '../../utils/run/runGroups'
 
 type EdgeDir = 'e' | 'w'
 

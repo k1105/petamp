@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef } from 'react'
 import { Icon } from '@iconify/react'
 import type { Run } from '../../types'
 import type { PublicUser } from '../../firebase/userCloud'
-import { totalDistance } from '../../utils/geoUtils'
-import { acceptedPoints } from '../../utils/recordingFilters'
-import { formatDistance, formatDate } from '../../utils/formatters'
-import { buildRunSvgPath, RUN_SVG_VIEW_SIZE } from '../../utils/runSvgPath'
+import { totalDistance } from '../../utils/geo/geoUtils'
+import { acceptedPoints } from '../../utils/geo/recordingFilters'
+import { formatDistance, formatDate } from '../../utils/ui/formatters'
+import { buildRunSvgPath, RUN_SVG_VIEW_SIZE } from '../../utils/path/runSvgPath'
 
 interface Props {
   run: Run

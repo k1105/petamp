@@ -1,4 +1,4 @@
-import type { TrackPoint } from '../types'
+import type { TrackPoint } from '../../types'
 import { haversineDistance } from './geoUtils'
 
 export interface FilterContext {

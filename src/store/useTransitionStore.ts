@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { MovementType } from '../types'
-import { DEFAULT_MOVEMENT_TYPE } from '../utils/movementType'
+import { DEFAULT_MOVEMENT_TYPE } from '../utils/run/movementType'
 
 export type TransitionPhase =
   | 'idle'

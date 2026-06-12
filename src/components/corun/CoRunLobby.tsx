@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ModalPopup } from '../ModalPopup'
+import { ModalPopup } from '../ui/ModalPopup'
 import { useCoRunStore } from '../../store/useCoRunStore'
 import { useTransitionStore } from '../../store/useTransitionStore'
 import { listMyFriends } from '../../firebase/friends'

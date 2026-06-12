@@ -4,8 +4,8 @@ import {useMapZoom} from "../map/MapContext";
 import {DeckOverlay} from "../map/DeckOverlay";
 import {useActivePalette} from "../../hooks/useActivePalette";
 import {useBpmDotScale} from "../../hooks/useBpmDotScale";
-import {hexToRgb} from "../../utils/themePalettes";
-import {effectiveRadius} from "../../utils/effectiveRadius";
+import {hexToRgb} from "../../utils/ui/themePalettes";
+import {effectiveRadius} from "../../utils/path/effectiveRadius";
 import type {Radii} from "../../store/useSettingsStore";
 import type {TrackPoint} from "../../types";
 

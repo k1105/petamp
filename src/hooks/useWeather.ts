@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { weatherFromCode, type Weather } from '../utils/themePalettes'
+import { weatherFromCode, type Weather } from '../utils/ui/themePalettes'
 
 const REFRESH_MS = 30 * 60 * 1000   // 30 分
 const CACHE_KEY = 'petamp.weather.cache'

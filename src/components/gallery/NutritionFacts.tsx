@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Run, TrackPoint } from '../../types'
-import { acceptedPoints } from '../../utils/recordingFilters'
-import { totalDistance, elevationGain } from '../../utils/geoUtils'
-import { formatDistance, formatElevation, formatDate } from '../../utils/formatters'
+import { acceptedPoints } from '../../utils/geo/recordingFilters'
+import { totalDistance, elevationGain } from '../../utils/geo/geoUtils'
+import { formatDistance, formatElevation, formatDate } from '../../utils/ui/formatters'
 import {
   computeSpeedBreakdown,
   computeAreaBreakdown,
   SPEED_SHARE_META,
   type AreaShare,
-} from '../../utils/runNutrition'
+} from '../../utils/run/runNutrition'
 
 interface Props {
   run: Run

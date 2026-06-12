@@ -9,7 +9,7 @@ import {
   DEFAULT_ALTITUDE_FILTER_PARAMS,
   rawAltitudeOf,
   type AltitudeFilterParams,
-} from '../../utils/altitudeFilters'
+} from '../../utils/geo/altitudeFilters'
 
 interface Props {
   trackPoints: TrackPoint[]

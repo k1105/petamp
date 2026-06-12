@@ -1,7 +1,7 @@
-import type { TrackPoint } from '../types'
-import { haversineDistance } from './geoUtils'
+import type { TrackPoint } from '../../types'
+import { haversineDistance } from '../geo/geoUtils'
 import { classifyBehavior, type BehaviorState } from './runBehavior'
-import { fetchAreaName } from '../hooks/useReverseGeocode'
+import { fetchAreaName } from '../../hooks/useReverseGeocode'
 
 /**
  * ラン個別ページの "Nutrition Facts" (成分表示) タブで使う集計ロジック。

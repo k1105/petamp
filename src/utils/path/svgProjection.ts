@@ -1,4 +1,4 @@
-import type { TrackPoint } from '../types'
+import type { TrackPoint } from '../../types'
 
 export interface GeoBBox { lngMin: number; lngMax: number; latMin: number; latMax: number }
 export interface FitTarget { x: number; y: number; w: number; h: number }

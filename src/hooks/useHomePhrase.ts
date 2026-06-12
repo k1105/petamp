@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { generateHomeAmbientPhrase, hasApiKey } from '../character'
-import { nearbyRunCount } from '../utils/nearbyRuns'
+import { nearbyRunCount } from '../utils/run/nearbyRuns'
 import type { Run } from '../types'
 
 const NEARBY_THRESHOLD_M = 300

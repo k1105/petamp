@@ -1,4 +1,4 @@
-import type { TrackPoint } from '../types'
+import type { TrackPoint } from '../../types'
 
 // 緯度1度の距離(m)。実用上、緯度方向はほぼ一定。経度はcos(lat)で補正する。
 const METERS_PER_DEGREE_LAT = 111320

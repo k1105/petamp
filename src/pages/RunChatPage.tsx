@@ -9,18 +9,18 @@ import { DeckOverlay } from '../components/map/DeckOverlay'
 import { useRunStore } from '../store/useRunStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { loadRun } from '../db/runRepository'
-import { buildRunSummary } from '../utils/runSummary'
-import { acceptedPoints } from '../utils/recordingFilters'
-import { effectiveRadius } from '../utils/effectiveRadius'
-import { buildPathPositions } from '../utils/tubeMesh'
-import { hexToRgb } from '../utils/themePalettes'
+import { buildRunSummary } from '../utils/run/runSummary'
+import { acceptedPoints } from '../utils/geo/recordingFilters'
+import { effectiveRadius } from '../utils/path/effectiveRadius'
+import { buildPathPositions } from '../utils/path/tubeMesh'
+import { hexToRgb } from '../utils/ui/themePalettes'
 import { useActivePalette } from '../hooks/useActivePalette'
 import {
   CLOSING_NOTE,
   OPENING_TRIGGER_FRESH,
   OPENING_TRIGGER_RESUME,
   isHiddenTriggerContent,
-} from '../utils/runChatPrompts'
+} from '../utils/run/runChatPrompts'
 import {
   getDialogueService,
   getMemoryStore,

@@ -1,4 +1,4 @@
-import type { TrackPoint } from '../types'
+import type { TrackPoint } from '../../types'
 
 /**
  * 高度ノイズ除去・平滑化パイプライン。

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { acceptedPoints } from '../utils/recordingFilters'
-import { memberColor } from '../utils/coRunColors'
+import { acceptedPoints } from '../utils/geo/recordingFilters'
+import { memberColor } from '../utils/run/coRunColors'
 import { useRunStore } from '../store/useRunStore'
 import { useCoRunStore } from '../store/useCoRunStore'
 import { useSocialFeedStore } from '../store/useSocialFeedStore'

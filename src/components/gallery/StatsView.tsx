@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 import type { Run } from '../../types'
-import { computeRunStatsAggregate } from '../../utils/runStatsAggregate'
-import { formatDistance, formatDuration } from '../../utils/formatters'
-import { catmullRomPath, type Point2D } from '../../utils/splinePath'
+import { computeRunStatsAggregate } from '../../utils/run/runStatsAggregate'
+import { formatDistance, formatDuration } from '../../utils/ui/formatters'
+import { catmullRomPath, type Point2D } from '../../utils/path/splinePath'
 
 interface Props {
   runs: Run[]

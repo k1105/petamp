@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Run, TrackPoint } from '../types'
-import { acceptedPoints } from '../utils/recordingFilters'
-import { getFilteredAltitudeMap } from '../utils/altitudeFilters'
+import { acceptedPoints } from '../utils/geo/recordingFilters'
+import { getFilteredAltitudeMap } from '../utils/geo/altitudeFilters'
 
 export interface DotPosition {
   runId: string

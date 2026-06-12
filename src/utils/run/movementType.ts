@@ -1,4 +1,4 @@
-import type { MovementType, Run } from '../types'
+import type { MovementType, Run } from '../../types'
 
 /** 未保存 (過去の Run) のデフォルト移動種別。既存ランの遅延マイグレーションに使う。 */
 export const DEFAULT_MOVEMENT_TYPE: MovementType = 'foot'

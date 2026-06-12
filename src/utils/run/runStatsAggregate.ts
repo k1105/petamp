@@ -1,6 +1,6 @@
-import type { Run, TrackPoint } from '../types'
-import { acceptedPoints } from './recordingFilters'
-import { bearing, haversineDistance } from './geoUtils'
+import type { Run, TrackPoint } from '../../types'
+import { acceptedPoints } from '../geo/recordingFilters'
+import { bearing, haversineDistance } from '../geo/geoUtils'
 
 const WINDOW_M = 50
 

@@ -1,4 +1,4 @@
-import { ModalPopup } from '../ModalPopup'
+import { ModalPopup } from '../ui/ModalPopup'
 import { SettingsPanel } from './SettingsPanel'
 
 type Props = {

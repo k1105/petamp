@@ -1,5 +1,5 @@
-import type { Run } from '../types'
-import { acceptedPoints } from './recordingFilters'
+import type { Run } from '../../types'
+import { acceptedPoints } from '../geo/recordingFilters'
 import { expandBboxByMeters, type LngLatBbox } from './runBbox'
 
 export interface RunGroup {

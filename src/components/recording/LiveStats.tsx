@@ -1,6 +1,6 @@
 import type { TrackPoint } from '../../types'
-import { totalDistance } from '../../utils/geoUtils'
-import { formatDistance, formatElevation } from '../../utils/formatters'
+import { totalDistance } from '../../utils/geo/geoUtils'
+import { formatDistance, formatElevation } from '../../utils/ui/formatters'
 import { useElevationStats } from '../../hooks/useElevationStats'
 
 interface LiveStatsProps {

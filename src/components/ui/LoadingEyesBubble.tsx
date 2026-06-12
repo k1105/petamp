@@ -1,4 +1,4 @@
-import { EyesIcon } from './gallery/EyesIcon'
+import { EyesIcon } from '../gallery/EyesIcon'
 
 /** petamp の目と、その下の吹き出しで喋っているローディング表現。
  *  起動時 / ラン後 / island 待機 の各ローディング画面で共通利用する。 */

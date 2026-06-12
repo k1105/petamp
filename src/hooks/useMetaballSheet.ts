@@ -7,7 +7,7 @@ import {
   createShaderProgram,
   deleteShaderProgram,
   makeAccentUniformRefresher,
-} from '../utils/glShaderUtils'
+} from '../utils/ui/glShaderUtils'
 
 // Hardcoded peak shape exported from /shape-editor (anchors normalised to NORM_R=80).
 const KAPPA = 0.5522847498
