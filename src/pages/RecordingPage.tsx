@@ -176,9 +176,11 @@ export function RecordingPage() {
     return initialCenter ?? [139.6503, 35.6762];
   }, [acceptedTrackPoints, anchor, initialCenter]);
 
-  // 設置ボタン: AudioContext を解除 (ジェスチャ内) し、設置ビューを開く。
-  const handleAnchorButton = async () => {
-    await resumeAnchorAudio();
+  // 設置ボタン: AudioContext/ネイティブセッションの解除はジェスチャ内で起動するが、
+  // 失敗・遅延しても設置ビューの表示を妨げないよう fire-and-forget にする。
+  // (await すると resume が reject/ハングしたとき picker が開かず「ボタンが押せない」状態になる)
+  const handleAnchorButton = () => {
+    void resumeAnchorAudio().catch(() => {});
     setPickerOpen(true);
   };
   const handleAnchorConfirm = (lng: number, lat: number) => {

@@ -19,18 +19,33 @@ const AnchorAudio = registerPlugin<AnchorAudioPlugin>('AnchorAudio')
  */
 export class NativeAnchorAudioEngine {
   async resume(): Promise<void> {
-    await AnchorAudio.resume()
+    console.log('[anchor-audio] JS->native resume() calling')
+    try {
+      await AnchorAudio.resume()
+      console.log('[anchor-audio] JS->native resume() OK')
+    } catch (e) {
+      console.log('[anchor-audio] JS->native resume() REJECTED', String(e))
+      throw e
+    }
   }
 
   setBpm(bpm: number): void {
-    void AnchorAudio.setBpm({ bpm })
+    AnchorAudio.setBpm({ bpm })
+      .then(() => console.log('[anchor-audio] JS->native setBpm OK', bpm))
+      .catch(e => console.log('[anchor-audio] JS->native setBpm REJECTED', bpm, String(e)))
   }
 
   playMelody(direction: 'up' | 'down'): void {
-    void AnchorAudio.playMelody({ direction })
+    AnchorAudio.playMelody({ direction })
+      .then(() => console.log('[anchor-audio] JS->native playMelody OK', direction))
+      .catch(e => console.log('[anchor-audio] JS->native playMelody REJECTED', direction, String(e)))
   }
 
   async stop(): Promise<void> {
-    await AnchorAudio.stop()
+    try {
+      await AnchorAudio.stop()
+    } catch {
+      // 破棄時のエラーは無視。
+    }
   }
 }

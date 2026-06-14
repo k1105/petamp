@@ -29,6 +29,7 @@ public class AnchorAudioPlugin: CAPPlugin {
     private var nextTickSample: AVAudioFramePosition = 0
     private var scheduling = false
     private var started = false
+    private var nodesAttached = false
 
     /// AVAudioEngine の操作・スケジューリングを直列化する専用キュー。
     private let queue = DispatchQueue(label: "com.rennur.petamp.anchor-audio")
@@ -78,25 +79,32 @@ public class AnchorAudioPlugin: CAPPlugin {
 
     private func setupIfNeeded() {
         guard !started else { return }
+        print("🟡 [anchor-audio] setupIfNeeded begin")
+        let session = AVAudioSession.sharedInstance()
         do {
-            let session = AVAudioSession.sharedInstance()
             // .playback = 消音スイッチを無視 / .mixWithOthers = Spotify 等と混ぜて鳴らす。
             try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try session.setActive(true)
+            print("🟡 [anchor-audio] session active rate=\(session.sampleRate)")
         } catch {
             print("⚠️ [anchor-audio] session error: \(error)")
         }
 
-        engine.attach(tickPlayer)
-        engine.attach(melodyPlayer)
-        let mixer = engine.mainMixerNode
-        let format = AVAudioFormat(standardFormatWithSampleRate: AVAudioSession.sharedInstance().sampleRate, channels: 1)
-        engine.connect(tickPlayer, to: mixer, format: format)
-        engine.connect(melodyPlayer, to: mixer, format: format)
+        // attach は 1 度だけ (再 attach はクラッシュする)。
+        if !nodesAttached {
+            engine.attach(tickPlayer)
+            engine.attach(melodyPlayer)
+            let mixer = engine.mainMixerNode
+            let format = AVAudioFormat(standardFormatWithSampleRate: session.sampleRate, channels: 1)
+            engine.connect(tickPlayer, to: mixer, format: format)
+            engine.connect(melodyPlayer, to: mixer, format: format)
+            nodesAttached = true
+            print("🟡 [anchor-audio] nodes attached, mixer outputVolume=\(mixer.outputVolume)")
+        }
 
         // 実際に再生されるレート (スケジューリングの基準)。
         sampleRate = tickPlayer.outputFormat(forBus: 0).sampleRate
-        if sampleRate <= 0 { sampleRate = AVAudioSession.sharedInstance().sampleRate }
+        if sampleRate <= 0 { sampleRate = session.sampleRate }
         tickBuffer = buildTickBuffer()
 
         do {
@@ -108,7 +116,13 @@ public class AnchorAudioPlugin: CAPPlugin {
         tickPlayer.play()
         melodyPlayer.play()
         started = true
-        print("✅ [anchor-audio] native engine started sampleRate=\(sampleRate)")
+        print("✅ [anchor-audio] native engine started sampleRate=\(sampleRate) engineRunning=\(engine.isRunning)")
+
+        // 起動確認用: セットアップ直後に 1 発だけ即時に鳴らす (距離パイプラインと無関係に native 出力を検証)。
+        if let buf = tickBuffer {
+            tickPlayer.scheduleBuffer(buf, at: nil, options: [], completionHandler: nil)
+            print("🔔 [anchor-audio] diagnostic tick scheduled")
+        }
     }
 
     private func teardown() {
@@ -116,11 +130,10 @@ public class AnchorAudioPlugin: CAPPlugin {
         scheduling = false
         bpm = 0
         guard started else { return }
+        // nodes は attach したまま (再 attach クラッシュ回避)。エンジン停止のみ。
         tickPlayer.stop()
         melodyPlayer.stop()
         engine.stop()
-        engine.detach(tickPlayer)
-        engine.detach(melodyPlayer)
         started = false
         try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
     }
