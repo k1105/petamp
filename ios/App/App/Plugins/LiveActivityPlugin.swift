@@ -8,6 +8,18 @@ public class LiveActivityPlugin: CAPPlugin {
     // 直近に開始したラン ID。update/end で runId 未指定時のフォールバックに使う。
     private var currentRunId: String?
 
+    // 起動時 (ブリッジ初期化時) に 1 回呼ばれる。
+    // ラン中にアプリが強制終了されると Live Activity が残る (JS の end が走らない & 強制終了では
+    // applicationWillTerminate も呼ばれない) ため、起動時に残存アクティビティを掃除する。
+    override public func load() {
+        guard #available(iOS 16.2, *) else { return }
+        Task {
+            for activity in Activity<RunActivityAttributes>.activities {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+        }
+    }
+
     @objc func start(_ call: CAPPluginCall) {
         guard #available(iOS 16.2, *) else {
             call.reject("LIVE_ACTIVITY_UNSUPPORTED")

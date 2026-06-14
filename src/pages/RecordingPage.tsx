@@ -10,6 +10,8 @@ import {LiveStats} from "../components/recording/LiveStats";
 import {BoundsFitter} from "../components/recording/BoundsFitter";
 import {FollowUpdater} from "../components/recording/FollowUpdater";
 import {RecordingLayers} from "../components/recording/RecordingLayers";
+import {AnchorLayer} from "../components/recording/AnchorLayer";
+import {AnchorPickerView} from "../components/recording/AnchorPickerView";
 import {INITIAL_ZOOM} from "../components/recording/recordingMapConstants";
 import {useGpsRecorder} from "../hooks/useGpsRecorder";
 import {useCurrentPosition} from "../hooks/useCurrentPosition";
@@ -27,9 +29,13 @@ import {CoRunBanner} from "../components/corun/CoRunBanner";
 import {CoRunWaitOverlay} from "../components/corun/CoRunWaitOverlay";
 import {useCoRunStore} from "../store/useCoRunStore";
 import {cloudSaveRunEnsured} from "../firebase/runCloud";
-import {totalDistance} from "../utils/geo/geoUtils";
+import {totalDistance, haversineDistance} from "../utils/geo/geoUtils";
+import {useAnchorAudio} from "../hooks/useAnchorAudio";
+import {isArrived} from "../utils/anchor/anchorAudio";
 import {startLiveActivity, updateLiveActivity, endLiveActivity} from "../utils/liveActivity";
-import type {Run} from "../types";
+import {useResumeRunStore} from "../store/useResumeRunStore";
+import {saveInProgressRun, clearInProgressRun} from "../db/inProgressRun";
+import type {Run, TrackPoint} from "../types";
 
 type ViewMode = "follow" | "overview";
 
@@ -59,7 +65,20 @@ export function RecordingPage() {
     }),
     [filterSettings.kalmanSigmaA, filterSettings.kalmanGateChi2],
   );
-  const {isRecording, trackPoints, error, consecutiveRejections, lastMahalanobis2, start, stop} = useGpsRecorder(filters, kalmanConfig);
+  // 中断ランの再開: マウント時に下書きを snapshot し、即クリアする。
+  const [resumeDraft] = useState(() => useResumeRunStore.getState().draft);
+  useEffect(() => {
+    useResumeRunStore.getState().setDraft(null);
+  }, []);
+  const {isRecording, trackPoints, error, consecutiveRejections, lastMahalanobis2, start, stop} = useGpsRecorder(
+    filters,
+    kalmanConfig,
+    resumeDraft?.trackPoints ?? [],
+  );
+  // ラン ID。再開時は下書きの ID を引き継ぎ、新規は採番する。下書き保存と FINSH 両方で使う。
+  const runIdRef = useRef(resumeDraft?.id ?? crypto.randomUUID());
+  // 下書き保存のスロットル用。
+  const lastDraftSaveRef = useRef(0);
   const {palette: livePalette} = useActivePalette();
   const {addRun} = useRunStore();
   const finishBtnRef = useRef<HTMLButtonElement>(null);
@@ -70,7 +89,8 @@ export function RecordingPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("follow");
   // 記録の移動種別。ラン開始前 (Gallery の armed 状態) で選んだ値を transition store
   // 経由で受け取り、FINISH 時に保存する。reset() で失われる前に snapshot する。
-  const [movementType] = useState(() => useTransitionStore.getState().movementType);
+  // 再開時は下書きの種別を引き継ぐ。
+  const [movementType] = useState(() => resumeDraft?.movementType ?? useTransitionStore.getState().movementType);
   const [warningOpen, setWarningOpen] = useState(false);
   const [introOpen, setIntroOpen] = useState(false);
   const warningShownRef = useRef(false);
@@ -121,6 +141,53 @@ export function RecordingPage() {
   }, [transitionPhase, fromOnboarding, permissionState, isPermissionDenied, isNative]);
   const initialCenter = useCurrentPosition();
   const acceptedTrackPoints = useMemo(() => acceptedPoints(trackPoints), [trackPoints]);
+
+  // 目標アンカー (専用ビューで設置)。ライブのナビ機能なので永続化はしない。
+  const [anchor, setAnchor] = useState<{lng: number; lat: number} | null>(null);
+  // 設置ビュー (フルマップ) の開閉。
+  const [pickerOpen, setPickerOpen] = useState(false);
+  // ナビ用の現在地。フィルタ通過した採用点が無くても鳴らせるよう、
+  // 採用点 → 生の最新点 → 初期位置 の順でフォールバックする。
+  // (デスクトップ等で GPS 精度が悪いと採用点が 0 になり距離が出ないため)
+  const anchorCurrentPos = useMemo<{lat: number; lng: number} | null>(() => {
+    const accepted = acceptedTrackPoints.at(-1);
+    if (accepted) return {lat: accepted.lat, lng: accepted.lng};
+    const raw = trackPoints.at(-1);
+    if (raw) return {lat: raw.lat, lng: raw.lng};
+    if (initialCenter) return {lat: initialCenter[1], lng: initialCenter[0]};
+    return null;
+  }, [acceptedTrackPoints, trackPoints, initialCenter]);
+  // 現在地 → アンカーの距離 (m)。現在地不明 / 未設置なら null。
+  const anchorDistance = useMemo(() => {
+    if (!anchor || !anchorCurrentPos) return null;
+    return haversineDistance(
+      anchorCurrentPos as TrackPoint,
+      {lat: anchor.lat, lng: anchor.lng} as TrackPoint,
+    );
+  }, [anchor, anchorCurrentPos]);
+  const anchorArrived = anchorDistance != null && isArrived(anchorDistance);
+  const {resume: resumeAnchorAudio} = useAnchorAudio(anchorDistance);
+
+  // 設置ビューの初期中心: 現在地 → 既存アンカー → 地図初期中心 の順で採用。
+  const pickerCenter = useMemo<[number, number]>(() => {
+    const last = acceptedTrackPoints.at(-1);
+    if (last) return [last.lng, last.lat];
+    if (anchor) return [anchor.lng, anchor.lat];
+    return initialCenter ?? [139.6503, 35.6762];
+  }, [acceptedTrackPoints, anchor, initialCenter]);
+
+  // 設置ボタン: AudioContext を解除 (ジェスチャ内) し、設置ビューを開く。
+  const handleAnchorButton = async () => {
+    await resumeAnchorAudio();
+    setPickerOpen(true);
+  };
+  const handleAnchorConfirm = (lng: number, lat: number) => {
+    setAnchor({lng, lat});
+    setPickerOpen(false);
+  };
+  const clearAnchor = () => {
+    setAnchor(null);
+  };
   // ライブアクティビティ用の安定したラン ID。マウント中ずっと同じ値を使う。
   const liveActivityRunIdRef = useRef(crypto.randomUUID());
   // ライブアクティビティの直近更新時刻 (OS の更新バジェット枯渇を避けてスロットルする)。
@@ -152,6 +219,23 @@ export function RecordingPage() {
     void updateLiveActivity(acceptedTrackPoints, totalDistance(acceptedTrackPoints), liveActivityBgRef.current);
   }, [acceptedTrackPoints, isRecording]);
 
+  // 走行中の軌跡を逐次ローカル保存する (ソロのみ)。アプリ強制終了/クラッシュ時に
+  // 次回起動で復元できるようにする。約 4 秒に 1 回へスロットル。co-run は対象外。
+  useEffect(() => {
+    if (!isRecording || isCoRun) return;
+    if (acceptedTrackPoints.length === 0) return;
+    const now = Date.now();
+    if (now - lastDraftSaveRef.current < 4000) return;
+    lastDraftSaveRef.current = now;
+    void saveInProgressRun({
+      id: runIdRef.current,
+      startedAt: acceptedTrackPoints[0].timestamp,
+      updatedAt: now,
+      trackPoints: acceptedTrackPoints,
+      movementType,
+    });
+  }, [acceptedTrackPoints, isRecording, isCoRun, movementType]);
+
   const handleFinish = async () => {
     // FINISH を起点に iris-out → ローディング画面で覆い、対話準備完了で iris-in で抜ける。
     // origin は FINISH ボタン中心。取得できなければ画面下端中央にフォールバック。
@@ -168,6 +252,8 @@ export function RecordingPage() {
       points = await stop();
     }
     void endLiveActivity();
+    // FINISH したので中断ラン下書きは破棄する (空・通常どちらの経路でも)。
+    void clearInProgressRun();
     if (points.length === 0) {
       // 記録が空のときは対話画面に進まないので loading を解除して戻す。
       if (isCoRun) void leaveCoRun();
@@ -186,7 +272,7 @@ export function RecordingPage() {
     const areaName = areaNameRaw ?? undefined;
     const weather = weatherRaw ?? "sunny";
     const run: Run = {
-      id: crypto.randomUUID(),
+      id: runIdRef.current,
       name: `ラン ${formatDate(Date.now())}`,
       startedAt: points[0].timestamp,
       finishedAt: points.at(-1)!.timestamp,
@@ -255,6 +341,7 @@ export function RecordingPage() {
               radii={radii}
               showRawTube={showRawTube}
             />
+            <AnchorLayer anchor={anchor} arrived={anchorArrived} />
             <AreaLabel />
             <NowPlayingLabel />
           </BaseMap>
@@ -263,7 +350,11 @@ export function RecordingPage() {
 
       <button
         className="back-btn"
-        onClick={() => navigate("/")}
+        onClick={() => {
+          // X は記録を破棄して戻る操作なので、中断ラン下書きも消す。
+          void clearInProgressRun();
+          navigate("/");
+        }}
         aria-label="閉じる"
       >
         <Icon icon="lucide:x" />
@@ -288,6 +379,37 @@ export function RecordingPage() {
         >
           <Icon icon={viewMode === "follow" ? "lucide:maximize" : "lucide:locate-fixed"} />
         </button>
+
+        <div className="anchor-control">
+          <button
+            className={`anchor-toggle${anchor ? " is-set" : ""}`}
+            onClick={handleAnchorButton}
+            title="目標アンカーを設置"
+            aria-label="目標アンカーを設置"
+          >
+            <Icon icon="lucide:target" />
+          </button>
+          {anchor && (
+            <div className={`anchor-status${anchorArrived ? " is-arrived" : ""}`}>
+              <span className="anchor-distance">
+                {anchorArrived
+                  ? "到達！"
+                  : anchorDistance != null
+                    ? `${Math.round(anchorDistance)} m`
+                    : "計測中…"}
+              </span>
+              <button
+                className="anchor-clear"
+                onClick={clearAnchor}
+                title="アンカーを解除"
+                aria-label="アンカーを解除"
+              >
+                <Icon icon="lucide:trash-2" />
+              </button>
+            </div>
+          )}
+        </div>
+
         <LiveStats trackPoints={acceptedTrackPoints} />
         <div className="bottom-bar-actions">
           <button
@@ -415,6 +537,14 @@ export function RecordingPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {pickerOpen && (
+        <AnchorPickerView
+          initialCenter={pickerCenter}
+          onCancel={() => setPickerOpen(false)}
+          onConfirm={handleAnchorConfirm}
+        />
       )}
 
       {endGate && (

@@ -25,6 +25,12 @@ service cloud.firestore {
         allow write: if isSelf(uid);
       }
 
+      // FCM デバイストークン: 本人のみ読み書き。
+      // プッシュ送信 (api/notify-run) は firebase-admin で読むためルールの対象外。
+      match /fcmTokens/{token} {
+        allow read, write: if isSelf(uid);
+      }
+
       // キャラ記憶: episodic / semantic / relational / namedPlace を
       // users/{uid}/characters/{characterId}/{kind}/{docId} の階層に保存。
       // 完全に本人プライベート。

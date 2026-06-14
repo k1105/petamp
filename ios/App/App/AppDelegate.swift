@@ -1,6 +1,7 @@
 import UIKit
 import Capacitor
 import FirebaseCore
+import AVFoundation
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -9,7 +10,36 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         FirebaseApp.configure()
+        configureAudioSession()
+        // 軌跡接近ジオフェンス: 位置イベントでバックグラウンド再起動された場合も
+        // ここで delegate を張り直さないとリージョン進入イベントを取りこぼす
+        TraceGeofenceManager.shared.start()
         return true
+    }
+
+    /// アンカー打音フィードバック (WebView の Web Audio) を、消音(マナー)スイッチが
+    /// ON でも鳴らし、バックグラウンドでも継続できるようにする。
+    /// .playback はマナースイッチを無視するカテゴリ。.mixWithOthers で Spotify 等を止めない。
+    /// 他コンポーネントがセッションを変えた場合に備え、復帰時にも呼び直す。
+    private func configureAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try AVAudioSession.sharedInstance().setActive(true)
+            print("✅ AVAudioSession configured: playback + mixWithOthers (ignores mute switch)")
+        } catch {
+            print("⚠️ AVAudioSession setup failed: \(error)")
+        }
+    }
+
+    // MARK: - Push Notifications (FCM)
+    // @capacitor-firebase/messaging が NotificationCenter 経由で APNs トークンを受け取る
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
@@ -28,6 +58,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func applicationDidBecomeActive(_ application: UIApplication) {
         // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+        // バックグラウンド復帰や割り込み後にオーディオセッションが解除されている場合があるので再設定する。
+        configureAudioSession()
     }
 
     func applicationWillTerminate(_ application: UIApplication) {

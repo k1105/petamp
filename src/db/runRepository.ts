@@ -1,6 +1,7 @@
 import { get, set, del, keys } from 'idb-keyval'
 import type { Run } from '../types'
 import { cloudDeleteRun, cloudSaveRunEnsured } from '../firebase/runCloud'
+import { notifyFriendsOfNewRun } from '../firebase/notifyFriends'
 
 const PREFIX = 'run:'
 
@@ -25,6 +26,11 @@ function pushRunToCloud(run: Run): void {
       if (!latest) return
       try {
         await cloudSaveRunEnsured(latest)
+        // クラウドに載った時点でフレンドへ通知を依頼する。
+        // 重複はサーバー側で排他されるので編集再保存で多重送信にはならない。
+        void notifyFriendsOfNewRun(latest).catch(e =>
+          console.warn('notifyFriendsOfNewRun failed', e),
+        )
       } catch (e) {
         console.warn('cloudSaveRunEnsured failed (gave up)', e)
       }

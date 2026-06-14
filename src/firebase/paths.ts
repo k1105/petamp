@@ -9,6 +9,9 @@ export const pathUser = (uid: string) => `users/${uid}`
 export const pathUserRuns = (uid: string) => `users/${uid}/runs`
 export const pathUserRun = (uid: string, runId: string) => `users/${uid}/runs/${runId}`
 
+export const pathUserFcmTokens = (uid: string) => `users/${uid}/fcmTokens`
+export const pathUserFcmToken = (uid: string, token: string) => `users/${uid}/fcmTokens/${token}`
+
 export const pathFriends = () => 'friends'
 export const pathFriend = (docId: string) => `friends/${docId}`
 

@@ -23,10 +23,12 @@ interface GpsRecorderState {
 export function useGpsRecorder(
   filters: PointFilter[] = defaultFilters(),
   kalmanConfig: KalmanGpsConfig | null = DEFAULT_KALMAN_CONFIG,
+  // 中断ランの再開用。既存の軌跡を初期値として継続する (空なら新規)。
+  initialTrackPoints: TrackPoint[] = [],
 ) {
   const [state, setState] = useState<GpsRecorderState>({
     isRecording: false,
-    trackPoints: [],
+    trackPoints: initialTrackPoints,
     error: null,
     consecutiveRejections: 0,
     lastMahalanobis2: null,

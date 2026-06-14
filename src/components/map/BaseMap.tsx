@@ -30,6 +30,13 @@ interface BaseMapProps {
   /** When false, all user interactions (pan/zoom/rotate) are disabled and
       the orbit toggle is hidden. Camera is controlled programmatically only. */
   interactive?: boolean
+  /** 初期 pitch (度)。デフォルト 45。真上から選びたい用途は 0 を渡す。 */
+  initialPitch?: number
+  /** true のとき、style の非 symbol レイヤー (建物・道路など) を隠さず全部描画する。
+      デフォルト false (= 従来の symbol だけのスタイライズ表示)。 */
+  showAllLayers?: boolean
+  /** ジョイスティック UI を出すか。デフォルト true (interactive 時のみ表示)。 */
+  showJoystick?: boolean
 }
 
 export function BaseMap({
@@ -42,6 +49,9 @@ export function BaseMap({
   lockTarget = false,
   mapVisible = true,
   interactive = true,
+  initialPitch = 45,
+  showAllLayers = false,
+  showJoystick = true,
 }: BaseMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<mapboxgl.Map | null>(null)
@@ -90,7 +100,7 @@ export function BaseMap({
     const opts: mapboxgl.MapOptions = {
       container: containerRef.current,
       style: 'mapbox://styles/mapbox/dark-v11',
-      pitch: 45,
+      pitch: initialPitch,
       antialias: true,
       // CJK (日本語) のグリフはローカル描画する。地名ラベル等が確実にクッキリ出る。
       localIdeographFontFamily: "'Hiragino Sans', 'Noto Sans CJK JP', sans-serif",
@@ -108,10 +118,12 @@ export function BaseMap({
     const m = new mapboxgl.Map(opts)
 
     m.on('load', () => {
-      const layers = m.getStyle()?.layers ?? []
-      for (const layer of layers) {
-        if (layer.type !== 'symbol') {
-          m.setLayoutProperty(layer.id, 'visibility', 'none')
+      if (!showAllLayers) {
+        const layers = m.getStyle()?.layers ?? []
+        for (const layer of layers) {
+          if (layer.type !== 'symbol') {
+            m.setLayoutProperty(layer.id, 'visibility', 'none')
+          }
         }
       }
       setMap(m)
@@ -151,7 +163,7 @@ export function BaseMap({
         className="map-canvas"
         style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.4s' }}
       />
-      {!lockTarget && interactive && (
+      {!lockTarget && interactive && showJoystick && (
         <MapJoystick
           orbit={orbitMode}
           onToggleOrbit={() => setOrbitMode(v => !v)}

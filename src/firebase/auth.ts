@@ -50,6 +50,20 @@ export async function getUid(): Promise<string | null> {
   return auth.currentUser?.uid ?? null
 }
 
+/** 現在のユーザーの Firebase ID トークン。未サインインなら null。 */
+export async function getIdToken(): Promise<string | null> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { token } = await FirebaseAuthentication.getIdToken()
+      return token ?? null
+    } catch {
+      return null
+    }
+  }
+  await auth.authStateReady()
+  return (await auth.currentUser?.getIdToken()) ?? null
+}
+
 const provider = new GoogleAuthProvider()
 
 export async function signInWithGoogle(): Promise<AppUser> {

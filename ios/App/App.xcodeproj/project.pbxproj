@@ -22,6 +22,11 @@
 		B17A570000000000000000B4 /* RunActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000A3 /* RunActivityAttributes.swift */; };
 		B17A570000000000000000B5 /* LiveActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000A5 /* LiveActivityPlugin.swift */; };
 		B17A570000000000000000B6 /* LiveActivityPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000A6 /* LiveActivityPlugin.m */; };
+		B17A570000000000000000B9 /* TraceGeofenceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000A9 /* TraceGeofenceManager.swift */; };
+		B17A570000000000000000BA /* TraceGeofencePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000AA /* TraceGeofencePlugin.swift */; };
+		B17A570000000000000000BB /* TraceGeofencePlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000AB /* TraceGeofencePlugin.m */; };
+		B17A570000000000000000BC /* AnchorAudioPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000AC /* AnchorAudioPlugin.swift */; };
+		B17A570000000000000000BD /* AnchorAudioPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000AD /* AnchorAudioPlugin.m */; };
 		B17A570000000000000000B8 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000A8 /* MainViewController.swift */; };
 		B17A570000000000000000B7 /* PetampWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B17A570000000000000000A7 /* PetampWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -60,6 +65,11 @@
 		B17A570000000000000000A4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B17A570000000000000000A5 /* LiveActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPlugin.swift; sourceTree = "<group>"; };
 		B17A570000000000000000A6 /* LiveActivityPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LiveActivityPlugin.m; sourceTree = "<group>"; };
+		B17A570000000000000000A9 /* TraceGeofenceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraceGeofenceManager.swift; sourceTree = "<group>"; };
+		B17A570000000000000000AA /* TraceGeofencePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraceGeofencePlugin.swift; sourceTree = "<group>"; };
+		B17A570000000000000000AB /* TraceGeofencePlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TraceGeofencePlugin.m; sourceTree = "<group>"; };
+		B17A570000000000000000AC /* AnchorAudioPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnchorAudioPlugin.swift; sourceTree = "<group>"; };
+		B17A570000000000000000AD /* AnchorAudioPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AnchorAudioPlugin.m; sourceTree = "<group>"; };
 		B17A570000000000000000A7 /* PetampWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PetampWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B17A570000000000000000A8 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -126,6 +136,11 @@
 			children = (
 				B17A570000000000000000A5 /* LiveActivityPlugin.swift */,
 				B17A570000000000000000A6 /* LiveActivityPlugin.m */,
+				B17A570000000000000000A9 /* TraceGeofenceManager.swift */,
+				B17A570000000000000000AA /* TraceGeofencePlugin.swift */,
+				B17A570000000000000000AB /* TraceGeofencePlugin.m */,
+				B17A570000000000000000AC /* AnchorAudioPlugin.swift */,
+				B17A570000000000000000AD /* AnchorAudioPlugin.m */,
 			);
 			path = Plugins;
 			sourceTree = "<group>";
@@ -336,6 +351,11 @@
 				B17A570000000000000000B4 /* RunActivityAttributes.swift in Sources */,
 				B17A570000000000000000B5 /* LiveActivityPlugin.swift in Sources */,
 				B17A570000000000000000B6 /* LiveActivityPlugin.m in Sources */,
+				B17A570000000000000000B9 /* TraceGeofenceManager.swift in Sources */,
+				B17A570000000000000000BA /* TraceGeofencePlugin.swift in Sources */,
+				B17A570000000000000000BB /* TraceGeofencePlugin.m in Sources */,
+				B17A570000000000000000BC /* AnchorAudioPlugin.swift in Sources */,
+				B17A570000000000000000BD /* AnchorAudioPlugin.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -485,7 +505,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = R23398U3YA;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
@@ -507,7 +527,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = R23398U3YA;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
@@ -529,7 +549,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = R23398U3YA;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = PetampWidget/Info.plist;
@@ -554,7 +574,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = R23398U3YA;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = PetampWidget/Info.plist;

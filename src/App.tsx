@@ -17,6 +17,7 @@ import { TransitionOverlay } from './components/transition/TransitionOverlay'
 import { LoadingScreen } from './components/ui/LoadingScreen'
 import { PostRunLoadingScreen } from './components/transition/PostRunLoadingScreen'
 import { CoRunLobby } from './components/corun/CoRunLobby'
+import { RunRecoveryPrompt } from './components/recording/RunRecoveryPrompt'
 import { CoRunInviteSheet } from './components/corun/CoRunInviteSheet'
 import { InviteDeepLinkListener } from './components/friends/InviteDeepLinkListener'
 import { ActivePaletteProvider } from './components/ui/ActivePaletteProvider'
@@ -24,6 +25,8 @@ import { useCoRunInviteListener } from './hooks/useCoRunInviteListener'
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useCharacterMemorySync } from './hooks/useCharacterMemorySync'
 import { useEnsureUserDoc } from './hooks/useEnsureUserDoc'
+import { usePushNotifications } from './hooks/usePushNotifications'
+import { useTraceGeofences } from './hooks/useTraceGeofences'
 import { useCurrentPosition } from './hooks/useCurrentPosition'
 import { useBootStore, useBootReady } from './store/useBootStore'
 import { useRunStore } from './store/useRunStore'
@@ -126,6 +129,8 @@ function AppContent() {
   useBpmSyncedBob()
   useSpotifyDeepLink()
   useCoRunInviteListener()
+  usePushNotifications()
+  useTraceGeofences()
   const bootReady = useBootReady()
   return (
     <BrowserRouter>
@@ -162,6 +167,7 @@ function AppContent() {
       <PostRunLoadingScreen />
       <CoRunLobby />
       <CoRunInviteSheet />
+      <RunRecoveryPrompt />
       <LoadingScreen ready={bootReady} />
     </BrowserRouter>
   )

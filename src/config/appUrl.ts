@@ -21,3 +21,8 @@ const PUBLIC_BASE_URL =
 export function inviteUrl(uid: string): string {
   return `${PUBLIC_BASE_URL}/invite/${uid}`
 }
+
+/** Vercel Functions (api/) のエンドポイント URL を返す。 */
+export function apiUrl(path: string): string {
+  return `${PUBLIC_BASE_URL}/api/${path}`
+}
