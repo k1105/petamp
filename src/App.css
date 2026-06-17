@@ -2802,27 +2802,6 @@ body.map-joystick-fab-out .bottom-sheet {
   border-color: transparent;
 }
 
-/* ---- Stats ---- */
-.view-mode-toggle {
-  align-self: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  color: #fff;
-  font-size: 18px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.view-mode-toggle:active {
-  transform: scale(0.94);
-}
-
 /* ---- Anchor (目標地点) control ---- */
 .anchor-control {
   align-self: center;

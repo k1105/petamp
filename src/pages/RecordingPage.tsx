@@ -8,7 +8,6 @@ import {AreaLabel} from "../components/map/AreaLabel";
 import {NowPlayingLabel} from "../components/map/NowPlayingLabel";
 import {LiveStats} from "../components/recording/LiveStats";
 import {BoundsFitter} from "../components/recording/BoundsFitter";
-import {FollowUpdater} from "../components/recording/FollowUpdater";
 import {RecordingLayers} from "../components/recording/RecordingLayers";
 import {AnchorLayer} from "../components/recording/AnchorLayer";
 import {AnchorPickerView} from "../components/recording/AnchorPickerView";
@@ -36,8 +35,6 @@ import {startLiveActivity, updateLiveActivity, endLiveActivity} from "../utils/l
 import {useResumeRunStore} from "../store/useResumeRunStore";
 import {saveInProgressRun, clearInProgressRun} from "../db/inProgressRun";
 import type {Run, TrackPoint} from "../types";
-
-type ViewMode = "follow" | "overview";
 
 export function RecordingPage() {
   const navigate = useNavigate();
@@ -86,7 +83,6 @@ export function RecordingPage() {
   const resetPostRunLoading = usePostRunLoadingStore(s => s.reset);
   const [recordingDebugOpen, setRecordingDebugOpen] = useState(false);
   const [showRawTube, setShowRawTube] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("follow");
   // 記録の移動種別。ラン開始前 (Gallery の armed 状態) で選んだ値を transition store
   // 経由で受け取り、FINISH 時に保存する。reset() で失われる前に snapshot する。
   // 再開時は下書きの種別を引き継ぐ。
@@ -328,14 +324,7 @@ export function RecordingPage() {
             initialZoom={INITIAL_ZOOM}
             interactive={false}
           >
-            <BoundsFitter
-              trackPoints={acceptedTrackPoints}
-              enabled={viewMode === "overview"}
-            />
-            <FollowUpdater
-              trackPoints={acceptedTrackPoints}
-              enabled={viewMode === "follow"}
-            />
+            <BoundsFitter trackPoints={acceptedTrackPoints} enabled />
             <RecordingLayers
               trackPoints={trackPoints}
               acceptedTrackPoints={acceptedTrackPoints}
@@ -373,15 +362,6 @@ export function RecordingPage() {
 
       <div className="bottom-bar">
         {error && <div className="error-banner">{error}</div>}
-        <button
-          className="view-mode-toggle"
-          onClick={() => setViewMode(m => (m === "follow" ? "overview" : "follow"))}
-          title={viewMode === "follow" ? "全体表示" : "現在位置"}
-          aria-label={viewMode === "follow" ? "全体表示に切り替え" : "現在位置に切り替え"}
-        >
-          <Icon icon={viewMode === "follow" ? "lucide:maximize" : "lucide:locate-fixed"} />
-        </button>
-
         <div className="anchor-control">
           <button
             className={`anchor-toggle${anchor ? " is-set" : ""}`}
