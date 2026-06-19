@@ -187,16 +187,9 @@
 }
 
 /* ---- FINISH × 外枠 メタボール結合 ---- */
-.finish-merge-defs {
-  position: absolute;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-/* blob 層: base (フレーム下端) + pill を gooey filter で merge。
-   IrisFrame (z 100) の後ろ (z 19)。pill は穴を透けて見え、neck が下端へ繋がる。 */
+/* blob 層: base (フレーム下端) + ctrl + pill を WebGL SDF (useMergeMetaball) で merge。
+   IrisFrame (z 100) の後ろ (z 19)。pill は穴を透けて見え、neck が下端へ繋がる。
+   形状の div 自体は描画せず (background なし)、座標源として canvas が毎フレーム読む。 */
 .recording-page .finish-merge {
   position: absolute;
   left: 0;
@@ -205,7 +198,16 @@
   height: calc(var(--fm-pill-bottom) + var(--fm-pill-h) + 48px);
   z-index: 19;
   pointer-events: none;
-  filter: url(#finish-goo);
+}
+
+/* メタボールを描く WebGL canvas。形状 div を覆う。 */
+.recording-page .finish-merge-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
 }
 
 /* フレーム下端の緑。top をフレーム内側 (--frame-inset) に合わせ、下は画面外へ。 */
@@ -215,7 +217,7 @@
   right: 0;
   bottom: calc(-1 * var(--fm-base-ext));
   height: calc(var(--frame-inset) + var(--fm-base-ext));
-  background: var(--accent);
+  /* 描画は canvas (useMergeMetaball) が行う。div は座標源のみ。 */
 }
 
 /* 左の blob: 停止/再開の円 (gooey 層)。常に存在。結合中は中央、分裂で左へ。 */
@@ -227,7 +229,6 @@
   height: var(--fm-pill-h);
   transform: translateX(calc(-50% + var(--fm-ctrl-x)));
   border-radius: 999px;
-  background: var(--accent);
   transition: transform 400ms cubic-bezier(0.45, 0, 0.2, 1);
 }
 
@@ -241,7 +242,6 @@
   height: var(--fm-pill-h);
   transform: translateX(calc(-50% + var(--fm-finish-x)));
   border-radius: 999px;
-  background: var(--accent);
   transition:
     transform 400ms cubic-bezier(0.45, 0, 0.2, 1),
     width 400ms cubic-bezier(0.45, 0, 0.2, 1);
@@ -305,8 +305,8 @@
 }
 
 /* ---- アンカー × 外枠 メタボール結合 (右端・縦書き、FINISH の縦版) ---- */
-/* blob 層: base (フレーム右端) + 縦ピルを gooey filter で merge。
-   FINISH と同じ #finish-goo を使い、右フレームから生える「こぶ」になる。 */
+/* blob 層: base (フレーム右端) + 縦ピルを WebGL SDF (useMergeMetaball) で merge。
+   右フレームから生える「こぶ」になる。形状 div は座標源のみで canvas が描画する。 */
 .recording-page .anchor-merge {
   position: absolute;
   top: 0;
@@ -315,7 +315,16 @@
   width: calc(var(--am-pill-right) + var(--am-pill-w) + 48px);
   z-index: 19;
   pointer-events: none;
-  filter: url(#finish-goo);
+}
+
+/* メタボールを描く WebGL canvas。形状 div を覆う。 */
+.recording-page .anchor-merge-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
 }
 
 /* フレーム右端の緑。left をフレーム内側 (--frame-inset) に合わせ、右は画面外へ。 */
@@ -325,7 +334,7 @@
   bottom: 0;
   right: calc(-1 * var(--am-base-ext));
   width: calc(var(--frame-inset) + var(--am-base-ext));
-  background: var(--accent);
+  /* 描画は canvas が行う。div は座標源のみ。 */
 }
 
 /* 縦ピル (垂直中央)。右端へ寄せ、neck が右フレームへ繋がって合成される。 */
@@ -337,7 +346,7 @@
   height: var(--am-pill-h);
   transform: translateY(-50%);
   border-radius: 999px;
-  background: var(--accent);
+  /* 描画は canvas が行う。div は座標源のみ。 */
 }
 
 /* ラベル (filter の外 = crisp & タップ可)。縦書きでピルに重ねる。
@@ -1453,40 +1462,8 @@
   color: var(--text);
 }
 
-.confirm-dialog-message {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.6;
-  text-align: center;
-  white-space: pre-line;
-}
-
-.confirm-dialog-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.confirm-dialog-btn {
-  flex: 1;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.confirm-dialog-btn:active {
-  opacity: 0.8;
-}
-
-.confirm-dialog-ok.is-destructive {
-  border-color: rgba(244, 67, 54, 0.5);
-  background: rgba(244, 67, 54, 0.16);
-  color: #f88;
-}
+/* confirm-dialog の message/actions/btn は AppModal に統合済み。
+   overlay/panel は RunEditSheet が流用しているため残す。 */
 
 .empty-hint {
   padding: 20px;
@@ -5137,94 +5114,135 @@ body.map-joystick-fab-out .bottom-sheet {
 }
 
 /* Modal (carry over from old chat page). */
-.chat-modal-backdrop {
+/* ===== 共通モーダル (AppModal): warning / note / confirm を統一 =====
+   背景は accent (緑)、variant=warning のみ赤。中央オーバーレイ + カード。 */
+.app-modal-backdrop {
   position: fixed;
   inset: 0;
+  z-index: 200;
   background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
-  backdrop-filter: blur(4px);
+  padding: calc(24px + env(safe-area-inset-top, 0px)) 24px
+    calc(24px + var(--safe-bottom));
+  animation: app-modal-fade 0.3s ease-out;
 }
-.chat-modal {
-  background: #fff;
-  color: #0a0a0a;
+
+.app-modal {
+  width: 100%;
+  max-width: 360px;
+  max-height: 100%;
+  overflow-y: auto;
+  background: var(--accent);
+  color: #fff;
   border-radius: var(--radius);
-  padding: 20px;
-  max-width: 320px;
-  width: 90%;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  padding: 24px 22px 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  animation: app-modal-pop 0.35s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
-.chat-modal-text {
-  margin: 0 0 16px;
+
+.app-modal.is-warning {
+  background: #c44;
+}
+
+.app-modal-title {
+  margin: 0 0 14px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+}
+
+.app-modal-body {
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.92);
+  white-space: pre-line;
 }
-.chat-modal-actions {
+.app-modal-body p {
+  margin: 0 0 14px;
+}
+.app-modal-body > :last-child {
+  margin-bottom: 0;
+}
+
+.app-modal-actions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+  margin-top: 20px;
 }
-.chat-modal-btn {
-  padding: 9px 16px;
-  border-radius: 8px;
-  font-size: 13px;
-  cursor: pointer;
+.app-modal-actions.is-stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.app-modal-btn {
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: 14px;
+  font-weight: 700;
   font-family: inherit;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    opacity 0.12s ease;
 }
-.chat-modal-btn-cancel {
+.app-modal-btn:active {
+  transform: scale(0.97);
+  opacity: 0.9;
+}
+.app-modal-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.app-modal-btn.is-primary {
+  background: #fff;
+  color: var(--accent);
+}
+.app-modal.is-warning .app-modal-btn.is-primary {
+  color: #c44;
+}
+.app-modal-btn.is-secondary {
   background: transparent;
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  color: #555;
-}
-.chat-modal-btn-confirm {
-  background: #c44;
-  border: none;
+  border-color: rgba(255, 255, 255, 0.5);
   color: #fff;
   font-weight: 600;
 }
-
-/* 非破壊的な ack ボタン (初回 intro など)。白背景の modal 上で accent + 白文字。 */
-.chat-modal-btn-primary {
-  background: var(--accent);
-  border: none;
-  color: #fff;
-  font-weight: 600;
-}
-
-/* 注意モーダルだけは赤背景。視認性のため title 白 + ボタンは白地に赤文字。 */
-.chat-modal.recording-warning {
+.app-modal-btn.is-danger {
   background: #c44;
   color: #fff;
 }
-
-.chat-modal.recording-warning .chat-modal-btn-primary {
+.app-modal.is-warning .app-modal-btn.is-danger {
   background: #fff;
   color: #c44;
 }
 
-.recording-warning-title {
-  margin: 0 0 12px;
-  font-size: 18px;
-  font-weight: 700;
-  color: #fff;
+@keyframes app-modal-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes app-modal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
-/* 中断ラン復元モーダル (白背景・縦並びボタン)。 */
-.run-recovery-title {
-  margin: 0 0 12px;
-  font-size: 18px;
-  font-weight: 700;
-  color: #0a0a0a;
-}
-.run-recovery-actions {
-  flex-direction: column;
-  align-items: stretch;
-}
-.run-recovery-actions .chat-modal-btn {
-  width: 100%;
-}
+/* chat-modal / recording-* / run-recovery 系モーダルは AppModal (.app-modal-*) に統合済み。 */
 
 /* ==== Run chat page: ending overlay (緑全面 + 顔中央 + サマリ + おわるボタン) ==== */
 .chat-ending {
@@ -5504,88 +5522,7 @@ body.map-joystick-fab-out .bottom-sheet {
   color: #000;
 }
 
-.first-run-intro {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  animation: first-run-intro-fade 0.35s ease-out;
-}
-
-.first-run-intro-inner {
-  width: 100%;
-  max-width: 420px;
-  background: var(--accent);
-  border-radius: 16px;
-  padding: 28px 24px 20px;
-  color: #fff;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-  animation: first-run-intro-pop 0.4s cubic-bezier(0.34, 1.4, 0.64, 1);
-}
-
-.first-run-intro-title {
-  margin: 0 0 16px;
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: #fff;
-}
-
-.first-run-intro-body {
-  margin: 0 0 24px;
-  font-size: 14px;
-  line-height: 1.8;
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.first-run-intro-ok {
-  display: block;
-  margin: 0 auto;
-  padding: 12px 48px;
-  background: #fff;
-  color: var(--accent);
-  border: none;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 700;
-  font-family: inherit;
-  letter-spacing: 0.12em;
-  cursor: pointer;
-  transition:
-    transform 0.12s ease,
-    opacity 0.12s ease;
-}
-
-.first-run-intro-ok:active {
-  transform: scale(0.97);
-  opacity: 0.9;
-}
-
-@keyframes first-run-intro-fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes first-run-intro-pop {
-  from {
-    opacity: 0;
-    transform: scale(0.92);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
+/* first-run-intro は AppModal (.app-modal-*) に統合済み。 */
 
 /* ---------------- 環世界記譜法 (実験機能) ---------------- */
 
@@ -5863,56 +5800,7 @@ body.map-joystick-fab-out .bottom-sheet {
   opacity: 0.6;
 }
 
-.notation-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  display: grid;
-  place-items: center;
-  z-index: 100;
-}
-
-.notation-modal {
-  background: #fff;
-  color: #111;
-  padding: 24px;
-  border-radius: 16px;
-  max-width: 320px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-}
-
-.notation-modal-text {
-  margin: 0 0 16px;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.notation-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.notation-modal-btn {
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 13px;
-  cursor: pointer;
-  border: 1px solid transparent;
-}
-
-.notation-modal-btn-cancel {
-  background: transparent;
-  border-color: #ddd;
-  color: #555;
-}
-
-.notation-modal-btn-confirm {
-  background: #c44;
-  color: #fff;
-  border: none;
-}
+/* notation-modal は AppModal (.app-modal-*) に統合済み。 */
 
 /* ---- Loading screen (initial app boot) ----
    Full-screen accent-colored panel with center eyes + "loading..." text.

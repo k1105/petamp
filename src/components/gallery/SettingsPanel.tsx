@@ -23,6 +23,7 @@ import {
 } from '../../character'
 import { useSpotifyStore } from '../../store/useSpotifyStore'
 import { startLogin } from '../../spotify/auth'
+import { confirm } from '../../store/useConfirmStore'
 
 type AsyncActionKey = 'onboarding' | 'log' | 'all'
 
@@ -120,21 +121,36 @@ export function SettingsPanel() {
     }
   }
 
-  const onResetOnboarding = () => {
-    if (!window.confirm('オンボーディング画面が次のホームアクセスで再表示されます。\n登録済みの名前を消します。よろしいですか？')) return
+  const onResetOnboarding = async () => {
+    if (!(await confirm({
+      title: 'オンボーディングをやり直す',
+      message: 'オンボーディング画面が次のホームアクセスで再表示されます。\n登録済みの名前を消します。よろしいですか？',
+      confirmLabel: 'やり直す',
+      destructive: true,
+    }))) return
     void runAction('onboarding', async () => {
       await resetOnboarding()
       navigate('/', { replace: true })
     })
   }
 
-  const onResetLog = () => {
-    if (!window.confirm('プロンプトログをすべて削除します。\nペタンプの記憶は残ります。よろしいですか？')) return
+  const onResetLog = async () => {
+    if (!(await confirm({
+      title: 'プロンプトログを削除',
+      message: 'プロンプトログをすべて削除します。\nペタンプの記憶は残ります。よろしいですか？',
+      confirmLabel: '削除',
+      destructive: true,
+    }))) return
     void runAction('log', resetPromptLog)
   }
 
-  const onResetAll = () => {
-    if (!window.confirm('ペタンプに関するすべてのデータを消します。\n（過去の対話・要約・関係値・名前・プロンプトログ）\n\nRunの記録は消えません。よろしいですか？')) return
+  const onResetAll = async () => {
+    if (!(await confirm({
+      title: 'ペタンプをまっさらに戻す',
+      message: 'ペタンプに関するすべてのデータを消します。\n（過去の対話・要約・関係値・名前・プロンプトログ）\n\nRunの記録は消えません。よろしいですか？',
+      confirmLabel: 'すべて消す',
+      destructive: true,
+    }))) return
     void runAction('all', async () => {
       await resetAllCharacterMemory()
       navigate('/', { replace: true })

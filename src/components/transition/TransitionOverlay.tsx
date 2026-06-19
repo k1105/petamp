@@ -22,6 +22,7 @@ export function TransitionOverlay() {
   const areaName = useTransitionStore(s => s.areaName)
   const runId = useTransitionStore(s => s.runId)
   const setPhase = useTransitionStore(s => s.setPhase)
+  const reset = useTransitionStore(s => s.reset)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -49,7 +50,7 @@ export function TransitionOverlay() {
       }
     }, dur)
     return () => window.clearTimeout(t)
-  }, [phase, runId, setPhase, navigate])
+  }, [phase, runId, setPhase, reset, navigate])
 
   if (phase === 'idle') return null
 

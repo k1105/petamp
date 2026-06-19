@@ -1,6 +1,6 @@
 // このランの振り返りトークで、ペタンプの第一声を生成するときの hidden trigger。
 // RunChatPage / RunResultPage の両方から参照する。
-const HIDDEN_TRIGGER_PREFIX = '[internal]'
+export const HIDDEN_TRIGGER_PREFIX = '[internal]'
 
 export const OPENING_TRIGGER_FRESH = `${HIDDEN_TRIGGER_PREFIX} ユーザがこのRunの振り返りを開始した。まず「お疲れさま！」「新しいランだ！」のような、ランを終えたことを労ったり喜んだりする短い一言で会話を始めよ。続けて、runSummaryから気になる点をひとつだけ取り上げ、ユーザに短く問いかけよ。挨拶と問いかけはひと続きの自然な発話としてまとめ、全体で短く保つこと。`
 

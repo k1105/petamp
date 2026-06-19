@@ -4,7 +4,7 @@ import { acceptedPoints } from '../geo/recordingFilters'
 import { haversineDistance, segmentIntersectionPoint2D } from '../geo/geoUtils'
 
 /** 自己交差として記録されている1件分の詳細。可視化/デバッグ用。 */
-interface SelfIntersection {
+export interface SelfIntersection {
   /** 1本目の segment 開始 index (pts内、accepted ベース)。 */
   i: number
   /** 2本目の segment 開始 index (pts内、accepted ベース)。 */
@@ -166,7 +166,7 @@ function looksLikeOutAndBack(pts: TrackPoint[], thresholdM = 30): boolean {
  * - resting 区間に絡む segment は GPS ジッタ起因の局所交差を生むので除外
  * - 経路距離が minPathDistM 未満の segment ペアは「同じ道を再度通った」と呼べないので除外
  */
-function findSelfIntersections(
+export function findSelfIntersections(
   pts: TrackPoint[],
   restingRanges: Array<[number, number]> = [],
   minPathDistM = 50,

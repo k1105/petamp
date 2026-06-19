@@ -15,7 +15,7 @@ import { FirstRunIntro } from '../components/gallery/FirstRunIntro'
 import { SettingsPopup } from '../components/gallery/SettingsPopup'
 import { RunEditSheet } from '../components/gallery/RunEditSheet'
 import { EyesIcon } from '../components/gallery/EyesIcon'
-import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { AppModal } from '../components/ui/AppModal'
 import { ProfileScreen } from '../components/profile/ProfileScreen'
 import { MovementTypeSelector } from '../components/gallery/MovementTypeSelector'
 import { useRunStore } from '../store/useRunStore'
@@ -348,16 +348,23 @@ export function GalleryPage() {
       })()}
 
       {pendingDeleteId && (
-        <ConfirmDialog
-          message="このランを削除しますか？"
-          confirmLabel="削除"
-          destructive
-          onConfirm={() => {
-            void removeRun(pendingDeleteId)
-            setPendingDeleteId(null)
-          }}
-          onCancel={() => setPendingDeleteId(null)}
-        />
+        <AppModal
+          variant="warning"
+          onClose={() => setPendingDeleteId(null)}
+          actions={[
+            { label: 'キャンセル', variant: 'secondary', onClick: () => setPendingDeleteId(null) },
+            {
+              label: '削除',
+              variant: 'danger',
+              onClick: () => {
+                void removeRun(pendingDeleteId)
+                setPendingDeleteId(null)
+              },
+            },
+          ]}
+        >
+          このランを削除しますか？
+        </AppModal>
       )}
 
       {armed && <div className="armed-backdrop" onClick={() => setArmed(false)} />}

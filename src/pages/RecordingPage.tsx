@@ -24,6 +24,7 @@ import {fetchAreaName} from "../hooks/useReverseGeocode";
 import {formatDate} from "../utils/ui/formatters";
 import {fetchWeatherForCoords} from "../utils/fetchWeather";
 import {RecordingDebugPanel} from "../components/recording/RecordingDebugPanel";
+import {AppModal} from "../components/ui/AppModal";
 import {CoRunBanner} from "../components/corun/CoRunBanner";
 import {CoRunWaitOverlay} from "../components/corun/CoRunWaitOverlay";
 import {useCoRunStore} from "../store/useCoRunStore";
@@ -33,6 +34,7 @@ import {useAnchorAudio} from "../hooks/useAnchorAudio";
 import {isArrived} from "../utils/anchor/anchorAudio";
 import {startLiveActivity, updateLiveActivity, endLiveActivity} from "../utils/liveActivity";
 import {useResumeRunStore} from "../store/useResumeRunStore";
+import {useMergeMetaball} from "../hooks/useMergeMetaball";
 import {saveInProgressRun, clearInProgressRun} from "../db/inProgressRun";
 import type {Run, TrackPoint} from "../types";
 
@@ -81,6 +83,18 @@ export function RecordingPage() {
   const {palette: livePalette} = useActivePalette();
   const {addRun} = useRunStore();
   const finishBtnRef = useRef<HTMLButtonElement>(null);
+  // FINISH / ANCHOR メタボール (WebGL SDF) 用 canvas + 形状要素の ref。
+  // SVG filter (#finish-goo) は Safari で transition 中に追従しないため、
+  // トップの metaball と同じ WebGL 方式に統一する。
+  const finishMergeCanvasRef = useRef<HTMLCanvasElement>(null);
+  const finishBaseRef = useRef<HTMLDivElement>(null);
+  const finishCtrlRef = useRef<HTMLDivElement>(null);
+  const finishPillRef = useRef<HTMLDivElement>(null);
+  const anchorMergeCanvasRef = useRef<HTMLCanvasElement>(null);
+  const anchorBaseRef = useRef<HTMLDivElement>(null);
+  const anchorPillRef = useRef<HTMLDivElement>(null);
+  useMergeMetaball(finishMergeCanvasRef, [finishBaseRef, finishCtrlRef, finishPillRef]);
+  useMergeMetaball(anchorMergeCanvasRef, [anchorBaseRef, anchorPillRef]);
   const startPostRunLoading = usePostRunLoadingStore(s => s.start);
   const resetPostRunLoading = usePostRunLoadingStore(s => s.reset);
   const [recordingDebugOpen, setRecordingDebugOpen] = useState(false);
@@ -396,24 +410,11 @@ export function RecordingPage() {
           重ねる (= joystick の petamp metaball と同じ手法)。blob は IrisFrame
           (z-index 100) の後ろ (z 19) に置き、フレームの曲線角は IrisFrame が描く。
           pill は穴を透けて見え、neck が下端フレームへ繋がって合成される。 */}
-      <svg className="finish-merge-defs" width="0" height="0" aria-hidden focusable="false">
-        <defs>
-          <filter id="finish-goo" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur" />
-            <feColorMatrix
-              in="blur"
-              values="1 0 0 0 0
-                      0 1 0 0 0
-                      0 0 1 0 0
-                      0 0 0 22 -11"
-            />
-          </filter>
-        </defs>
-      </svg>
       <div className="finish-merge" aria-hidden>
-        <div className="finish-merge-base" />
-        <div className="finish-merge-ctrl" />
-        <div className="finish-merge-pill" />
+        <canvas ref={finishMergeCanvasRef} className="finish-merge-canvas" />
+        <div ref={finishBaseRef} className="finish-merge-base" />
+        <div ref={finishCtrlRef} className="finish-merge-ctrl" />
+        <div ref={finishPillRef} className="finish-merge-pill" />
       </div>
       {/* 停止/再開アイコン (gooey filter の外 = crisp)。記録中は中央で停止アイコン 1 つ。
           押すと stop() → is-split で再開アイコン (左) と FINISH (右) に分裂する。 */}
@@ -439,8 +440,9 @@ export function RecordingPage() {
           未設置は「アンカーをおく」、設置済みは距離 (○○○m) を縦書きで表示。
           タップで設置/再設置ビューを開く (解除はビュー内の「解除」ボタン)。 */}
       <div className="anchor-merge" aria-hidden>
-        <div className="anchor-merge-base" />
-        <div className="anchor-merge-pill" />
+        <canvas ref={anchorMergeCanvasRef} className="anchor-merge-canvas" />
+        <div ref={anchorBaseRef} className="anchor-merge-base" />
+        <div ref={anchorPillRef} className="anchor-merge-pill" />
       </div>
       <button
         className={`anchor-merge-btn${anchorArrived ? " is-arrived" : ""}`}
@@ -459,76 +461,53 @@ export function RecordingPage() {
       </button>
 
       {isPermissionDenied && (
-        <div className="chat-modal-backdrop" role="dialog" aria-modal="true">
-          <div className="chat-modal recording-warning">
-            <p className="recording-warning-title">位置情報の許可が必要です</p>
-            <p className="chat-modal-text">
-              ペタンプはランの軌跡を記録するために位置情報を使用します。
-              現在ブラウザ側でブロックされているため、記録を開始できません。
-            </p>
-            <p className="chat-modal-text">
-              アドレスバー左の鍵 / 情報アイコンから「位置情報」を「許可」に変更し、ページを再読み込みしてください。
-            </p>
-            <div className="chat-modal-actions">
-              <button
-                className="chat-modal-btn chat-modal-btn-primary"
-                onClick={() => navigate("/")}
-              >
-                戻る
-              </button>
-            </div>
-          </div>
-        </div>
+        <AppModal
+          variant="warning"
+          title="位置情報の許可が必要です"
+          actions={[{label: "戻る", onClick: () => navigate("/")}]}
+        >
+          <p>
+            ペタンプはランの軌跡を記録するために位置情報を使用します。
+            現在ブラウザ側でブロックされているため、記録を開始できません。
+          </p>
+          <p>
+            アドレスバー左の鍵 / 情報アイコンから「位置情報」を「許可」に変更し、ページを再読み込みしてください。
+          </p>
+        </AppModal>
       )}
 
       {warningOpen && !isPermissionDenied && (
-        <div className="chat-modal-backdrop" role="dialog" aria-modal="true">
-          <div className="chat-modal recording-warning">
-            <p className="recording-warning-title">注意！</p>
-            <p className="chat-modal-text">
-              ブラウザ版では、記録中に画面をオフにしたりアプリを切り替えると、レコーディングが停止してしまいます。
-            </p>
-            <div className="chat-modal-actions">
-              <button
-                className="chat-modal-btn chat-modal-btn-primary"
-                onClick={() => setWarningOpen(false)}
-              >
-                OK
-              </button>
-            </div>
-          </div>
-        </div>
+        <AppModal
+          variant="warning"
+          title="注意！"
+          actions={[{label: "OK", onClick: () => setWarningOpen(false)}]}
+        >
+          <p>
+            ブラウザ版では、記録中に画面をオフにしたりアプリを切り替えると、レコーディングが停止してしまいます。
+          </p>
+        </AppModal>
       )}
 
       {introOpen && (
-        <div className="chat-modal-backdrop" role="dialog" aria-modal="true">
-          <div className="chat-modal recording-intro">
-            <p className="chat-modal-text">
-              このアプリは、速く走るためのものではありません。
-            </p>
-            <p className="chat-modal-text">
-              歩いても、走っても、休んでも大丈夫です。あなたのペースで進んでください。
-            </p>
-            <p className="chat-modal-text">
-              動いたぶんだけ、ペタンプのセカイが広がっていきます。
-            </p>
-            <p className="chat-modal-text">
-              終わるときは、下の "FINISH" を押してください。
-            </p>
-            <div className="chat-modal-actions">
-              <button
-                className="chat-modal-btn chat-modal-btn-primary"
-                onClick={() => {
-                  setIntroOpen(false);
-                  // intro を閉じた直後に通常の注意モーダルへ繋ぐ。
-                  setWarningOpen(true);
-                }}
-              >
-                OK
-              </button>
-            </div>
-          </div>
-        </div>
+        <AppModal
+          actions={[
+            {
+              label: "OK",
+              onClick: () => {
+                setIntroOpen(false);
+                // intro を閉じた直後に通常の注意モーダルへ繋ぐ。
+                setWarningOpen(true);
+              },
+            },
+          ]}
+        >
+          <p>このアプリは、速く走るためのものではありません。</p>
+          <p>
+            歩いても、走っても、休んでも大丈夫です。あなたのペースで進んでください。
+          </p>
+          <p>動いたぶんだけ、ペタンプのセカイが広がっていきます。</p>
+          <p>終わるときは、下の "FINISH" を押してください。</p>
+        </AppModal>
       )}
 
       {recordingDebugOpen && (
@@ -549,27 +528,25 @@ export function RecordingPage() {
       )}
 
       {coRunSaveError && (
-        <div className="chat-modal-backdrop" role="dialog" aria-modal="true">
-          <div className="chat-modal recording-warning">
-            <p className="recording-warning-title">保存に失敗しました</p>
-            <p className="chat-modal-text">
-              通信が不安定で、一緒に走った記録をクラウドに保存できませんでした。
-              電波の良い場所でもう一度お試しください。
-            </p>
-            <div className="chat-modal-actions">
-              <button
-                className="chat-modal-btn chat-modal-btn-primary"
-                onClick={() => {
-                  setCoRunSaveError(false);
-                  void leaveCoRun();
-                  navigate("/");
-                }}
-              >
-                戻る
-              </button>
-            </div>
-          </div>
-        </div>
+        <AppModal
+          variant="warning"
+          title="保存に失敗しました"
+          actions={[
+            {
+              label: "戻る",
+              onClick: () => {
+                setCoRunSaveError(false);
+                void leaveCoRun();
+                navigate("/");
+              },
+            },
+          ]}
+        >
+          <p>
+            通信が不安定で、一緒に走った記録をクラウドに保存できませんでした。
+            電波の良い場所でもう一度お試しください。
+          </p>
+        </AppModal>
       )}
 
       {pickerOpen && (

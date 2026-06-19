@@ -7,6 +7,7 @@ export type {
   EpisodicMemory,
   NamedPlace,
   RelationalState,
+  SemanticMemory,
 } from './domain/memory'
 export type {
   RunSegment,
@@ -15,6 +16,7 @@ export type {
 export type {
   LLMMessage,
   LLMReply,
+  LLMReplyTopic,
 } from './llm/client'
 export type {
   PersistNameProposalResult,

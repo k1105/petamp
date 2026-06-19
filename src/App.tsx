@@ -18,6 +18,7 @@ import { LoadingScreen } from './components/ui/LoadingScreen'
 import { PostRunLoadingScreen } from './components/transition/PostRunLoadingScreen'
 import { CoRunLobby } from './components/corun/CoRunLobby'
 import { RunRecoveryPrompt } from './components/recording/RunRecoveryPrompt'
+import { ConfirmHost } from './components/ui/ConfirmHost'
 import { CoRunInviteSheet } from './components/corun/CoRunInviteSheet'
 import { InviteDeepLinkListener } from './components/friends/InviteDeepLinkListener'
 import { ActivePaletteProvider } from './components/ui/ActivePaletteProvider'
@@ -168,6 +169,7 @@ function AppContent() {
       <CoRunLobby />
       <CoRunInviteSheet />
       <RunRecoveryPrompt />
+      <ConfirmHost />
       <LoadingScreen ready={bootReady} />
     </BrowserRouter>
   )

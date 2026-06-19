@@ -33,6 +33,7 @@ import {
 } from '../notation'
 import { useAuth } from '../hooks/useAuth'
 import { ReportSheet } from '../components/report/ReportSheet'
+import { AppModal } from '../components/ui/AppModal'
 import type { Run } from '../types'
 
 const MAX_PETAMP_TURNS = 5
@@ -396,25 +397,24 @@ export function NotationChatPage() {
       )}
 
       {confirmDiscardOpen && (
-        <div className="notation-modal-backdrop" role="dialog" aria-modal="true">
-          <div className="notation-modal">
-            <p className="notation-modal-text">中断しますか？ここまでの会話は破棄されます。</p>
-            <div className="notation-modal-actions">
-              <button
-                className="notation-modal-btn notation-modal-btn-cancel"
-                onClick={() => setConfirmDiscardOpen(false)}
-              >
-                キャンセル
-              </button>
-              <button
-                className="notation-modal-btn notation-modal-btn-confirm"
-                onClick={() => void onConfirmDiscard()}
-              >
-                破棄して戻る
-              </button>
-            </div>
-          </div>
-        </div>
+        <AppModal
+          variant="warning"
+          onClose={() => setConfirmDiscardOpen(false)}
+          actions={[
+            {
+              label: 'キャンセル',
+              variant: 'secondary',
+              onClick: () => setConfirmDiscardOpen(false),
+            },
+            {
+              label: '破棄して戻る',
+              variant: 'danger',
+              onClick: () => void onConfirmDiscard(),
+            },
+          ]}
+        >
+          中断しますか？ここまでの会話は破棄されます。
+        </AppModal>
       )}
     </div>
   )

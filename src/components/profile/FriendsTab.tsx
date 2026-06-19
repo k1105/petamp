@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Icon } from '@iconify/react'
 import type { PublicUser } from '../../firebase/userCloud'
 import { removeFriend } from '../../firebase/friends'
+import { confirm } from '../../store/useConfirmStore'
 
 type Props = {
   friends: PublicUser[]
@@ -13,7 +14,7 @@ export function FriendsTab({ friends, onChanged }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   const handleRemove = async (targetUid: string) => {
-    if (!window.confirm('この友達を解除しますか？')) return
+    if (!(await confirm({ message: 'この友達を解除しますか？', confirmLabel: '解除', destructive: true }))) return
     setBusyUid(targetUid)
     setError(null)
     try {

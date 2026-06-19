@@ -23,7 +23,7 @@ export interface BehaviorParams {
  * petamp-visualizer の motion-type viz は defaultParams としてこの値を import すること。
  * ここを書き換えると両側に同時に反映される。
  */
-const DEFAULT_BEHAVIOR_PARAMS: BehaviorParams = {
+export const DEFAULT_BEHAVIOR_PARAMS: BehaviorParams = {
   restingSpeed: 0.5,
   runningSpeed: 3.0,
   smoothingWindow: 5,

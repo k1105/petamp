@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import { getPromptLogStore } from '../character'
 import type { PromptLogEntry } from '../character'
+import { confirm } from '../store/useConfirmStore'
 
 export function PromptLogPage() {
   const navigate = useNavigate()
@@ -53,7 +54,7 @@ export function PromptLogPage() {
   }
 
   const onClear = async () => {
-    if (!window.confirm('すべてのプロンプトログを消去します。よろしいですか？')) return
+    if (!(await confirm({ message: 'すべてのプロンプトログを消去します。よろしいですか？', confirmLabel: '消去', destructive: true }))) return
     await getPromptLogStore().clear()
     reload()
   }

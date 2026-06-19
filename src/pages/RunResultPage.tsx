@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import { useRunStore } from '../store/useRunStore'
-import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { AppModal } from '../components/ui/AppModal'
 import { positionAtTime } from '../hooks/useGalleryAnimation'
 import { acceptedPoints } from '../utils/geo/recordingFilters'
 import { useElevationStats } from '../hooks/useElevationStats'
@@ -419,16 +419,23 @@ export function RunResultPage() {
       </div>
 
       {confirmDelete && (
-        <ConfirmDialog
-          message="このランを削除しますか？"
-          confirmLabel="削除"
-          destructive
-          onConfirm={() => {
-            setConfirmDelete(false)
-            void handleDelete()
-          }}
-          onCancel={() => setConfirmDelete(false)}
-        />
+        <AppModal
+          variant="warning"
+          onClose={() => setConfirmDelete(false)}
+          actions={[
+            { label: 'キャンセル', variant: 'secondary', onClick: () => setConfirmDelete(false) },
+            {
+              label: '削除',
+              variant: 'danger',
+              onClick: () => {
+                setConfirmDelete(false)
+                void handleDelete()
+              },
+            },
+          ]}
+        >
+          このランを削除しますか？
+        </AppModal>
       )}
 
       {firstPetampTurn && (

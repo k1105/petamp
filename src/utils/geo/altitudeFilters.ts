@@ -37,7 +37,7 @@ export function rawAltitudeOf(p: TrackPoint): number | null {
   return null
 }
 
-function altAccuracyGate(
+export function altAccuracyGate(
   samples: (number | null)[],
   points: TrackPoint[],
   maxAccuracyM: number,
@@ -48,7 +48,7 @@ function altAccuracyGate(
   })
 }
 
-function altVerticalSpeedGate(
+export function altVerticalSpeedGate(
   samples: (number | null)[],
   points: TrackPoint[],
   maxVerticalSpeedMps: number,
@@ -84,7 +84,7 @@ function altVerticalSpeedGate(
   return out
 }
 
-function altMedianFilter(samples: (number | null)[], kernel: number): (number | null)[] {
+export function altMedianFilter(samples: (number | null)[], kernel: number): (number | null)[] {
   const k = Math.max(1, Math.floor(kernel) | 1)
   const half = (k - 1) / 2
   return samples.map((_, i) => {
@@ -101,7 +101,7 @@ function altMedianFilter(samples: (number | null)[], kernel: number): (number | 
   })
 }
 
-function altMovingAverage(samples: (number | null)[], window: number): (number | null)[] {
+export function altMovingAverage(samples: (number | null)[], window: number): (number | null)[] {
   const w = Math.max(1, Math.floor(window))
   const half = Math.floor(w / 2)
   return samples.map((_, i) => {

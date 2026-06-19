@@ -39,6 +39,7 @@ import type {
 } from '../character'
 import { useAuth } from '../hooks/useAuth'
 import { ReportSheet } from '../components/report/ReportSheet'
+import { AppModal } from '../components/ui/AppModal'
 import type { Run } from '../types'
 
 const MAX_PETAMP_TURNS = 5
@@ -479,25 +480,24 @@ export function RunChatPage() {
       )}
 
       {confirmDiscardOpen && (
-        <div className="chat-modal-backdrop" role="dialog" aria-modal="true">
-          <div className="chat-modal">
-            <p className="chat-modal-text">中断しますか？ここまでの会話は破棄されます。</p>
-            <div className="chat-modal-actions">
-              <button
-                className="chat-modal-btn chat-modal-btn-cancel"
-                onClick={() => setConfirmDiscardOpen(false)}
-              >
-                キャンセル
-              </button>
-              <button
-                className="chat-modal-btn chat-modal-btn-confirm"
-                onClick={() => void onConfirmDiscard()}
-              >
-                破棄して戻る
-              </button>
-            </div>
-          </div>
-        </div>
+        <AppModal
+          variant="warning"
+          onClose={() => setConfirmDiscardOpen(false)}
+          actions={[
+            {
+              label: 'キャンセル',
+              variant: 'secondary',
+              onClick: () => setConfirmDiscardOpen(false),
+            },
+            {
+              label: '破棄して戻る',
+              variant: 'danger',
+              onClick: () => void onConfirmDiscard(),
+            },
+          ]}
+        >
+          中断しますか？ここまでの会話は破棄されます。
+        </AppModal>
       )}
     </div>
   )

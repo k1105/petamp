@@ -7,6 +7,7 @@ import {buildRunFromPoints} from "../../utils/run/finalizeRun";
 import {totalDistance} from "../../utils/geo/geoUtils";
 import {formatDate} from "../../utils/ui/formatters";
 import {useBootReady} from "../../store/useBootStore";
+import {AppModal} from "../ui/AppModal";
 
 /**
  * 起動時に中断ラン (強制終了/クラッシュで途中終了した下書き) を検出し、
@@ -68,36 +69,21 @@ export function RunRecoveryPrompt() {
   };
 
   return (
-    <div className="chat-modal-backdrop" role="dialog" aria-modal="true">
-      <div className="chat-modal run-recovery">
-        <p className="run-recovery-title">中断したランがあります</p>
-        <p className="chat-modal-text">
-          {formatDate(draft.startedAt)} のラン（約 {distanceM} m）が途中で終了しています。どうしますか？
-        </p>
-        <div className="chat-modal-actions run-recovery-actions">
-          <button
-            className="chat-modal-btn chat-modal-btn-primary"
-            onClick={handleResume}
-            disabled={busy}
-          >
-            記録を再開
-          </button>
-          <button
-            className="chat-modal-btn chat-modal-btn-cancel"
-            onClick={() => void handleSaveAndFinish()}
-            disabled={busy}
-          >
-            {busy ? "保存中…" : "保存して終了"}
-          </button>
-          <button
-            className="chat-modal-btn chat-modal-btn-confirm"
-            onClick={() => void handleDiscard()}
-            disabled={busy}
-          >
-            破棄する
-          </button>
-        </div>
-      </div>
-    </div>
+    <AppModal
+      title="中断したランがあります"
+      stackedActions
+      actions={[
+        {label: "記録を再開", variant: "primary", onClick: handleResume, disabled: busy},
+        {
+          label: busy ? "保存中…" : "保存して終了",
+          variant: "secondary",
+          onClick: () => void handleSaveAndFinish(),
+          disabled: busy,
+        },
+        {label: "破棄する", variant: "danger", onClick: () => void handleDiscard(), disabled: busy},
+      ]}
+    >
+      {formatDate(draft.startedAt)} のラン（約 {distanceM} m）が途中で終了しています。どうしますか？
+    </AppModal>
   );
 }
