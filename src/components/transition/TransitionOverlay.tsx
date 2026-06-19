@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTransitionStore, type TransitionPhase } from '../../store/useTransitionStore'
 import { EyesIcon } from '../gallery/EyesIcon'
+import { IrisFrame } from './IrisFrame'
 
 const PHASE_DURATION_MS: Record<TransitionPhase, number> = {
   idle: 0,
@@ -9,6 +10,7 @@ const PHASE_DURATION_MS: Record<TransitionPhase, number> = {
   iris: 350,
   'iris-paused': 3000,
   'iris-finishing': 500,
+  framed: 0,
   'run-expand': 400,
   'run-fade': 600,
   'run-settle': 400,
@@ -20,7 +22,6 @@ export function TransitionOverlay() {
   const areaName = useTransitionStore(s => s.areaName)
   const runId = useTransitionStore(s => s.runId)
   const setPhase = useTransitionStore(s => s.setPhase)
-  const reset = useTransitionStore(s => s.reset)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -31,20 +32,24 @@ export function TransitionOverlay() {
     if (phase === 'iris') navigate('/record')
     if (phase === 'run-settle' && runId) navigate(`/run/${runId}`)
 
+    // The frame rests on screen for the whole run; RecordingPage resets it on
+    // unmount. No timer here, otherwise it would tear itself down.
+    if (phase === 'framed') return
+
     const dur = PHASE_DURATION_MS[phase]
     const t = window.setTimeout(() => {
       switch (phase) {
         case 'expanding':       setPhase('iris'); break
         case 'iris':            setPhase('iris-paused'); break
         case 'iris-paused':     setPhase('iris-finishing'); break
-        case 'iris-finishing':  reset(); break
+        case 'iris-finishing':  setPhase('framed'); break
         case 'run-expand':      setPhase('run-fade'); break
         case 'run-fade':        setPhase('run-settle'); break
         case 'run-settle':      reset(); break
       }
     }, dur)
     return () => window.clearTimeout(t)
-  }, [phase, runId, setPhase, reset, navigate])
+  }, [phase, runId, setPhase, navigate])
 
   if (phase === 'idle') return null
 
@@ -56,11 +61,15 @@ export function TransitionOverlay() {
     : undefined
 
   const isRunPhase = phase === 'run-expand' || phase === 'run-fade' || phase === 'run-settle'
+  const isIrisPhase =
+    phase === 'iris' || phase === 'iris-paused' || phase === 'iris-finishing' || phase === 'framed'
 
   return (
     <>
       <div className={`transition-overlay phase-${phase}`} style={style}>
-        {/* Inside overlay so the mask clips it as the iris grows past it. */}
+        {/* SVG super-ellipse that paints the green frame and morphs the window
+            from a true circle to a curved-sided super-ellipse. */}
+        {isIrisPhase && <IrisFrame />}
         {(phase === 'iris-paused' || phase === 'iris-finishing') && areaName && (
           <div className="transition-area">{areaName}</div>
         )}

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { Icon } from '@iconify/react'
 import { useRunStore } from '../store/useRunStore'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { positionAtTime } from '../hooks/useGalleryAnimation'
 import { acceptedPoints } from '../utils/geo/recordingFilters'
 import { useElevationStats } from '../hooks/useElevationStats'
@@ -52,12 +54,13 @@ export function RunResultPage() {
   // 結果画面に固定描画される目玉は gallery の 'map' (idle) キーフレームを採用。
   const eyeParams = ui.eyeKeyframes.map
   const { palette } = useActivePalette()
-  const { runs, loadRuns } = useRunStore()
+  const { runs, loadRuns, removeRun } = useRunStore()
   const [runsLoaded, setRunsLoaded] = useState(false)
   const [loopSec, setLoopSec] = useState(0)
   const svgRef = useRef<SVGSVGElement>(null)
   const shareTimerRef = useRef<number | null>(null)
   const [shareStatus, setShareStatus] = useState<'idle' | 'saving' | 'unsupported' | 'failed'>('idle')
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
     if (runs.length > 0) {
@@ -286,6 +289,11 @@ export function RunResultPage() {
     }
   })()
 
+  const handleDelete = async () => {
+    if (id) await removeRun(id)
+    navigate('/')
+  }
+
   return (
     <div className="page run-result-page">
       <svg
@@ -386,11 +394,20 @@ export function RunResultPage() {
       <div className="run-result-actions">
         <button
           type="button"
-          className="run-result-link"
+          className="run-result-icon-btn"
+          onClick={() => setConfirmDelete(true)}
+          aria-label="このランを削除"
+        >
+          <Icon icon="lucide:trash-2" />
+        </button>
+        <button
+          type="button"
+          className="run-result-icon-btn"
           onClick={handleShare}
           disabled={shareStatus === 'saving'}
+          aria-label={shareLabel}
         >
-          {shareLabel}
+          <Icon icon={shareStatus === 'saving' ? 'lucide:loader' : 'lucide:share-2'} />
         </button>
         <button
           type="button"
@@ -400,6 +417,19 @@ export function RunResultPage() {
           FINISH
         </button>
       </div>
+
+      {confirmDelete && (
+        <ConfirmDialog
+          message="このランを削除しますか？"
+          confirmLabel="削除"
+          destructive
+          onConfirm={() => {
+            setConfirmDelete(false)
+            void handleDelete()
+          }}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
 
       {firstPetampTurn && (
         <div

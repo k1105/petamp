@@ -118,6 +118,258 @@
   gap: 20px;
 }
 
+/* ---- /record の緑フレーム (IrisFrame) ぶん、画面端の UI を内側へオフセット。
+   --frame-inset は IrisFrame.tsx の FRAME_INSET と一致させること。 ---- */
+.recording-page {
+  --frame-inset: 14px;
+  /* FINISH メタボール結合の調整値。 */
+  --fm-base-ext: 28px; /* base を画面外へ延ばす量 (merge を安定させる) */
+  --fm-pill-w: 124px; /* FINISH ピル展開時の幅 (文字に対する左右の余白) */
+  --fm-pill-h: 72px; /* blob の高さ / 停止円の直径 (大きいほどボタンが大きい) */
+  --fm-pill-bottom: 0px; /* blob 下端の画面下からの距離。小さいほど枠に近い */
+  --fm-gap: 12px; /* 分裂時の 2 ボタン間の距離。これだけで間隔を調整 (中央寄せは自動) */
+
+  /* --- 状態: 記録中 = 結合 (デフォルト)。停止円と FINISH が中央で重なり 1 つに見える。
+     停止 (is-split) でこれらが切り替わり、gooey filter で neck が伸びて分裂する。 --- */
+  --fm-ctrl-x: 0px; /* 停止/再開 円の中心オフセット */
+  --fm-finish-x: 0px; /* FINISH の中心オフセット */
+  --fm-finish-w: var(
+    --fm-pill-h
+  ); /* 結合中は円 (= 高さ)。分裂で --fm-pill-w へ */
+  --fm-finish-opacity: 0; /* 結合中は FINISH 文字を隠す */
+  --fm-finish-events: none; /* 結合中は FINISH をタップ不可 */
+
+  /* --- アンカー設置 (右端メタボール、FINISH の縦版) --- */
+  --am-pill-w: 42px; /* 右端ピルの厚み (大きいほど枠から内側へ出る) */
+  --am-pill-h: 132px; /* ピルの縦の長さ (縦書きテキストぶん) */
+  --am-pill-right: 0px; /* ピル右端の画面右からの距離。小さいほど枠に近い */
+  --am-base-ext: 28px; /* base を画面外 (右) へ延ばす量 (merge を安定させる) */
+}
+/* 停止 → 分裂: 左に再開円 (幅 --fm-pill-h)、右に FINISH (幅 --fm-pill-w)。
+   2 つを gap だけ離し、その「円 + gap + ピル」のかたまりを画面中央に置く。
+   中央基準なので、各中心 = ±(隣のボタン幅 + gap) / 2。値変化を transition が補間。 */
+.recording-page.is-split {
+  --fm-ctrl-x: calc(-1 * (var(--fm-pill-w) + var(--fm-gap)) / 2);
+  --fm-finish-x: calc((var(--fm-pill-h) + var(--fm-gap)) / 2);
+  --fm-finish-w: var(--fm-pill-w);
+  --fm-finish-opacity: 1;
+  --fm-finish-events: auto;
+}
+.recording-page .bottom-bar {
+  padding-left: calc(24px + var(--frame-inset));
+  padding-right: calc(24px + var(--frame-inset));
+  /* 最下段に FINISH ピルが居座るぶん、bar の中身 (stats / 再生ボタン) を上げる。 */
+  padding-bottom: calc(
+    20px + var(--safe-bottom) + var(--frame-inset) + var(--fm-pill-h) + 16px
+  );
+}
+/* 記録中のデバッグ (braces) ボタン: 円・枠・背景を一切外してアイコンのみ。
+   画面右下に、緑フレーム (IrisFrame z100) より前面 (z101) で配置する。 */
+.recording-page .debug-btn {
+  top: auto;
+  left: auto;
+  right: calc(var(--frame-inset) + 6px);
+  bottom: calc(var(--safe-bottom) + var(--frame-inset) + 6px);
+  width: auto;
+  height: auto;
+  border: none;
+  background: none;
+  backdrop-filter: none;
+  border-radius: 0;
+  color: rgba(0, 0, 0, 0.55);
+  z-index: 101;
+}
+.recording-page .debug-btn:hover {
+  background: none;
+}
+.recording-page .co-run-banner {
+  top: calc(env(safe-area-inset-top, 0px) + 12px + var(--frame-inset));
+}
+
+/* ---- FINISH × 外枠 メタボール結合 ---- */
+.finish-merge-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* blob 層: base (フレーム下端) + pill を gooey filter で merge。
+   IrisFrame (z 100) の後ろ (z 19)。pill は穴を透けて見え、neck が下端へ繋がる。 */
+.recording-page .finish-merge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--fm-pill-bottom) + var(--fm-pill-h) + 48px);
+  z-index: 19;
+  pointer-events: none;
+  filter: url(#finish-goo);
+}
+
+/* フレーム下端の緑。top をフレーム内側 (--frame-inset) に合わせ、下は画面外へ。 */
+.recording-page .finish-merge-base {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(-1 * var(--fm-base-ext));
+  height: calc(var(--frame-inset) + var(--fm-base-ext));
+  background: var(--accent);
+}
+
+/* 左の blob: 停止/再開の円 (gooey 層)。常に存在。結合中は中央、分裂で左へ。 */
+.recording-page .finish-merge-ctrl {
+  position: absolute;
+  left: 50%;
+  bottom: var(--fm-pill-bottom);
+  width: var(--fm-pill-h);
+  height: var(--fm-pill-h);
+  transform: translateX(calc(-50% + var(--fm-ctrl-x)));
+  border-radius: 999px;
+  background: var(--accent);
+  transition: transform 400ms cubic-bezier(0.45, 0, 0.2, 1);
+}
+
+/* 右の blob: FINISH ピル (gooey 層)。結合中は幅 = 高さ の円で停止円の裏に隠れ、
+   分裂で幅が --fm-pill-w へ広がり右へ動く。base / ctrl と gooey で neck を作る。 */
+.recording-page .finish-merge-pill {
+  position: absolute;
+  left: 50%;
+  bottom: var(--fm-pill-bottom);
+  width: var(--fm-finish-w);
+  height: var(--fm-pill-h);
+  transform: translateX(calc(-50% + var(--fm-finish-x)));
+  border-radius: 999px;
+  background: var(--accent);
+  transition:
+    transform 400ms cubic-bezier(0.45, 0, 0.2, 1),
+    width 400ms cubic-bezier(0.45, 0, 0.2, 1);
+}
+
+/* FINISH 文字 (filter の外 = crisp & タップ可)。pill に重ねる。結合中は隠す。
+   IrisFrame は pointer-events:none なので穴越しにタップが通る。 */
+.recording-page .finish-merge-btn {
+  position: absolute;
+  left: 50%;
+  bottom: var(--fm-pill-bottom);
+  width: var(--fm-finish-w);
+  height: var(--fm-pill-h);
+  transform: translateX(calc(-50% + var(--fm-finish-x)));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #000;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  opacity: var(--fm-finish-opacity);
+  pointer-events: var(--fm-finish-events);
+  z-index: 21;
+  cursor: pointer;
+  transition:
+    transform 400ms cubic-bezier(0.45, 0, 0.2, 1),
+    width 400ms cubic-bezier(0.45, 0, 0.2, 1),
+    opacity 220ms ease;
+}
+.recording-page .finish-merge-btn:active {
+  opacity: 0.7;
+}
+
+/* 停止/再開アイコン (filter の外 = crisp & タップ可)。停止円に重ねる。
+   z22 = FINISH 文字 (z21) より前面 → 結合中は中央で停止アイコンがタップを受ける。 */
+.recording-page .finish-ctrl-btn {
+  position: absolute;
+  left: 50%;
+  bottom: var(--fm-pill-bottom);
+  width: var(--fm-pill-h);
+  height: var(--fm-pill-h);
+  transform: translateX(calc(-50% + var(--fm-ctrl-x)));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #000;
+  z-index: 22;
+  cursor: pointer;
+  transition: transform 400ms cubic-bezier(0.45, 0, 0.2, 1);
+}
+.recording-page .finish-ctrl-btn:active {
+  opacity: 0.7;
+}
+.recording-page .finish-ctrl-btn svg {
+  font-size: 30px;
+}
+
+/* ---- アンカー × 外枠 メタボール結合 (右端・縦書き、FINISH の縦版) ---- */
+/* blob 層: base (フレーム右端) + 縦ピルを gooey filter で merge。
+   FINISH と同じ #finish-goo を使い、右フレームから生える「こぶ」になる。 */
+.recording-page .anchor-merge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: calc(var(--am-pill-right) + var(--am-pill-w) + 48px);
+  z-index: 19;
+  pointer-events: none;
+  filter: url(#finish-goo);
+}
+
+/* フレーム右端の緑。left をフレーム内側 (--frame-inset) に合わせ、右は画面外へ。 */
+.recording-page .anchor-merge-base {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(-1 * var(--am-base-ext));
+  width: calc(var(--frame-inset) + var(--am-base-ext));
+  background: var(--accent);
+}
+
+/* 縦ピル (垂直中央)。右端へ寄せ、neck が右フレームへ繋がって合成される。 */
+.recording-page .anchor-merge-pill {
+  position: absolute;
+  top: 50%;
+  right: var(--am-pill-right);
+  width: var(--am-pill-w);
+  height: var(--am-pill-h);
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+/* ラベル (filter の外 = crisp & タップ可)。縦書きでピルに重ねる。
+   IrisFrame は pointer-events:none なので穴越しにタップが通る。 */
+.recording-page .anchor-merge-btn {
+  position: absolute;
+  top: 50%;
+  right: var(--am-pill-right);
+  width: var(--am-pill-w);
+  height: var(--am-pill-h);
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #000;
+  z-index: 21;
+  cursor: pointer;
+}
+.recording-page .anchor-merge-btn:active {
+  opacity: 0.7;
+}
+.recording-page .anchor-merge-label {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- Bottom sheet (gallery) ---- */
 /* 横幅は 3 ボタン (list-toggle / FAB / profile) のスパンに合わせる。
    list-toggle 左端 = 50% − 120px, profile-btn 右端 = 50% + 120px なので 240px。
@@ -249,7 +501,9 @@
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
   flex-shrink: 0;
 }
 .modal-popup-close:hover {
@@ -1331,13 +1585,17 @@
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 }
 
-.gallery-movement-selector .movement-selector-item.is-active .movement-selector-icon {
+.gallery-movement-selector
+  .movement-selector-item.is-active
+  .movement-selector-icon {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 36%, rgba(255, 255, 255, 0.14));
   color: #fff;
 }
 
-.gallery-movement-selector .movement-selector-item.is-active .movement-selector-label {
+.gallery-movement-selector
+  .movement-selector-item.is-active
+  .movement-selector-label {
   color: #fff;
 }
 
@@ -1522,7 +1780,7 @@ body.bpm-bob-active .fab.fab-sheet.fab-idle .fab-icon {
 .list-toggle-btn::before,
 .profile-btn::before,
 .map-btn::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: -12px;
 }
@@ -1772,7 +2030,9 @@ body.gallery-armed .map-joystick {
    instant 切替 (= arm 時と対称) と組み合わせて「顔が連続して場所を変えた」
    ように見せる。transform transition は維持して flyback の動きを保つ。 */
 .map-joystick.is-disarming .map-joystick-handle {
-  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1), opacity 0s;
+  transition:
+    transform 0.32s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0s;
 }
 
 /* mode icon: translate/rotate を示すアイコンは常時表示 (idle でも見せる)。
@@ -1840,7 +2100,9 @@ body.gallery-armed .map-joystick {
   transition: opacity 0.2s ease-out;
 }
 .map-joystick.is-disarming .map-joystick-petamp {
-  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1), opacity 0s;
+  transition:
+    transform 0.32s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0s;
 }
 
 /* MapJoystick armed 中は Gallery FAB の petamp 顔を隠す
@@ -1989,7 +2251,10 @@ body.map-joystick-fab-out .bottom-sheet {
   padding: 6px 10px;
   font-size: 11px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
   white-space: nowrap;
 }
 .profile-row-btn:hover {
@@ -2164,7 +2429,10 @@ body.map-joystick-fab-out .bottom-sheet {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
 .profile-screen-stat-add:hover {
   background: rgba(255, 255, 255, 0.12);
@@ -2802,84 +3070,6 @@ body.map-joystick-fab-out .bottom-sheet {
   border-color: transparent;
 }
 
-/* ---- Anchor (目標地点) control ---- */
-.anchor-control {
-  align-self: center;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.anchor-toggle {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  color: #fff;
-  font-size: 18px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.anchor-toggle:active {
-  transform: scale(0.94);
-}
-
-.anchor-toggle.is-arming {
-  background: rgba(255, 90, 90, 0.85);
-  border-color: rgba(255, 90, 90, 0.9);
-}
-
-.anchor-toggle.is-set {
-  border-color: rgba(255, 90, 90, 0.9);
-}
-
-.anchor-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px 6px 12px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #fff;
-}
-
-.anchor-status.is-arrived {
-  background: rgba(80, 220, 120, 0.3);
-  border-color: rgba(80, 220, 120, 0.8);
-}
-
-.anchor-distance {
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  min-width: 48px;
-  text-align: center;
-}
-
-.anchor-clear {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-  border: none;
-  color: #fff;
-  font-size: 14px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.anchor-clear:active {
-  transform: scale(0.9);
-}
-
 /* ---- Anchor picker (専用フルマップ設置ビュー) ---- */
 .anchor-picker {
   position: fixed;
@@ -3047,6 +3237,12 @@ body.map-joystick-fab-out .bottom-sheet {
 .anchor-picker-cancel {
   background: rgba(40, 40, 40, 0.92);
   color: #fff;
+}
+
+.anchor-picker-clear {
+  background: rgba(40, 40, 40, 0.92);
+  border-color: rgba(255, 90, 90, 0.9);
+  color: #ff8a8a;
 }
 
 .anchor-picker-confirm {
@@ -4054,7 +4250,11 @@ body.map-joystick-fab-out .bottom-sheet {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background:
-    radial-gradient(ellipse at 50% 110%, color-mix(in srgb, var(--accent) 18%, transparent) 0%, transparent 60%),
+    radial-gradient(
+      ellipse at 50% 110%,
+      color-mix(in srgb, var(--accent) 18%, transparent) 0%,
+      transparent 60%
+    ),
     rgba(255, 255, 255, 0.02);
   overflow: hidden;
 }
@@ -4124,15 +4324,9 @@ body.map-joystick-fab-out .bottom-sheet {
 }
 
 /* ---- Iris transition (gallery → /record) ----
-   Custom-property animations need @property to interpolate. Two registered
-   length properties drive the disc-expand and iris-grow phases respectively.
-   The overlay uses radial-gradient masks parameterised by these properties. */
+   The disc-expand phase animates a custom property, which needs @property to
+   interpolate. The iris phases animate width/height/border-radius directly. */
 @property --disc-radius {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-@property --hole-radius {
   syntax: "<length>";
   inherits: false;
   initial-value: 0px;
@@ -4176,53 +4370,28 @@ body.map-joystick-fab-out .bottom-sheet {
   }
 }
 
-/* Phases 2-4: hole at centre grows. Mask = "transparent inside the hole,
-   fully filled outside". /record is visible through the hole.
-   Length-based stops keep the hole radius exactly --hole-radius. */
+/* Phases 2-5: the iris is an SVG super-ellipse (see IrisFrame.tsx). It paints
+   the accent green over the whole screen and cuts a centred window out of it,
+   so the green that survives is the frame. The window is a true circle while
+   it opens, then morphs into a curved-sided super-ellipse that rests around the
+   screen edge. The green comes from the SVG, so the overlay goes transparent. */
 .transition-overlay.phase-iris,
 .transition-overlay.phase-iris-paused,
-.transition-overlay.phase-iris-finishing {
-  -webkit-mask-image: radial-gradient(
-    circle at 50% 50%,
-    transparent var(--hole-radius),
-    #000 calc(var(--hole-radius) + 1px)
-  );
-  mask-image: radial-gradient(
-    circle at 50% 50%,
-    transparent var(--hole-radius),
-    #000 calc(var(--hole-radius) + 1px)
-  );
+.transition-overlay.phase-iris-finishing,
+.transition-overlay.phase-framed {
+  background: transparent;
 }
 
-.transition-overlay.phase-iris {
-  animation: transition-iris-grow 350ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+.transition-frame {
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: block;
+  pointer-events: none;
 }
 
-/* Pause target: 70vw is the DIAMETER → radius = 35vw. */
-@keyframes transition-iris-grow {
-  from {
-    --hole-radius: 0px;
-  }
-  to {
-    --hole-radius: 35vw;
-  }
-}
-
-.transition-overlay.phase-iris-paused {
-  --hole-radius: 35vw;
-}
-
-.transition-overlay.phase-iris-finishing {
-  animation: transition-iris-finish 500ms cubic-bezier(0.4, 0, 1, 1) forwards;
-}
-
-@keyframes transition-iris-finish {
-  from {
-    --hole-radius: 35vw;
-  }
-  to {
-    --hole-radius: 200vmax;
-  }
+.transition-frame path {
+  fill: var(--accent);
 }
 
 /* ---- Gallery → /run/:id transition ----
@@ -4373,7 +4542,9 @@ body.map-joystick-fab-out .bottom-sheet {
   padding: 3px 1px;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .run-detail-tab.is-active {
@@ -4652,6 +4823,21 @@ body.map-joystick-fab-out .bottom-sheet {
   to {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* The hole no longer clips the label (it's box-shadow green, not a fillable
+   surface), so fade it out as the window expands past it. */
+.transition-overlay.phase-iris-finishing .transition-area {
+  animation: transition-area-out 280ms ease forwards;
+}
+
+@keyframes transition-area-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
   }
 }
 
@@ -5166,8 +5352,11 @@ body.map-joystick-fab-out .bottom-sheet {
   bottom: calc(28px + var(--safe-bottom));
   z-index: 20;
   display: flex;
-  justify-content: center;
-  gap: 32px;
+  /* petamp の目は右下にあるので、アクションは左寄せにして顔から離す。 */
+  justify-content: flex-start;
+  align-items: center;
+  gap: 24px;
+  padding-inline: max(28px, env(safe-area-inset-left)) 28px;
   pointer-events: none;
 }
 
@@ -5190,6 +5379,29 @@ body.map-joystick-fab-out .bottom-sheet {
 }
 
 .run-result-link:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+.run-result-icon-btn {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 8px;
+  color: #fff;
+  font-size: 22px;
+  line-height: 0;
+  cursor: pointer;
+}
+
+.run-result-icon-btn:active {
+  opacity: 0.6;
+}
+
+.run-result-icon-btn:disabled {
   opacity: 0.5;
   cursor: progress;
 }
@@ -5288,7 +5500,9 @@ body.map-joystick-fab-out .bottom-sheet {
   line-height: 1;
   cursor: pointer;
 }
-.named-place-popup-close:hover { color: #000; }
+.named-place-popup-close:hover {
+  color: #000;
+}
 
 .first-run-intro {
   position: fixed;
@@ -5742,7 +5956,7 @@ body.map-joystick-fab-out .bottom-sheet {
   color: #0a0a0a;
   padding: 9px 16px;
   border-radius: 14px;
-  font-family: 'Onest', sans-serif;
+  font-family: "Onest", sans-serif;
   font-size: 14px;
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -5775,7 +5989,8 @@ body.map-joystick-fab-out .bottom-sheet {
     transparent var(--loading-hole-radius),
     #000 calc(var(--loading-hole-radius) + 1px)
   );
-  animation: loading-screen-iris-out 1000ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  animation: loading-screen-iris-out 1000ms cubic-bezier(0.32, 0.72, 0, 1)
+    forwards;
   pointer-events: none;
 }
 
@@ -5789,21 +6004,10 @@ body.map-joystick-fab-out .bottom-sheet {
 }
 
 /* ---- Post-run loading screen (FINISH → 対話準備完了) ----
-   ラン終了直後、FINISH を起点に緑のディスクが広がり画面を覆い (entering)、
-   ローディング画面 (loading) を挟んで、中央から透明な穴が広がり背後の
-   RunResultPage を露わにする (closing)。 entering は transition-overlay の
-   phase-expanding と、closing は loading-screen の phase-closing と同パターン。 */
-@property --post-run-disc-radius {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-@property --post-run-hole-radius {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-
+   ラン終了直後、FINISH を起点に super-ellipse のマスクが広がり画面を覆い (entering)、
+   ローディング画面 (loading) を挟んで、中央から super-ellipse の穴が広がり背後の
+   RunResultPage を露わにする (closing)。形の生成・アニメは PostRunLoadingScreen が
+   clip-path をインラインで rAF 更新する (IrisFrame と同じ super-ellipse 手法)。 */
 .post-run-loading {
   position: fixed;
   inset: 0;
@@ -5813,55 +6017,12 @@ body.map-joystick-fab-out .bottom-sheet {
   display: flex;
   align-items: center;
   justify-content: center;
-  --origin-x: 50vw;
-  --origin-y: 50vh;
 }
 
-.post-run-loading.phase-entering {
-  -webkit-mask-image: radial-gradient(
-    circle at var(--origin-x) var(--origin-y),
-    #000 var(--post-run-disc-radius),
-    transparent calc(var(--post-run-disc-radius) + 1px)
-  );
-  mask-image: radial-gradient(
-    circle at var(--origin-x) var(--origin-y),
-    #000 var(--post-run-disc-radius),
-    transparent calc(var(--post-run-disc-radius) + 1px)
-  );
-  animation: post-run-loading-enter 400ms cubic-bezier(0.4, 0, 0.6, 1) forwards;
-}
-
-@keyframes post-run-loading-enter {
-  from {
-    --post-run-disc-radius: 32px;
-  }
-  to {
-    --post-run-disc-radius: 200vmax;
-  }
-}
-
+/* entering / closing の形 (super-ellipse のマスク) は PostRunLoadingScreen が
+   clip-path をインラインで rAF 更新する。CSS はポインタ制御だけ持つ。 */
 .post-run-loading.phase-closing {
-  -webkit-mask-image: radial-gradient(
-    circle at 50% 50%,
-    transparent var(--post-run-hole-radius),
-    #000 calc(var(--post-run-hole-radius) + 1px)
-  );
-  mask-image: radial-gradient(
-    circle at 50% 50%,
-    transparent var(--post-run-hole-radius),
-    #000 calc(var(--post-run-hole-radius) + 1px)
-  );
-  animation: post-run-loading-close 1000ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
   pointer-events: none;
-}
-
-@keyframes post-run-loading-close {
-  from {
-    --post-run-hole-radius: 0px;
-  }
-  to {
-    --post-run-hole-radius: 200vmax;
-  }
 }
 
 /* ---- Report (問題を報告) ---- */
@@ -5919,8 +6080,12 @@ body.map-joystick-fab-out .bottom-sheet {
 }
 
 @keyframes report-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .report-sheet {
@@ -5939,8 +6104,12 @@ body.map-joystick-fab-out .bottom-sheet {
 }
 
 @keyframes report-sheet-in {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
 .report-sheet-header {
@@ -6322,7 +6491,7 @@ body.map-joystick-fab-out .bottom-sheet {
   pointer-events: none;
 }
 .joystick-editor-anchor-mark::before {
-  content: '— ';
+  content: "— ";
 }
 .joystick-editor-anchor-mark-fab {
   background: rgba(0, 100, 255, 0.5);
@@ -6375,7 +6544,9 @@ body.map-joystick-fab-out .bottom-sheet {
   font-size: 14px;
   cursor: pointer;
   border: 1px solid var(--border);
-  transition: background 0.15s, opacity 0.15s;
+  transition:
+    background 0.15s,
+    opacity 0.15s;
 }
 .co-run-btn:disabled {
   opacity: 0.4;
@@ -6488,8 +6659,13 @@ body.map-joystick-fab-out .bottom-sheet {
   animation: co-run-pulse 1.4s ease-in-out infinite;
 }
 @keyframes co-run-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 /* 招待受信シート */

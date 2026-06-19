@@ -25,10 +25,15 @@ export function AnchorPickerView({
   initialCenter,
   onCancel,
   onConfirm,
+  onClear,
+  canClear = false,
 }: {
   initialCenter: [number, number];
   onCancel: () => void;
   onConfirm: (lng: number, lat: number) => void;
+  /** 設置済みアンカーの解除。canClear のときだけ「解除」ボタンを出す。 */
+  onClear?: () => void;
+  canClear?: boolean;
 }) {
   const [map, setMap] = useState<MapboxMap | null>(null);
   const [query, setQuery] = useState("");
@@ -167,11 +172,16 @@ export function AnchorPickerView({
         <Icon icon="lucide:locate-fixed" />
       </button>
 
-      {/* キャンセル / 決定 */}
+      {/* キャンセル / 解除 / 決定 */}
       <div className="anchor-picker-actions">
         <button className="anchor-picker-btn anchor-picker-cancel" onClick={onCancel}>
           キャンセル
         </button>
+        {canClear && onClear && (
+          <button className="anchor-picker-btn anchor-picker-clear" onClick={onClear}>
+            解除
+          </button>
+        )}
         <button
           className="anchor-picker-btn anchor-picker-confirm"
           onClick={handleConfirm}

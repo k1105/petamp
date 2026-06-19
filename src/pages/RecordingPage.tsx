@@ -76,6 +76,8 @@ export function RecordingPage() {
   const runIdRef = useRef(resumeDraft?.id ?? crypto.randomUUID());
   // 下書き保存のスロットル用。
   const lastDraftSaveRef = useRef(0);
+  // 一度でも記録が始まったか。停止後の「分裂 UI」を出すかの判定に使う。
+  const [hasStarted, setHasStarted] = useState(false);
   const {palette: livePalette} = useActivePalette();
   const {addRun} = useRunStore();
   const finishBtnRef = useRef<HTMLButtonElement>(null);
@@ -91,6 +93,7 @@ export function RecordingPage() {
   const [introOpen, setIntroOpen] = useState(false);
   const warningShownRef = useRef(false);
   const transitionPhase = useTransitionStore(s => s.phase);
+  const setFrameHidden = useTransitionStore(s => s.setFrameHidden);
   // マウント時点で flag を snapshot。reset() 後では失われるため。
   const [fromOnboarding] = useState(() => useTransitionStore.getState().fromOnboarding);
   // 「一緒に走る」セッション経由か。reset() で失われる前に snapshot する。
@@ -123,7 +126,8 @@ export function RecordingPage() {
   // 位置情報拒否時は許可案内モーダルが排他的に出るので、ここでは何も出さない。
   useEffect(() => {
     if (warningShownRef.current) return;
-    if (transitionPhase !== "idle") return;
+    // 'framed' = iris アニメ完了後に画面端へ残る緑フレーム。完了扱いにする。
+    if (transitionPhase !== "idle" && transitionPhase !== "framed") return;
     if (permissionState === "unknown") return; // 権限状態の確定待ち
     if (isPermissionDenied) return;
     warningShownRef.current = true;
@@ -135,6 +139,24 @@ export function RecordingPage() {
       setWarningOpen(true);
     }
   }, [transitionPhase, fromOnboarding, permissionState, isPermissionDenied, isNative]);
+
+  // 緑フレームは run 中ずっと残す。
+  // - iris トランジション経由: mount 時 phase は 'iris' 進行中なので触らず、
+  //   アニメが自然に 'framed' まで進む。
+  // - 直接遷移 (リロード/再開/ディープリンク等, phase==='idle'): アニメ無しで
+  //   即 'framed' にしてフレームを出す。
+  // 解放は安定状態の 'framed' のみ。進行中 phase は触らない (StrictMode の
+  // mount→unmount→remount で進行中の transition を消さないため)。
+  useEffect(() => {
+    if (useTransitionStore.getState().phase === "idle") {
+      useTransitionStore.getState().setPhase("framed");
+    }
+    return () => {
+      if (useTransitionStore.getState().phase === "framed") {
+        useTransitionStore.getState().reset();
+      }
+    };
+  }, []);
   const initialCenter = useCurrentPosition();
   const acceptedTrackPoints = useMemo(() => acceptedPoints(trackPoints), [trackPoints]);
 
@@ -186,6 +208,13 @@ export function RecordingPage() {
   const clearAnchor = () => {
     setAnchor(null);
   };
+
+  // デバッグパネル / アンカー設置ビューを開いている間は、緑フレームを
+  // アニメーションでアウトさせて画面を専有させる (閉じると戻る)。
+  useEffect(() => {
+    setFrameHidden(recordingDebugOpen || pickerOpen);
+    return () => setFrameHidden(false);
+  }, [recordingDebugOpen, pickerOpen, setFrameHidden]);
   // ライブアクティビティ用の安定したラン ID。マウント中ずっと同じ値を使う。
   const liveActivityRunIdRef = useRef(crypto.randomUUID());
   // ライブアクティビティの直近更新時刻 (OS の更新バジェット枯渇を避けてスロットルする)。
@@ -200,6 +229,10 @@ export function RecordingPage() {
   useEffect(() => {
     if (isPermissionDenied) return;
     start();
+    // start() は isRecording=true を同期で queue するので、同じ tick で記録開始を
+    // 記憶しておけば初期表示が分裂状態になることはない (逆再生アニメを防ぐ)。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHasStarted(true);
     void startLiveActivity(liveActivityRunIdRef.current, [], 0, liveActivityBgRef.current);
     return () => {
       stop();
@@ -314,8 +347,13 @@ export function RecordingPage() {
     navigate(`/run/${run.id}/result`);
   };
 
+  // 「停止して分裂」状態は、一度でも記録が始まったあとに限る。マウント直後は
+  // start() の effect が走る前で isRecording=false のため、ガードしないと初期表示が
+  // 分裂状態になり、入場時に分裂→結合の逆再生アニメが出てしまう。
+  const isSplit = hasStarted && !isRecording;
+
   return (
-    <div className="page">
+    <div className={`page recording-page${isSplit ? " is-split" : ""}`}>
       {isCoRun && <CoRunBanner />}
       <div className="map-container">
         {initialCenter !== undefined && (
@@ -340,18 +378,6 @@ export function RecordingPage() {
       </div>
 
       <button
-        className="back-btn"
-        onClick={() => {
-          // X は記録を破棄して戻る操作なので、中断ラン下書きも消す。
-          void clearInProgressRun();
-          navigate("/");
-        }}
-        aria-label="閉じる"
-      >
-        <Icon icon="lucide:x" />
-      </button>
-
-      <button
         className="debug-btn"
         onClick={() => setRecordingDebugOpen(true)}
         title="記録デバッグ"
@@ -362,50 +388,75 @@ export function RecordingPage() {
 
       <div className="bottom-bar">
         {error && <div className="error-banner">{error}</div>}
-        <div className="anchor-control">
-          <button
-            className={`anchor-toggle${anchor ? " is-set" : ""}`}
-            onClick={handleAnchorButton}
-            title="目標アンカーを設置"
-            aria-label="目標アンカーを設置"
-          >
-            <Icon icon="lucide:target" />
-          </button>
-          {anchor && (
-            <div className={`anchor-status${anchorArrived ? " is-arrived" : ""}`}>
-              <span className="anchor-distance">
-                {anchorArrived
-                  ? "到達！"
-                  : anchorDistance != null
-                    ? `${Math.round(anchorDistance)} m`
-                    : "計測中…"}
-              </span>
-              <button
-                className="anchor-clear"
-                onClick={clearAnchor}
-                title="アンカーを解除"
-                aria-label="アンカーを解除"
-              >
-                <Icon icon="lucide:trash-2" />
-              </button>
-            </div>
-          )}
-        </div>
-
         <LiveStats trackPoints={acceptedTrackPoints} />
-        <div className="bottom-bar-actions">
-          <button
-            className="toggle-btn"
-            onClick={isRecording ? stop : start}
-            aria-label={isRecording ? "停止" : "再開"}
-          >
-            <Icon icon={isRecording ? "lucide:pause" : "lucide:play"} />
-          </button>
-          <button ref={finishBtnRef} className="finish-btn" onClick={handleFinish}>
-            <span>FINISH</span>
-          </button>
-        </div>
       </div>
+
+      {/* FINISH: 画面下端で外枠 (IrisFrame の緑フレーム) とメタボール結合するピル。
+          緑の blob (base + pill) を gooey filter で merge し、文字は filter の外に
+          重ねる (= joystick の petamp metaball と同じ手法)。blob は IrisFrame
+          (z-index 100) の後ろ (z 19) に置き、フレームの曲線角は IrisFrame が描く。
+          pill は穴を透けて見え、neck が下端フレームへ繋がって合成される。 */}
+      <svg className="finish-merge-defs" width="0" height="0" aria-hidden focusable="false">
+        <defs>
+          <filter id="finish-goo" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur" />
+            <feColorMatrix
+              in="blur"
+              values="1 0 0 0 0
+                      0 1 0 0 0
+                      0 0 1 0 0
+                      0 0 0 22 -11"
+            />
+          </filter>
+        </defs>
+      </svg>
+      <div className="finish-merge" aria-hidden>
+        <div className="finish-merge-base" />
+        <div className="finish-merge-ctrl" />
+        <div className="finish-merge-pill" />
+      </div>
+      {/* 停止/再開アイコン (gooey filter の外 = crisp)。記録中は中央で停止アイコン 1 つ。
+          押すと stop() → is-split で再開アイコン (左) と FINISH (右) に分裂する。 */}
+      <button
+        className="finish-ctrl-btn"
+        onClick={isRecording ? stop : start}
+        aria-label={isRecording ? "停止" : "再開"}
+      >
+        <Icon icon={isRecording ? "lucide:pause" : "lucide:play"} />
+      </button>
+      {/* FINISH: 結合中は停止アイコンの裏に隠れ (opacity 0 / タップ不可)、分裂で出現。 */}
+      <button
+        ref={finishBtnRef}
+        className="finish-merge-btn"
+        onClick={handleFinish}
+        aria-hidden={!isSplit}
+        tabIndex={isSplit ? 0 : -1}
+      >
+        <span>FINISH</span>
+      </button>
+
+      {/* アンカー設置: 画面右端で外枠とメタボール結合する縦ピル (FINISH の右端版)。
+          未設置は「アンカーをおく」、設置済みは距離 (○○○m) を縦書きで表示。
+          タップで設置/再設置ビューを開く (解除はビュー内の「解除」ボタン)。 */}
+      <div className="anchor-merge" aria-hidden>
+        <div className="anchor-merge-base" />
+        <div className="anchor-merge-pill" />
+      </div>
+      <button
+        className={`anchor-merge-btn${anchorArrived ? " is-arrived" : ""}`}
+        onClick={handleAnchorButton}
+        aria-label={anchor ? "目標アンカーを再設置" : "目標アンカーを設置"}
+      >
+        <span className="anchor-merge-label">
+          {anchor
+            ? anchorArrived
+              ? "到達！"
+              : anchorDistance != null
+                ? `${Math.round(anchorDistance)}m`
+                : "計測中…"
+            : "アンカーをおく"}
+        </span>
+      </button>
 
       {isPermissionDenied && (
         <div className="chat-modal-backdrop" role="dialog" aria-modal="true">
@@ -526,6 +577,11 @@ export function RecordingPage() {
           initialCenter={pickerCenter}
           onCancel={() => setPickerOpen(false)}
           onConfirm={handleAnchorConfirm}
+          canClear={anchor != null}
+          onClear={() => {
+            clearAnchor();
+            setPickerOpen(false);
+          }}
         />
       )}
 
