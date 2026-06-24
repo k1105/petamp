@@ -1,0 +1,5 @@
+# Vercel は web アプリ (vite build) と api/ のみをビルドする。
+# Capacitor のネイティブプロジェクトとビルド成果物はデプロイに不要。
+# (ios/build の dSYM が 100MB を超え、CLI デプロイが失敗するため除外)
+ios
+android
