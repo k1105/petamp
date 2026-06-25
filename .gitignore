@@ -33,3 +33,4 @@ firestore.rules
 .env.asc
 *.p8
 ios/build/
+.vercel
