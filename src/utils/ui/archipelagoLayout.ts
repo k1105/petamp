@@ -1,6 +1,7 @@
-import type { Run } from '../../types'
+import type { MovementType, Run } from '../../types'
 import { acceptedPoints } from '../geo/recordingFilters'
-import { groupRunsByBboxOverlap } from '../run/runGroups'
+import { getMovementType, MOVEMENT_TYPES } from '../run/movementType'
+import { groupRunsByBboxOverlap, type RunGroup } from '../run/runGroups'
 import { nodesFromSamples } from './terrainShared'
 
 export interface ArchipelagoParams {
@@ -155,7 +156,20 @@ export function computeArchipelagoLayout(
   const mPerDegLat = 111320
   const mPerDegLng = 111320 * Math.cos((originLat * Math.PI) / 180)
 
-  const runGroups = groupRunsByBboxOverlap(runs, params.groupMargin)
+  // 移動種別ごとに分けてから空間グルーピングする。空間的に重なっていても
+  // 種別が異なるランは同じ島にまとめない。
+  const runsByType = new Map<MovementType, Run[]>()
+  for (const r of runs) {
+    const t = getMovementType(r)
+    const arr = runsByType.get(t)
+    if (arr) arr.push(r)
+    else runsByType.set(t, [r])
+  }
+  const runGroups: RunGroup[] = []
+  for (const meta of MOVEMENT_TYPES) {
+    const typeRuns = runsByType.get(meta.value)
+    if (typeRuns) runGroups.push(...groupRunsByBboxOverlap(typeRuns, params.groupMargin))
+  }
   if (runGroups.length === 0) return null
   const runById = new Map(runs.map(r => [r.id, r]))
 

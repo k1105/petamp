@@ -28,7 +28,12 @@ export function GalleryLayers({
   const radii = useSettingsStore(s => s.radii)
   const { palette } = useActivePalette()
 
-  const t = Math.max(0, Math.min(1, (zoom - (MIN_ZOOM - 0.5)) / 0.5))
+  // 長距離グループ (車など) は fit zoom が MIN_ZOOM を下回るため、絶対 zoom
+  // 基準のフェードだと bbox フィット時点で軌跡が消えてしまう。ケージの minZoom
+  // (= MapBoundsConstraint が設定する現在グループの fit zoom) では必ず不透明に
+  // なるよう、フェード基準を minZoom まで引き下げる。
+  const fadeZoom = Math.min(MIN_ZOOM, map ? map.getMinZoom() : MIN_ZOOM)
+  const t = Math.max(0, Math.min(1, (zoom - (fadeZoom - 0.5)) / 0.5))
   const accentRgb = useMemo<[number, number, number]>(
     () => hexToRgb(palette.accent),
     [palette.accent],

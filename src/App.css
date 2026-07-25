@@ -652,6 +652,30 @@
    bottom: 40px) に置く。.island-view-wrap は position:relative かつ
    panel 全体をカバーするので、screen-bottom 基準で同じ位置に揃う。 */
 
+/* 表示中の移動種別 (徒歩・ラン / 自転車 / …)。island-view-wrap 上端の中央に重ねる。 */
+.island-type-label {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-shadow:
+    0 0 4px rgba(0, 0, 0, 0.5),
+    0 0 2px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  z-index: 9;
+}
+.island-type-label svg {
+  font-size: 18px;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.5));
+}
+
 /* island 待機画面も起動時ローディングと同じ目+吹き出しに揃える。 */
 .island-loading {
   position: absolute;

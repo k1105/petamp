@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { RunTile } from './RunTile'
 import { CoRunTile } from './CoRunTile'
-import { IslandView } from '../island/IslandView'
+import { IslandView, type MovementIslandLayout } from '../island/IslandView'
 import { useRunStore } from '../../store/useRunStore'
 import { useSocialFeedStore } from '../../store/useSocialFeedStore'
-import { computeArchipelagoLayout, type ArchipelagoLayoutResult } from '../../utils/ui/archipelagoLayout'
+import { computeArchipelagoLayout } from '../../utils/ui/archipelagoLayout'
 import { MOVEMENT_TYPES, getMovementType } from '../../utils/run/movementType'
 import type { MovementType, Run } from '../../types'
 
@@ -112,7 +112,7 @@ export function GalleryListPanel({
   // パネル側に持ち上げて socialRuns 参照単位でキャッシュする。ISLAND タブが
   // 初めて開かれたタイミングで非同期 (1 フレーム後) に計算してローディングを
   // 描画してから走らせる。
-  const [archLayout, setArchLayout] = useState<ArchipelagoLayoutResult | null>(null)
+  const [archLayouts, setArchLayouts] = useState<MovementIslandLayout[] | null>(null)
   const [archLoading, setArchLoading] = useState(false)
   const archLayoutRunsRef = useRef<Run[] | null>(null)
   // 計算中フラグは ref で持つ。state にすると依存に入れた effect が自身を
@@ -124,7 +124,7 @@ export function GalleryListPanel({
     if (archLayoutRunsRef.current !== null && archLayoutRunsRef.current !== socialRuns) {
       archLayoutRunsRef.current = null
       // socialRuns 入れ替えで前回キャッシュを破棄するための同期 reset。
-      setArchLayout(null)
+      setArchLayouts(null)
     }
   }, [socialRuns])
 
@@ -140,10 +140,17 @@ export function GalleryListPanel({
     const target = socialRuns
     // rAF で 1 フレーム譲ってローディング UI を確実に描画してから計算。
     const raf = requestAnimationFrame(() => {
-      const result = computeArchipelagoLayout(target)
+      // 移動種別ごとに独立した群島を作る。統合ビューは持たない。
+      const result: MovementIslandLayout[] = []
+      for (const meta of MOVEMENT_TYPES) {
+        const typeRuns = target.filter(r => getMovementType(r) === meta.value)
+        if (typeRuns.length === 0) continue
+        const layout = computeArchipelagoLayout(typeRuns)
+        if (layout) result.push({ meta, layout })
+      }
       archLayoutRunsRef.current = target
       archInFlightRef.current = false
-      setArchLayout(result)
+      setArchLayouts(result)
       setArchLoading(false)
     })
     return () => {
@@ -261,7 +268,7 @@ export function GalleryListPanel({
       ) : (
         <div className="island-view-wrap">
           <IslandView
-            layout={archLayout}
+            layouts={archLayouts}
             loading={archLoading}
             socialRuns={socialRuns}
             ownerByUid={ownerByUid}

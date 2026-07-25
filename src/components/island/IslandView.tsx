@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Icon } from '@iconify/react'
 import { COORDINATE_SYSTEM, type Layer } from '@deck.gl/core'
 import { IconLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers'
 import type { ArchipelagoLayoutResult } from '../../utils/ui/archipelagoLayout'
@@ -12,12 +13,20 @@ import { useActivePalette } from '../../hooks/useActivePalette'
 import { hexToRgb } from '../../utils/ui/themePalettes'
 import { ArchipelagoMapView, type ArchipelagoBbox } from './ArchipelagoMapView'
 import { LoadingEyesBubble } from '../ui/LoadingEyesBubble'
+import type { MovementTypeMeta } from '../../utils/run/movementType'
 import type { Run } from '../../types'
 import type { PublicUser } from '../../firebase/userCloud'
 import { getCircularAvatar, loadCircularAvatar } from '../../utils/ui/circularAvatar'
 
+/** 移動種別 1 つぶんの群島レイアウト。ISLAND ビューはこの単位で表示を切り替える。 */
+export interface MovementIslandLayout {
+  meta: MovementTypeMeta
+  layout: ArchipelagoLayoutResult
+}
+
 interface Props {
-  layout: ArchipelagoLayoutResult | null
+  /** 移動種別ごとの群島レイアウト (種別のランが存在するものだけ)。null は計算前。 */
+  layouts: MovementIslandLayout[] | null
   loading: boolean
   /** TRAIL/ISLAND タブで表示する全ラン (自分 + フォロー中)。owner 推定用。 */
   socialRuns?: Run[]
@@ -32,10 +41,17 @@ type GroupOwnerAvatar = {
   pixelOffset: [number, number]
 }
 
-export function IslandView({ layout, loading, socialRuns, ownerByUid }: Props) {
+export function IslandView({ layouts, loading, socialRuns, ownerByUid }: Props) {
   const { palette } = useActivePalette()
   const seaColor = useMemo<[number, number, number]>(() => hexToRgb(palette.bg), [palette.bg])
   const { places: namedPlaces } = useNamedPlaces()
+
+  // 表示中の移動種別 index。layouts が入れ替わって数が減ったら clamp する。
+  const [typeIndex, setTypeIndex] = useState(0)
+  const count = layouts?.length ?? 0
+  const index = count > 0 ? Math.min(typeIndex, count - 1) : 0
+  const current = layouts && count > 0 ? layouts[index] : null
+  const layout = current?.layout ?? null
 
   // 各グループの地理的中心から area name を逐次解決する。
   const [groupNames, setGroupNames] = useState<Map<string, string>>(new Map())
@@ -44,14 +60,25 @@ export function IslandView({ layout, loading, socialRuns, ownerByUid }: Props) {
   useEffect(() => {
     if (!layout) return
     let cancelled = false
-    const next = new Map<string, string>()
     Promise.all(
       layout.groups.map(async (g) => {
         const name = await fetchAreaName(g.geographicCenter.lng, g.geographicCenter.lat)
-        if (name) next.set(g.id, name)
+        return [g.id, name] as const
       }),
-    ).then(() => {
-      if (!cancelled) setGroupNames(next)
+    ).then((entries) => {
+      if (cancelled) return
+      // 種別切替で他種別のグループ名を失わないよう、置換ではなくマージする。
+      setGroupNames((prev) => {
+        const next = new Map(prev)
+        let changed = false
+        for (const [id, name] of entries) {
+          if (name && next.get(id) !== name) {
+            next.set(id, name)
+            changed = true
+          }
+        }
+        return changed ? next : prev
+      })
     })
     return () => { cancelled = true }
   }, [layout])
@@ -216,7 +243,7 @@ export function IslandView({ layout, loading, socialRuns, ownerByUid }: Props) {
     }
   }, [layout])
 
-  if (!layout) {
+  if (!current) {
     return (
       <div className="island-loading">
         <LoadingEyesBubble text={loading ? 'ISLAND を計算中…' : 'ISLAND を準備中…'} />
@@ -224,7 +251,44 @@ export function IslandView({ layout, loading, socialRuns, ownerByUid }: Props) {
     )
   }
 
-  return <ArchipelagoMapView layers={layers} fitBbox={fitBbox} background={palette.bg} />
+  // 隣接する移動種別 (MOVEMENT_TYPES 順)。map の GroupEdgeIndicator と同じく
+  // 画面左右端のボタンで遷移し、端の種別では該当側のボタンを出さない。
+  const prevType = index > 0 && layouts ? layouts[index - 1] : null
+  const nextType = index < count - 1 && layouts ? layouts[index + 1] : null
+
+  return (
+    <>
+      <ArchipelagoMapView layers={layers} fitBbox={fitBbox} background={palette.bg} />
+      <div className="island-type-label">
+        <Icon icon={current.meta.icon} />
+        <span>{current.meta.label}</span>
+      </div>
+      {prevType && (
+        <button
+          type="button"
+          className="group-edge-indicator group-edge-indicator-w"
+          onClick={() => setTypeIndex(index - 1)}
+          aria-label={`${prevType.meta.label}の島へ移動`}
+          title={`${prevType.meta.label}の島へ移動`}
+        >
+          <Icon icon="lucide:chevron-left" />
+          <span className="group-edge-indicator-name">{prevType.meta.label}</span>
+        </button>
+      )}
+      {nextType && (
+        <button
+          type="button"
+          className="group-edge-indicator group-edge-indicator-e"
+          onClick={() => setTypeIndex(index + 1)}
+          aria-label={`${nextType.meta.label}の島へ移動`}
+          title={`${nextType.meta.label}の島へ移動`}
+        >
+          <span className="group-edge-indicator-name">{nextType.meta.label}</span>
+          <Icon icon="lucide:chevron-right" />
+        </button>
+      )}
+    </>
+  )
 }
 
 // ── NamedPlace ラベル ──
